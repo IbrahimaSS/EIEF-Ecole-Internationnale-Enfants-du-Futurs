@@ -1,0 +1,167 @@
+[
+  {
+    "id": "1",
+    "nom": "Cahier 200 pages",
+    "categorie": "Fournitures scolaires",
+    "prix": 15000,
+    "stock": 150,
+    "stockMin": 20,
+    "description": "Cahier grand format 200 pages",
+    "fournisseur": "Papeterie Conakry",
+    "dateAjout": "2024-03-01"
+  },
+  {
+    "id": "2",
+    "nom": "Stylo bleu",
+    "categorie": "Fournitures scolaires",
+    "prix": 2500,
+    "stock": 0,
+    "stockMin": 50,
+    "description": "Stylo à bille bleu",
+    "fournisseur": "Bureau Plus",
+    "dateAjout": "2024-03-01"
+  },
+  {
+    "id": "3",
+    "nom": "Gomme",
+    "categorie": "Fournitures scolaires",
+    "prix": 1000,
+    "stock": 3,
+    "stockMin": 25,
+    "description": "Gomme blanche standard",
+    "fournisseur": "Bureau Plus",
+    "dateAjout": "2024-03-05"
+  },
+  {
+    "id": "4",
+    "nom": "Tenue scolaire",
+    "categorie": "Tenues",
+    "prix": 150000,
+    "stock": 25,
+    "stockMin": 10,
+    "description": "Tenue scolaire complète",
+    "fournisseur": "Couturier EIEF",
+    "dateAjout": "2024-02-15"
+  },
+  {
+    "id": "5",
+    "nom": "Tenue sport",
+    "categorie": "Tenues",
+    "prix": 75000,
+    "stock": 12,
+    "stockMin": 8,
+    "description": "Tenue de sport complète",
+    "fournisseur": "Sport Wear Guinée",
+    "dateAjout": "2024-02-20"
+  },
+  {
+    "id": "6",
+    "nom": "Cartable",
+    "categorie": "Fournitures scolaires",
+    "prix": 45000,
+    "stock": 8,
+    "stockMin": 5,
+    "description": "Cartable à roulettes",
+    "fournisseur": "Papeterie Conakry",
+    "dateAjout": "2024-03-10"
+  },
+  {
+    "id": "7",
+    "nom": "Règle 30cm",
+    "categorie": "Fournitures scolaires",
+    "prix": 5000,
+    "stock": 60,
+    "stockMin": 15,
+    "description": "Règle en plastique 30cm",
+    "fournisseur": "Bureau Plus",
+    "dateAjout": "2024-03-01"
+  },
+  {
+    "id": "8",
+    "nom": "Surligneur",
+    "categorie": "Fournitures scolaires",
+    "prix": 3500,
+    "stock": 2,
+    "stockMin": 20,
+    "description": "Surligneur jaune",
+    "fournisseur": "Papeterie Conakry",
+    "dateAjout": "2024-03-12"
+  },
+  {
+    "id": "9",
+    "nom": "Tenue karaté",
+    "categorie": "Tenues",
+    "prix": 85000,
+    "stock": 15,
+    "stockMin": 5,
+    "description": "Tenue de karaté blanche",
+    "fournisseur": "Arts Martiaux Guinée",
+    "dateAjout": "2024-02-25"
+  },
+  {
+    "id": "10",
+    "nom": "Calculatrice",
+    "categorie": "Fournitures scolaires",
+    "prix": 25000,
+    "stock": 30,
+    "stockMin": 10,
+    "description": "Calculatrice scientifique",
+    "fournisseur": "Bureau Plus",
+    "dateAjout": "2024-03-08"
+  },
+  {
+    "id": "11",
+    "nom": "Tenue scout",
+    "categorie": "Tenues",
+    "prix": 95000,
+    "stock": 18,
+    "stockMin": 6,
+    "description": "Tenue scout complète",
+    "fournisseur": "Scout Shop Guinée",
+    "dateAjout": "2024-03-01"
+  },
+  {
+    "id": "12",
+    "nom": "Polo Lacoste",
+    "categorie": "Tenues",
+    "prix": 125000,
+    "stock": 4,
+    "stockMin": 8,
+    "description": "Polo Lacoste pour sport",
+    "fournisseur": "Lacoste Conakry",
+    "dateAjout": "2024-03-15"
+  },
+  {
+    "id": "13",
+    "nom": "Feuilles A4",
+    "categorie": "Fournitures scolaires",
+    "prix": 25000,
+    "stock": 200,
+    "stockMin": 50,
+    "description": "Paquet de 500 feuilles A4",
+    "fournisseur": "Papeterie Conakry",
+    "dateAjout": "2024-03-01"
+  },
+  {
+    "id": "14",
+    "nom": "Trousse",
+    "categorie": "Fournitures scolaires",
+    "prix": 12000,
+    "stock": 45,
+    "stockMin": 15,
+    "description": "Tousse à crayons",
+    "fournisseur": "Bureau Plus",
+    "dateAjout": "2024-03-05"
+  },
+  {
+    "id": "15",
+    "nom": "Chaussettes sport",
+    "categorie": "Tenues",
+    "prix": 15000,
+    "stock": 1,
+    "stockMin": 20,
+    "description": "Paire de chaussettes de sport",
+    "fournisseur": "Sport Wear Guinée",
+    "dateAjout": "2024-03-18"
+  }
+]
