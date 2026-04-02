@@ -5,4 +5,6 @@ export { default as StatCard } from './StatCard';
 export { default as Badge } from './Badge';
 export { default as Modal } from './Modal';
 export { default as Table } from './Table';
+export * from './Popover';
 export { default as Avatar } from './Avatar';
+export { default as Select } from './Select';

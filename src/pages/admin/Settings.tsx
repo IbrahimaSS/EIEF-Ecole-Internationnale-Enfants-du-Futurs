@@ -41,15 +41,15 @@ const AdminSettings: React.FC = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <SettingsIcon className="text-gray-900 dark:text-white" size={28} />
-            <h1 className="text-2xl font-black gradient-bleu-or-text uppercase tracking-tighter">Configuration Système</h1>
+            <h1 className="text-xl font-semibold gradient-bleu-or-text">Configuration Système</h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400 font-medium">Administration générale, sécurité et maintenance</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="flex gap-2 dark:border-white/10 dark:text-white text-[10px] font-black uppercase tracking-widest px-5 h-11">
+          <Button variant="outline" className="flex gap-2 dark:border-white/10 dark:text-white text-[10px] font-semibold   px-5 h-11">
             <RefreshCw size={18} /> Réinitialiser
           </Button>
-          <Button className="flex gap-2 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-or-600 dark:to-or-400 shadow-xl border-none font-black uppercase tracking-widest text-[10px] h-11 px-6">
+          <Button className="flex gap-2 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-or-600 dark:to-or-400 shadow-xl border-none font-semibold   text-[10px] h-11 px-6">
             <Save size={18} /> Enregistrer
           </Button>
         </div>
@@ -69,7 +69,7 @@ const AdminSettings: React.FC = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`
-                w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all
+                w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-semibold   transition-all
                 ${activeTab === tab.id 
                   ? 'bg-white dark:bg-or-500 text-bleu-600 dark:text-white shadow-soft border-l-4 border-bleu-600 dark:border-white' 
                   : 'text-gray-400 dark:text-gray-500 hover:bg-white/50 dark:hover:bg-white/5 hover:text-gray-600 dark:hover:text-gray-300 border-l-4 border-transparent'
@@ -96,19 +96,19 @@ const AdminSettings: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
                       <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 group hover:border-bleu-200 dark:hover:border-or-500/50 transition-all">
-                        <label className="text-[9px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-widest block mb-1">Nom de l'établissement</label>
-                        <input type="text" defaultValue="Écoles Internationales Enfants du Futur" className="w-full bg-transparent font-black text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0 uppercase tracking-tight" />
+                        <label className="text-[9px] font-semibold  text-gray-400 dark:text-gray-500  block mb-1">Nom de l'établissement</label>
+                        <input type="text" defaultValue="Écoles Internationales Enfants du Futur" className="w-full bg-transparent font-semibold text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0  " />
                       </div>
                       <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 group hover:border-bleu-200 dark:hover:border-or-500/50 transition-all">
-                        <label className="text-[9px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-widest block mb-1">Slogan / Devise</label>
-                        <input type="text" defaultValue="Faisons Plus !" className="w-full bg-transparent font-black text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0 italic" />
+                        <label className="text-[9px] font-semibold  text-gray-400 dark:text-gray-500  block mb-1">Slogan / Devise</label>
+                        <input type="text" defaultValue="Faisons Plus !" className="w-full bg-transparent font-semibold text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0 italic" />
                       </div>
                     </div>
                     <div className="flex flex-col items-center justify-center p-8 bg-gray-50 dark:bg-white/5 rounded-3xl border-2 border-dashed border-gray-200 dark:border-white/10 relative group cursor-pointer hover:border-bleu-400 dark:hover:border-or-500 transition-all">
                        <div className="w-24 h-24 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-2 overflow-hidden mb-4 group-hover:scale-110 transition-transform">
                           <img src="/logo_eief.jpeg" alt="Logo" className="w-full h-full object-contain" />
                        </div>
-                       <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Logo Principal</p>
+                       <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500  ">Logo Principal</p>
                        <div className="absolute inset-0 bg-bleu-600/0 dark:bg-or-500/0 group-hover:bg-bleu-600/5 dark:group-hover:bg-or-500/5 transition-all rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100">
                           <RefreshCw className="text-bleu-600 dark:text-or-400 animate-spin-slow" />
                        </div>
@@ -117,12 +117,12 @@ const AdminSettings: React.FC = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10">
-                        <label className="text-[9px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-widest block mb-1">Email Administrative</label>
-                        <input type="email" defaultValue="admin@eief.edu.gn" className="w-full bg-transparent font-bold text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0" />
+                        <label className="text-[9px] font-semibold  text-gray-400 dark:text-gray-500  block mb-1">Email Administrative</label>
+                        <input type="email" defaultValue="admin@eief.edu.gn" className="w-full bg-transparent font-semibold text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0" />
                       </div>
                       <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10">
-                        <label className="text-[9px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-widest block mb-1">Téléphone</label>
-                        <input type="text" defaultValue="+224 622 00 00 00" className="w-full bg-transparent font-bold text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0" />
+                        <label className="text-[9px] font-semibold  text-gray-400 dark:text-gray-500  block mb-1">Téléphone</label>
+                        <input type="text" defaultValue="+224 622 00 00 00" className="w-full bg-transparent font-semibold text-gray-900 dark:text-white border-none outline-none p-0 focus:ring-0" />
                       </div>
                   </div>
                 </Card>
@@ -143,10 +143,10 @@ const AdminSettings: React.FC = () => {
                       <Lock size={24} />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-tight">Authentification à deux facteurs</h4>
+                      <h4 className="font-semibold text-gray-900 dark:text-white  ">Authentification à deux facteurs</h4>
                       <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Renforcez la sécurité des comptes administrateurs.</p>
                     </div>
-                    <Badge variant="default" className="bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-black uppercase text-[9px]">Désactivé</Badge>
+                    <Badge variant="default" className="bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-semibold  text-[9px]">Désactivé</Badge>
                   </div>
 
                   <div className="flex items-center gap-5 p-5 border border-gray-100 dark:border-white/5 rounded-3xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-pointer group">
@@ -154,7 +154,7 @@ const AdminSettings: React.FC = () => {
                       <UserCheck size={24} />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-tight">Gestion des Rôles</h4>
+                      <h4 className="font-semibold text-gray-900 dark:text-white  ">Gestion des Rôles</h4>
                       <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Définissez qui peut accéder à quoi (8 rôles définis).</p>
                     </div>
                     <ChevronRight size={20} className="text-gray-300 dark:text-gray-700 group-hover:text-gray-900 dark:group-hover:text-white transition-all shadow-sm" />
@@ -171,7 +171,7 @@ const AdminSettings: React.FC = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <Card className="p-0 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
-                   <div className="p-6 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-white dark:bg-transparent text-gray-900 dark:text-white font-black uppercase text-[10px] tracking-widest">
+                   <div className="p-6 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-white dark:bg-transparent text-gray-900 dark:text-white font-semibold  text-[10px] ">
                       Journal d'audit système
                       <Search size={18} className="text-gray-400 dark:text-gray-600" />
                    </div>
@@ -183,11 +183,11 @@ const AdminSettings: React.FC = () => {
                                  <History size={20} />
                               </div>
                               <div>
-                                 <p className="font-black text-gray-900 dark:text-white uppercase tracking-tight">{log.action}</p>
-                                 <p className="text-[9px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-widest">{log.utilisateur} • {log.date}</p>
+                                 <p className="font-semibold text-gray-900 dark:text-white  ">{log.action}</p>
+                                 <p className="text-[9px] font-semibold  text-gray-400 dark:text-gray-500 ">{log.utilisateur} • {log.date}</p>
                               </div>
                            </div>
-                           <Badge variant={log.statut === 'Confirmé' ? 'success' : 'error'} className="text-[9px] uppercase font-black px-2">{log.statut}</Badge>
+                           <Badge variant={log.statut === 'Confirmé' ? 'success' : 'error'} className="text-[9px]  font-semibold px-2">{log.statut}</Badge>
                         </div>
                       ))}
                    </div>

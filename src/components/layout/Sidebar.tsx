@@ -142,8 +142,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
             {isOpen && (
               <div className="flex flex-col text-left">
-                <h3 className="text-white font-black tracking-tighter text-xl leading-tight">EIEF</h3>
-                <p className="text-or-400 text-[10px] uppercase font-black tracking-[0.2em]">{userRole}</p>
+                <h3 className="text-white font-semibold  text-xl leading-tight">EIEF</h3>
+                <p className="text-or-400 text-[10px]  font-semibold ">{userRole}</p>
               </div>
             )}
           </div>
@@ -169,7 +169,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={cn(
                 'flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group relative overflow-hidden',
                 isActive
-                  ? 'bg-white/10 text-white font-black shadow-lg border border-white/5'
+                  ? 'bg-white/10 text-white font-semibold shadow-lg border border-white/5'
                   : 'text-gray-400 hover:bg-white/5 hover:text-white'
               )}
             >
@@ -188,10 +188,10 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
               {isOpen && (
                 <>
-                  <span className="flex-1 text-[11px] font-black uppercase tracking-wider">{item.label}</span>
+                  <span className="flex-1 text-[11px] font-semibold  ">{item.label}</span>
                   {item.badge && (
                     <span className={cn(
-                      'text-[9px] font-black px-2 py-0.5 rounded-lg text-white shadow-lg',
+                      'text-[9px] font-semibold px-2 py-0.5 rounded-lg text-white shadow-lg',
                       getBadgeColor(item.badge.color)
                     )}>
                       {item.badge.count}
@@ -219,8 +219,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Avatar name={userName} size="sm" className="ring-2 ring-or-500/30" />
           {isOpen && (
             <div className="flex-1 overflow-hidden">
-              <p className="text-white text-xs font-black uppercase tracking-widest truncate">{userName}</p>
-              <button className="text-gray-500 hover:text-or-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 transition-all mt-0.5">
+              <p className="text-white text-xs font-semibold   truncate">{userName}</p>
+              <button className="text-gray-500 hover:text-or-400 text-[10px] font-semibold   flex items-center gap-1 transition-all mt-0.5">
                 <LogOut size={12} />
                 Quitter
               </button>
@@ -230,7 +230,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {!isOpen && (
           <button
             onClick={onToggle}
-            className="w-full mt-6 py-3 flex items-center justify-center text-white/20 hover:text-or-400 transition-all font-bold"
+            className="w-full mt-6 py-3 flex items-center justify-center text-white/20 hover:text-or-400 transition-all font-semibold"
           >
             <ChevronRight size={20} />
           </button>

@@ -129,8 +129,8 @@ const Landing: React.FC = () => {
                 <img src="/logo_eief.jpeg" alt="EIEF Logo" className="w-full h-full object-contain rounded-lg bg-white" />
               </div>
               <div className="hidden sm:flex flex-col">
-                <h1 className="text-lg font-[900] tracking-tight gradient-bleu-or-text leading-none">EIEF</h1>
-                <span className="text-[8px] font-bold tracking-[2px] text-neutral-400 uppercase">International School</span>
+                <h1 className="text-lg font-semibold  gradient-bleu-or-text leading-none">EIEF</h1>
+                <span className="text-[8px] font-semibold tracking-[2px] text-neutral-400 ">International School</span>
               </div>
             </div>
 
@@ -138,28 +138,28 @@ const Landing: React.FC = () => {
             <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => navigate('/eleve/landing')}
-                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-neutral-300 bg-transparent hover:border-bleu-500 hover:bg-bleu-500 hover:shadow-md transition-all"
+                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-neutral-300 bg-transparent hover:border-bleu-500 hover:bg-bleu-500 hover:shadow-md transition-all"
               >
                 <GraduationCap size={16} className="text-bleu-500 group-hover:text-white transition-colors" />
                 <span className="bg-gradient-to-r from-bleu-500 to-bleu-700 bg-clip-text text-transparent group-hover:bg-none group-hover:text-white transition-all">Espace Élève</span>
               </button>
               <button
                 onClick={() => navigate('/parent/landing')}
-                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-neutral-300 bg-transparent hover:border-rouge-500 hover:bg-rouge-500 hover:shadow-md transition-all"
+                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-neutral-300 bg-transparent hover:border-rouge-500 hover:bg-rouge-500 hover:shadow-md transition-all"
               >
                 <Users size={16} className="text-rouge-500 group-hover:text-white transition-colors" />
                 <span className="bg-gradient-to-r from-rouge-500 to-rouge-700 bg-clip-text text-transparent group-hover:bg-none group-hover:text-white transition-all">Espace Parent</span>
               </button>
               <button
                 onClick={() => navigate('/employe/landing')}
-                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-neutral-300 bg-transparent hover:border-vert-500 hover:bg-vert-500 hover:shadow-md transition-all"
+                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-neutral-300 bg-transparent hover:border-vert-500 hover:bg-vert-500 hover:shadow-md transition-all"
               >
                 <LayoutDashboard size={16} className="text-vert-500 group-hover:text-white transition-colors" />
                 <span className="bg-gradient-to-r from-vert-500 to-vert-700 bg-clip-text text-transparent group-hover:bg-none group-hover:text-white transition-all">Portail Employé</span>
               </button>
               <button
                 onClick={() => navigate('/admin/landing')}
-                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-neutral-300 bg-transparent hover:border-or-500 hover:bg-or-500 hover:shadow-md transition-all"
+                className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-neutral-300 bg-transparent hover:border-or-500 hover:bg-or-500 hover:shadow-md transition-all"
               >
                 <ShieldCheck size={16} className="text-or-500 group-hover:text-white transition-colors" />
                 <span className="bg-gradient-to-r from-or-500 to-or-700 bg-clip-text text-transparent group-hover:bg-none group-hover:text-white transition-all">Espace Admin</span>
@@ -169,7 +169,7 @@ const Landing: React.FC = () => {
             {/* Login Button */}
             <button
               onClick={() => setShowLoginModal(true)}
-              className="flex items-center gap-2 px-5 sm:px-6 py-2.5 bg-neutral-900 text-white rounded-full text-xs sm:text-sm font-bold hover:bg-neutral-800 shadow-lg hover:shadow-xl transition-all"
+              className="flex items-center gap-2 px-5 sm:px-6 py-2.5 bg-neutral-900 text-white rounded-full text-xs sm:text-sm font-semibold hover:bg-neutral-800 shadow-lg hover:shadow-xl transition-all"
             >
               <UserCircle size={18} />
               Se Connecter
@@ -190,7 +190,7 @@ const Landing: React.FC = () => {
               <div className="w-16 h-16 bg-bleu-50 text-bleu-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <UserCircle size={32} />
               </div>
-              <h2 className="text-2xl font-black text-neutral-900 tracking-tight">Accédez à votre compte</h2>
+              <h2 className="text-2xl font-semibold text-neutral-900 ">Accédez à votre compte</h2>
               <p className="text-sm text-neutral-500 mt-2">Veuillez sélectionner votre profil de connexion</p>
             </div>
 
@@ -201,7 +201,7 @@ const Landing: React.FC = () => {
                 <div className="w-12 h-12 rounded-xl bg-bleu-50 flex items-center justify-center text-bleu-600 group-hover:bg-bleu-600 group-hover:text-white transition-colors relative z-10 mb-3 shadow-sm">
                   <GraduationCap size={24} />
                 </div>
-                <span className="font-[800] text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Élève</span>
+                <span className="font-semibold text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Élève</span>
                 <span className="text-[11px] text-neutral-400 font-medium text-center relative z-10 leading-tight">Plateforme de cours et notes</span>
               </button>
 
@@ -211,7 +211,7 @@ const Landing: React.FC = () => {
                 <div className="w-12 h-12 rounded-xl bg-rouge-50 flex items-center justify-center text-rouge-600 group-hover:bg-rouge-600 group-hover:text-white transition-colors relative z-10 mb-3 shadow-sm">
                   <Users size={24} />
                 </div>
-                <span className="font-[800] text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Parent / Tuteur</span>
+                <span className="font-semibold text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Parent / Tuteur</span>
                 <span className="text-[11px] text-neutral-400 font-medium text-center relative z-10 leading-tight">Suivi scolaire et scolarité</span>
               </button>
 
@@ -221,7 +221,7 @@ const Landing: React.FC = () => {
                 <div className="w-12 h-12 rounded-xl bg-vert-50 flex items-center justify-center text-vert-600 group-hover:bg-vert-600 group-hover:text-white transition-colors relative z-10 mb-3 shadow-sm">
                   <LayoutDashboard size={24} />
                 </div>
-                <span className="font-[800] text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Employé / Prof</span>
+                <span className="font-semibold text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Employé / Prof</span>
                 <span className="text-[11px] text-neutral-400 font-medium text-center relative z-10 leading-tight">Ressources humaines</span>
               </button>
 
@@ -231,14 +231,14 @@ const Landing: React.FC = () => {
                 <div className="w-12 h-12 rounded-xl bg-or-50 flex items-center justify-center text-or-600 group-hover:bg-or-600 group-hover:text-white transition-colors relative z-10 mb-3 shadow-sm">
                   <ShieldCheck size={24} />
                 </div>
-                <span className="font-[800] text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Administration</span>
+                <span className="font-semibold text-[15px] sm:text-base text-neutral-800 relative z-10 mb-1">Administration</span>
                 <span className="text-[11px] text-neutral-400 font-medium text-center relative z-10 leading-tight">Pilotage système centralisé</span>
               </button>
             </div>
 
             <button
               onClick={() => setShowLoginModal(false)}
-              className="mt-8 w-full py-3 rounded-xl font-bold text-neutral-500 hover:bg-neutral-100 transition-colors"
+              className="mt-8 w-full py-3 rounded-xl font-semibold text-neutral-500 hover:bg-neutral-100 transition-colors"
             >
               Annuler
             </button>
@@ -270,32 +270,32 @@ const Landing: React.FC = () => {
         <div className="relative z-10 max-w-7xl mx-auto px-6 text-center">
           {/* School Name with multi-color */}
           <div className="mb-8 animate-fade-in-up">
-            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-[900] leading-[0.9] tracking-tighter">
-              <span className="text-rouge-400">ECOLE INTERNATIONALE</span>
+            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-semibold leading-[0.9] ">
+              <span className="text-rouge-400">�cole Internationale</span>
               <br />
-              <span className="text-white">LES ENFANTS </span>
-              <span className="text-or-400">DU FUTUR</span>
+              <span className="text-white">Les Enfants </span>
+              <span className="text-or-400">du Futur</span>
             </h1>
           </div>
 
           {/* Slogan */}
-          <p className="text-2xl sm:text-3xl md:text-4xl font-[800] italic text-or-400 mb-10 animate-fade-in-up delay-100">
+          <p className="text-2xl sm:text-3xl md:text-4xl font-semibold italic text-or-400 mb-10 animate-fade-in-up delay-100">
             Faisons plus!
           </p>
 
           {/* Badge inscriptions */}
           <div className="inline-flex items-center gap-2 px-6 py-2.5 bg-or-500/20 border border-or-400/30 rounded-full mb-10 animate-fade-in-up delay-200">
             <Star className="text-or-400" size={18} />
-            <span className="text-sm font-bold text-or-300 tracking-wide">Inscriptions 2025-2026 ouvertes</span>
+            <span className="text-sm font-semibold text-or-300 tracking-wide">Inscriptions 2025-2026 ouvertes</span>
           </div>
 
           {/* Main Tagline */}
           <div className="mb-8 animate-fade-in-up delay-200">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-[900] text-white leading-tight">
-              Investir maintenant
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold text-white leading-tight">
+              Investir Maintenant
               <br />
-              <span className="text-or-400">pour Sourire </span>
-              <span className="text-white">demain !</span>
+              <span className="text-or-400">Pour Sourire </span>
+              <span className="text-white">Demain !</span>
             </h2>
           </div>
 
@@ -308,7 +308,7 @@ const Landing: React.FC = () => {
           <div className="flex flex-wrap justify-center gap-4 animate-fade-in-up delay-400">
             <button
               onClick={() => navigate('/eleve/landing')}
-              className="group flex items-center gap-3 px-8 py-4 gradient-bleu-or rounded-2xl text-white font-bold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 gradient-bleu-or rounded-2xl text-white font-semibold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
             >
               <GraduationCap size={22} />
               Espace Élève
@@ -316,7 +316,7 @@ const Landing: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/parent/landing')}
-              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-bleu-600 to-vert-500 rounded-2xl text-white font-bold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-bleu-600 to-vert-500 rounded-2xl text-white font-semibold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
             >
               <Users size={22} />
               Espace Parent
@@ -324,14 +324,14 @@ const Landing: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/employe/landing')}
-              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-vert-500 to-vert-700 rounded-2xl text-white font-bold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-vert-500 to-vert-700 rounded-2xl text-white font-semibold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
             >
               <LayoutDashboard size={22} />
               Portail Employé
             </button>
             <button
               onClick={() => navigate('/login')}
-              className="group flex items-center gap-3 px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white font-bold text-sm hover:bg-white/20 hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white font-semibold text-sm hover:bg-white/20 hover:scale-105 transition-all duration-300"
             >
               <Download size={22} />
               Télécharger l'Appli
@@ -356,9 +356,9 @@ const Landing: React.FC = () => {
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-bleu-50/80 rounded-full mb-6 mt-4">
               <Star className="text-bleu-600" size={16} />
-              <span className="text-xs font-bold text-bleu-600 uppercase tracking-wider">Immersion EIEF</span>
+              <span className="text-xs font-semibold text-bleu-600  ">Immersion EIEF</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-[900] text-neutral-900 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-neutral-900  mb-4">
               Façonner les leaders <span className="gradient-bleu-or-text">de demain</span>
             </h2>
             <p className="text-neutral-500 font-medium max-w-2xl mx-auto text-sm md:text-base">
@@ -374,7 +374,7 @@ const Landing: React.FC = () => {
               <div className="absolute inset-0 flex flex-col justify-end p-8 text-white">
                 <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
                   <GraduationCap size={32} className="mb-4 text-or-400" />
-                  <h3 className="text-2xl font-bold mb-2">Cérémonie de Graduation</h3>
+                  <h3 className="text-2xl font-semibold mb-2">Cérémonie de Graduation</h3>
                   <p className="text-sm text-neutral-200">La fierté de nos élèves diplômés et de leurs familles.</p>
                 </div>
               </div>
@@ -387,7 +387,7 @@ const Landing: React.FC = () => {
               <div className="absolute inset-0 flex flex-col justify-end p-8 text-white">
                 <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
                   <Monitor size={32} className="mb-4 text-vert-400" />
-                  <h3 className="text-2xl font-bold mb-2">Anglais & Informatique</h3>
+                  <h3 className="text-2xl font-semibold mb-2">Anglais & Informatique</h3>
                   <p className="text-sm text-neutral-200">Enseignés dès le plus jeune âge grâce à nos écrans interactifs.</p>
                 </div>
               </div>
@@ -409,7 +409,7 @@ const Landing: React.FC = () => {
                   <stat.icon size={24} />
                 </div>
                 <div>
-                  <div className="text-2xl sm:text-3xl font-[900] text-neutral-900 tracking-tight">
+                  <div className="text-2xl sm:text-3xl font-semibold text-neutral-900 ">
                     {stat.value}{stat.suffix}
                   </div>
                   <p className="text-xs sm:text-sm text-neutral-500 font-medium">{stat.label}</p>
@@ -429,9 +429,9 @@ const Landing: React.FC = () => {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-bleu-50 rounded-full mb-6">
               <Sparkles className="text-bleu-500" size={16} />
-              <span className="text-xs font-bold text-bleu-600 uppercase tracking-wider">Nos Piliers</span>
+              <span className="text-xs font-semibold text-bleu-600  ">Nos Piliers</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-[900] text-neutral-900 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-neutral-900  mb-4">
               Pourquoi choisir <span className="gradient-rouge-vert-text">l'EIEF ?</span>
             </h2>
             <p className="text-neutral-500 font-medium max-w-2xl mx-auto text-lg">
@@ -451,7 +451,7 @@ const Landing: React.FC = () => {
                 </div>
 
                 {/* Title */}
-                <h3 className="text-xl font-[800] text-neutral-900 mb-3 tracking-tight">
+                <h3 className="text-xl font-semibold text-neutral-900 mb-3 ">
                   {feature.title}
                 </h3>
 
@@ -479,7 +479,7 @@ const Landing: React.FC = () => {
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-[900] text-white tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-white  mb-4">
               Rejoignez notre communauté
             </h2>
             <p className="text-lg text-white/80 font-medium max-w-2xl mx-auto">
@@ -490,7 +490,7 @@ const Landing: React.FC = () => {
           <div className="flex flex-wrap justify-center gap-4">
             <button
               onClick={() => navigate('/eleve/landing')}
-              className="group flex items-center gap-3 px-8 py-4 bg-white rounded-2xl text-bleu-600 font-bold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-white rounded-2xl text-bleu-600 font-semibold text-sm shadow-2xl hover:scale-105 transition-all duration-300"
             >
               <GraduationCap size={20} />
               Espace Élève
@@ -498,7 +498,7 @@ const Landing: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/parent/landing')}
-              className="group flex items-center gap-3 px-8 py-4 bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl text-white font-bold text-sm hover:bg-white/25 hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl text-white font-semibold text-sm hover:bg-white/25 hover:scale-105 transition-all duration-300"
             >
               <Users size={20} />
               Espace Parent
@@ -506,14 +506,14 @@ const Landing: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/employe/landing')}
-              className="group flex items-center gap-3 px-8 py-4 bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl text-white font-bold text-sm hover:bg-white/25 hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl text-white font-semibold text-sm hover:bg-white/25 hover:scale-105 transition-all duration-300"
             >
               <LayoutDashboard size={20} />
               Portail Employé
             </button>
             <button
               onClick={() => navigate('/admin/landing')}
-              className="group flex items-center gap-3 px-8 py-4 bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl text-white font-bold text-sm hover:bg-white/25 hover:scale-105 transition-all duration-300"
+              className="group flex items-center gap-3 px-8 py-4 bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl text-white font-semibold text-sm hover:bg-white/25 hover:scale-105 transition-all duration-300"
             >
               <ShieldCheck size={20} />
               Espace Admin
@@ -538,12 +538,12 @@ const Landing: React.FC = () => {
                   <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain rounded-lg bg-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-[900] tracking-tight">EIEF</h3>
-                  <span className="text-[9px] font-bold tracking-[2px] text-neutral-500 uppercase">International School</span>
+                  <h3 className="text-xl font-semibold ">EIEF</h3>
+                  <span className="text-[9px] font-semibold tracking-[2px] text-neutral-500 ">International School</span>
                 </div>
               </div>
               <p className="text-sm text-neutral-400 font-medium leading-relaxed max-w-sm">
-                École Internationale Les Enfants du Futur — <span className="text-or-400 font-bold italic">"Faisons Plus !"</span>
+                École Internationale Les Enfants du Futur — <span className="text-or-400 font-semibold italic">"Faisons Plus !"</span>
                 <br />
                 Un enseignement d'excellence pour préparer les leaders de demain.
               </p>
@@ -558,7 +558,7 @@ const Landing: React.FC = () => {
 
             {/* Col 2: Liens Rapides */}
             <div className="space-y-6">
-              <h4 className="text-sm font-[800] uppercase tracking-wider text-neutral-300">Liens Rapides</h4>
+              <h4 className="text-sm font-semibold   text-neutral-300">Liens Rapides</h4>
               <ul className="space-y-3">
                 {[
                   { label: "Espace Admin", icon: ShieldCheck },
@@ -596,14 +596,14 @@ const Landing: React.FC = () => {
 
             {/* Col 3: Contact */}
             <div className="space-y-6">
-              <h4 className="text-sm font-[800] uppercase tracking-wider text-neutral-300">Contact</h4>
+              <h4 className="text-sm font-semibold   text-neutral-300">Contact</h4>
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-bleu-500/10 rounded-xl flex items-center justify-center text-bleu-400 flex-shrink-0 mt-0.5">
                     <Phone size={18} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-0.5">Téléphone</p>
+                    <p className="text-xs font-semibold text-neutral-500   mb-0.5">Téléphone</p>
                     <p className="text-sm text-white font-semibold">+224 000 000 000</p>
                   </div>
                 </div>
@@ -612,7 +612,7 @@ const Landing: React.FC = () => {
                     <Mail size={18} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-0.5">Email</p>
+                    <p className="text-xs font-semibold text-neutral-500   mb-0.5">Email</p>
                     <p className="text-sm text-white font-semibold">direction@eief.edu.gn</p>
                   </div>
                 </div>
@@ -621,7 +621,7 @@ const Landing: React.FC = () => {
                     <MapPin size={18} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-0.5">Adresse</p>
+                    <p className="text-xs font-semibold text-neutral-500   mb-0.5">Adresse</p>
                     <p className="text-sm text-white font-semibold">Sanoyah Rail — Commune de Coyah</p>
                   </div>
                 </div>
@@ -635,7 +635,7 @@ const Landing: React.FC = () => {
               <div className="w-6 h-1 gradient-bleu-or rounded-full" />
               <div className="w-6 h-1 gradient-rouge-vert rounded-full" />
             </div>
-            <span className="text-xs text-neutral-500 font-semibold tracking-wider uppercase">
+            <span className="text-xs text-neutral-500 font-semibold  ">
               République de Guinée • Ministère de l'Éducation
             </span>
             <span className="text-xs text-neutral-600 font-medium">

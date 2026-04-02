@@ -26,7 +26,7 @@ const Input: React.FC<InputProps> = ({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">
+        <label className="block text-[10px] font-semibold text-gray-500 dark:text-gray-400   mb-2 px-1">
           {label}
         </label>
       )}
@@ -45,7 +45,7 @@ const Input: React.FC<InputProps> = ({
             ${Icon ? 'pl-12' : 'pl-4'} 
             ${isPassword ? 'pr-12' : 'pr-4'} 
             bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10
-            rounded-2xl text-sm font-bold text-gray-700 dark:text-white
+            rounded-2xl text-sm font-semibold text-gray-700 dark:text-white
             focus:outline-none focus:border-bleu-500 dark:focus:border-or-500
             focus:ring-4 focus:ring-bleu-500/10 dark:focus:ring-or-500/10
             placeholder:text-gray-300 dark:placeholder:text-gray-600

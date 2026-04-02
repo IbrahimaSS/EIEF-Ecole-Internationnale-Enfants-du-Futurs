@@ -113,7 +113,7 @@ const ParentLanding: React.FC = () => {
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => navigate('/')}
-                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold ${scrolled ? 'text-neutral-600 hover:bg-neutral-100' : 'text-white hover:bg-white/20'}`}
+                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-semibold ${scrolled ? 'text-neutral-600 hover:bg-neutral-100' : 'text-white hover:bg-white/20'}`}
               >
                 <ChevronLeft size={20} />
                 <span className="hidden sm:inline">Accueil Principal</span>
@@ -126,7 +126,7 @@ const ParentLanding: React.FC = () => {
                   <img src="/logo_eief.jpeg" alt="EIEF Logo" className="w-full h-full object-contain rounded-lg bg-white" />
                 </div>
                 <div className="hidden md:flex flex-col">
-                  <h1 className={`text-sm font-[900] tracking-tight leading-none ${scrolled ? 'text-neutral-900' : 'text-white'}`}>Portail Parent</h1>
+                  <h1 className={`text-sm font-[900]  leading-none ${scrolled ? 'text-neutral-900' : 'text-white'}`}>Portail Parent</h1>
                 </div>
               </div>
             </div>
@@ -134,7 +134,7 @@ const ParentLanding: React.FC = () => {
             {/* Login Button */}
             <button 
               onClick={() => navigate('/login')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white text-bleu-600 rounded-xl text-xs sm:text-sm font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white text-bleu-600 rounded-xl text-xs sm:text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
             >
               <Users size={18} />
               Se Connecter
@@ -158,7 +158,7 @@ const ParentLanding: React.FC = () => {
         <div className="relative z-10 max-w-7xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 px-6 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-8">
             <ShieldCheck className="text-vert-300" size={16} />
-            <span className="text-sm font-bold text-white tracking-wide uppercase">Sécurité et Transparence</span>
+            <span className="text-sm font-semibold text-white tracking-wide ">Sécurité et Transparence</span>
           </div>
           
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-[900] text-white leading-tight mb-6">
@@ -185,7 +185,7 @@ const ParentLanding: React.FC = () => {
       <section className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900  mb-4">
               Restez impliqué, <span className="text-transparent bg-clip-text bg-gradient-to-r from-bleu-600 to-vert-500">où que vous soyez</span>
             </h2>
             <p className="text-neutral-500 font-medium max-w-2xl mx-auto">
@@ -215,9 +215,9 @@ const ParentLanding: React.FC = () => {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-vert-50 rounded-full mb-6">
               <Star className="text-vert-600" size={16} />
-              <span className="text-xs font-bold text-vert-700 uppercase tracking-wider">Un portail complet</span>
+              <span className="text-xs font-semibold text-vert-700  ">Un portail complet</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900  mb-4">
               L'école à portée <span className="text-transparent bg-clip-text bg-gradient-to-r from-bleu-600 to-vert-500">de main</span>
             </h2>
           </div>
@@ -240,7 +240,7 @@ const ParentLanding: React.FC = () => {
                   }`}>
                     <tab.icon size={24} />
                   </div>
-                  <span className={`font-bold text-lg ${activeTab === tab.id ? 'text-bleu-800' : ''}`}>
+                  <span className={`font-semibold text-lg ${activeTab === tab.id ? 'text-bleu-800' : ''}`}>
                     {tab.label}
                   </span>
                 </button>
@@ -276,7 +276,7 @@ const ParentLanding: React.FC = () => {
                   <div className="mt-10">
                     <button 
                       onClick={() => navigate('/login')}
-                      className="flex items-center gap-2 font-bold text-bleu-600 hover:text-vert-600 transition-colors"
+                      className="flex items-center gap-2 font-semibold text-bleu-600 hover:text-vert-600 transition-colors"
                     >
                       Configurer ce service <ArrowRight size={18} />
                     </button>
@@ -307,7 +307,7 @@ const ParentLanding: React.FC = () => {
             <div className="flex-shrink-0">
               <button 
                 onClick={() => navigate('/login')}
-                className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-bleu-600 to-vert-500 rounded-2xl text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300"
+                className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-bleu-600 to-vert-500 rounded-2xl text-white font-semibold shadow-2xl hover:scale-105 transition-all duration-300"
               >
                 <Users size={24} />
                 <span className="text-lg text-white">Créer / Mon Compte</span>

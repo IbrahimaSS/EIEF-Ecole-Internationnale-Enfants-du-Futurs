@@ -64,7 +64,7 @@ const AdminLanding: React.FC = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
-                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold ${scrolled ? 'text-white/80 hover:text-white' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-semibold ${scrolled ? 'text-white/80 hover:text-white' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
               >
                 <ChevronLeft size={20} />
                 <span className="hidden sm:inline">Accueil Principal</span>
@@ -77,7 +77,7 @@ const AdminLanding: React.FC = () => {
                   <img src="/logo_eief.jpeg" alt="EIEF Logo" className="w-full h-full object-contain rounded-[10px] bg-white" />
                 </div>
                 <div className="hidden md:flex flex-col">
-                  <h1 className="text-sm font-[900] tracking-widest uppercase leading-none text-white">Espace Admin</h1>
+                  <h1 className="text-sm font-[900]   leading-none text-white">Espace Admin</h1>
                 </div>
               </div>
             </div>
@@ -85,7 +85,7 @@ const AdminLanding: React.FC = () => {
             {/* Login Button */}
             <button
               onClick={() => navigate('/login')}
-              className={`flex items-center gap-2 px-6 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all duration-300 ${scrolled ? 'bg-or-500 text-[#091A33] hover:scale-105 hover:bg-or-400' : 'bg-white/10 border border-white/20 text-white hover:bg-or-500 hover:text-[#091A33] hover:border-or-500 hover:scale-105'}`}
+              className={`flex items-center gap-2 px-6 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-lg transition-all duration-300 ${scrolled ? 'bg-or-500 text-[#091A33] hover:scale-105 hover:bg-or-400' : 'bg-white/10 border border-white/20 text-white hover:bg-or-500 hover:text-[#091A33] hover:border-or-500 hover:scale-105'}`}
             >
               <ShieldAlert size={18} />
               Identification
@@ -108,10 +108,10 @@ const AdminLanding: React.FC = () => {
           <div className="w-full lg:w-1/2 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-6 py-2 bg-or-500/10 border border-or-500/20 rounded-full mb-8 animate-fade-in-up">
               <Lock className="text-or-400" size={14} />
-              <span className="text-xs font-bold text-or-400 tracking-[0.3em] uppercase">Réseau d'Administration EIEF</span>
+              <span className="text-xs font-semibold text-or-400 tracking-[0.3em] ">Réseau d'Administration EIEF</span>
             </div>
             
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-[900] text-white leading-[1.1] mb-6 tracking-tighter animate-fade-in-up delay-100 uppercase">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-[900] text-white leading-[1.1] mb-6  animate-fade-in-up delay-100 ">
               Système de pilotage <br />
               <span className="text-or-400">Centralisé.</span>
             </h1>
@@ -123,7 +123,7 @@ const AdminLanding: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6 animate-fade-in-up delay-300">
               <button
                 onClick={() => navigate('/login')}
-                className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 bg-transparent border-2 border-or-500 text-or-400 rounded-full font-black text-lg shadow-[0_0_30px_rgba(255,184,0,0.15)] hover:shadow-[0_0_50px_rgba(255,184,0,0.4)] hover:bg-or-500 hover:text-[#091A33] transition-all duration-300 uppercase tracking-wide"
+                className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 bg-transparent border-2 border-or-500 text-or-400 rounded-full font-black text-lg shadow-[0_0_30px_rgba(255,184,0,0.15)] hover:shadow-[0_0_50px_rgba(255,184,0,0.4)] hover:bg-or-500 hover:text-[#091A33] transition-all duration-300  tracking-wide"
               >
                 Authentification <ArrowRight size={20} />
               </button>
@@ -142,7 +142,7 @@ const AdminLanding: React.FC = () => {
             {/* Center Lock / Core */}
             <div className="relative z-10 w-24 h-24 sm:w-32 sm:h-32 bg-[#091A33] border border-or-500/50 shadow-[0_0_50px_rgba(255,184,0,0.5)] rounded-full flex flex-col items-center justify-center gap-2">
               <ShieldAlert className="text-or-400" size={28} />
-              <div className="text-[9px] sm:text-[10px] font-bold text-white tracking-widest uppercase">Sécurisé</div>
+              <div className="text-[9px] sm:text-[10px] font-semibold text-white  ">Sécurisé</div>
             </div>
 
             {/* Orbiting particles */}
@@ -167,14 +167,14 @@ const AdminLanding: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row items-end justify-between mb-16 gap-8">
             <div>
-              <h2 className="text-3xl sm:text-5xl font-[900] text-[#091A33] tracking-tight mb-4">
+              <h2 className="text-3xl sm:text-5xl font-[900] text-[#091A33]  mb-4">
                 Architecture Système
               </h2>
               <p className="text-neutral-500 font-medium max-w-xl text-lg">
                 Supervision intégrale des modules de gestion de l'infrastructure scolaire. Un pilotage basé sur la donnée.
               </p>
             </div>
-            <div className="flex items-center gap-4 text-sm font-bold text-or-600 bg-or-50 px-6 py-3 rounded-full border border-or-100">
+            <div className="flex items-center gap-4 text-sm font-semibold text-or-600 bg-or-50 px-6 py-3 rounded-full border border-or-100">
               <Activity className="text-or-500 animate-pulse" size={18} />
               Système Opérationnel
             </div>
@@ -214,7 +214,7 @@ const AdminLanding: React.FC = () => {
               
               <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-16">
                 <div className="flex-1">
-                  <h2 className="text-4xl md:text-5xl font-[900] text-white mb-6 uppercase tracking-tight">
+                  <h2 className="text-4xl md:text-5xl font-[900] text-white mb-6  ">
                     Audit Log & <br/> <span className="text-or-400">Traçabilité</span>
                   </h2>
                   <p className="text-xl text-white/70 mb-8 font-medium">
@@ -235,14 +235,14 @@ const AdminLanding: React.FC = () => {
                   <div className="bg-[#0B1E3E] rounded-3xl border border-white/5 p-8 shadow-2xl">
                     <div className="flex items-center gap-4 mb-8">
                       <div className="w-3 h-3 rounded-full bg-or-400 animate-pulse" />
-                      <span className="font-bold text-sm uppercase tracking-widest text-[#6B8BB4]">Monitoring Actif</span>
+                      <span className="font-semibold text-sm   text-[#6B8BB4]">Monitoring Actif</span>
                     </div>
 
                     <div className="space-y-6">
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-[#6B8BB4]">Charge Serveur</span>
-                          <span className="text-white font-bold">12%</span>
+                          <span className="text-white font-semibold">12%</span>
                         </div>
                         <div className="w-full h-2 bg-[#1B3254] rounded-full overflow-hidden">
                           <div className="w-[12%] h-full bg-blue-400 rounded-full" />
@@ -252,7 +252,7 @@ const AdminLanding: React.FC = () => {
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-[#6B8BB4]">Taux de Requêtes</span>
-                          <span className="text-white font-bold">450 req/s</span>
+                          <span className="text-white font-semibold">450 req/s</span>
                         </div>
                         <div className="w-full h-2 bg-[#1B3254] rounded-full overflow-hidden">
                           <div className="w-[30%] h-full bg-or-400 rounded-full" />
@@ -262,7 +262,7 @@ const AdminLanding: React.FC = () => {
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-[#6B8BB4]">Intégrité DB</span>
-                          <span className="text-white font-bold">Stable</span>
+                          <span className="text-white font-semibold">Stable</span>
                         </div>
                         <div className="w-full h-2 bg-[#1B3254] rounded-full overflow-hidden">
                           <div className="w-full h-full bg-blue-400 rounded-full" />
@@ -281,16 +281,16 @@ const AdminLanding: React.FC = () => {
       <section className="bg-white border-t border-neutral-100">
         <div className="max-w-7xl mx-auto px-6 py-12 text-center flex flex-col sm:flex-row items-center justify-between gap-8">
           <div className="text-left">
-            <h2 className="text-2xl md:text-3xl font-[900] text-[#091A33] uppercase tracking-tight mb-2">
+            <h2 className="text-2xl md:text-3xl font-[900] text-[#091A33]   mb-2">
               L'excellence requiert le contrôle
             </h2>
-            <p className="text-neutral-500 font-bold text-sm">
+            <p className="text-neutral-500 font-semibold text-sm">
               Authentification stricte requise pour accéder aux modules d'administration.
             </p>
           </div>
           <button
             onClick={() => navigate('/login')}
-            className="inline-flex items-center gap-3 px-8 py-4 bg-or-500 text-[#091A33] hover:bg-or-600 rounded-2xl font-black shadow-xl hover:scale-105 transition-all duration-300 uppercase tracking-widest text-sm"
+            className="inline-flex items-center gap-3 px-8 py-4 bg-or-500 text-[#091A33] hover:bg-or-600 rounded-2xl font-black shadow-xl hover:scale-105 transition-all duration-300   text-sm"
           >
             Se Connecter <Lock size={18} />
           </button>

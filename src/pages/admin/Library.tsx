@@ -47,7 +47,7 @@ const AdminLibrary: React.FC = () => {
             <Book size={20} />
           </div>
           <div>
-            <div className="font-bold text-gray-900 line-clamp-1">{row.titre}</div>
+            <div className="font-semibold text-gray-900 line-clamp-1">{row.titre}</div>
             <div className="text-xs text-gray-500 font-medium">Par {row.auteur}</div>
           </div>
         </div>
@@ -70,7 +70,7 @@ const AdminLibrary: React.FC = () => {
         if (!val) return <span className="text-gray-300 italic text-xs">—</span>;
         return (
           <div className="text-xs">
-            <div className="font-bold text-gray-700">{val}</div>
+            <div className="font-semibold text-gray-700">{val}</div>
             <div className="text-gray-500 font-medium">Retour: {row.dateRetourPrevue}</div>
           </div>
         );
@@ -80,7 +80,7 @@ const AdminLibrary: React.FC = () => {
       key: 'exemplairesDisponibles',
       label: 'Stock',
       render: (val: number, row: any) => (
-        <div className="text-xs font-bold">
+        <div className="text-xs font-semibold">
           <span className={val === 0 ? 'text-rouge-600' : 'text-gray-900'}>{val}</span>
           <span className="text-gray-400 font-normal"> / {row.nombreExemplaires}</span>
         </div>
@@ -109,7 +109,7 @@ const AdminLibrary: React.FC = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <BookOpen className="text-bleu-600 dark:text-bleu-400" size={28} />
-            <h1 className="text-2xl font-black gradient-bleu-or-text uppercase tracking-tighter">Bibliothèque Numérique</h1>
+            <h1 className="text-xl font-semibold gradient-bleu-or-text">Bibliothèque Numérique</h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400 font-medium">Gestion du catalogue, des emprunts et des retards</p>
         </div>
@@ -117,7 +117,7 @@ const AdminLibrary: React.FC = () => {
           <Button variant="outline" className="flex gap-2 dark:border-white/10 dark:text-white">
             <History size={18} /> Historique
           </Button>
-          <Button className="flex gap-2 bg-gradient-to-r from-bleu-700 to-bleu-500 shadow-blue border-none font-black uppercase tracking-widest text-[10px] h-11 px-6">
+          <Button className="flex gap-2 bg-gradient-to-r from-bleu-700 to-bleu-500 shadow-blue border-none font-semibold   text-[10px] h-11 px-6">
             <Plus size={18} /> Ajouter un livre
           </Button>
         </div>
@@ -164,7 +164,7 @@ const AdminLibrary: React.FC = () => {
                 key={f}
                 onClick={() => setActiveFilter(f as any)}
                 className={`
-                  px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300
+                  px-4 py-2 rounded-lg text-[10px] font-semibold   transition-all duration-300
                   ${activeFilter === f 
                     ? 'bg-white dark:bg-or-500 text-bleu-600 dark:text-white shadow-sm' 
                     : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
@@ -183,7 +183,7 @@ const AdminLibrary: React.FC = () => {
               placeholder="Chercher par titre, auteur, ISBN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-bold text-gray-700 dark:text-white shadow-sm"
+              className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
             />
           </div>
         </div>

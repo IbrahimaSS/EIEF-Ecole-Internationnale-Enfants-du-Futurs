@@ -9,7 +9,7 @@ const EnseignantDashboard: React.FC = () => {
       transition={{ duration: 0.5 }}
       className="p-6"
     >
-      <h1 className="text-2xl font-bold">Espace Enseignant</h1>
+      <h1 className="text-2xl font-semibold">Espace Enseignant</h1>
       <p className="text-gray-600 mt-2">Gérez vos classes et vos cours</p>
     </motion.div>
   );

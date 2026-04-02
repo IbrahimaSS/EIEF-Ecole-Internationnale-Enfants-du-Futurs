@@ -53,24 +53,24 @@ const StatCard: React.FC<StatCardProps> = ({
 
       <div className="flex items-start justify-between relative z-10">
         <div className="flex-1">
-          <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">
+          <p className="text-gray-500 dark:text-gray-400 text-[10px] font-semibold   mb-2">
             {title}
           </p>
-          <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter">
+          <p className="text-3xl font-semibold text-gray-900 dark:text-white ">
             {value}
           </p>
           
           {trend && (
             <div className="flex items-center gap-1.5 mt-3">
               <div className={cn(
-                "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase",
+                "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ",
                 trend.direction === 'up' ? "bg-green-100 dark:bg-green-900/30 text-green-600" : "bg-red-100 dark:bg-red-900/30 text-red-600"
               )}>
                 {trend.direction === 'up' ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                 {trend.value}
               </div>
               {subtitle && (
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase truncate">
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold  truncate">
                   {subtitle}
                 </span>
               )}
@@ -78,7 +78,7 @@ const StatCard: React.FC<StatCardProps> = ({
           )}
 
           {!trend && subtitle && (
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mt-3">
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold   mt-3">
               {subtitle}
             </p>
           )}

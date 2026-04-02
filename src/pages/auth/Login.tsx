@@ -119,7 +119,7 @@ const Login: React.FC = () => {
           </div>
           
           <div className="space-y-4 mb-12">
-            <h1 className="text-4xl font-extrabold tracking-tight">
+            <h1 className="text-4xl font-extrabold ">
               École Internationale <br /> 
               <span className={`${currentTheme.accentText} transition-colors duration-700`}>Les Enfants du Futur</span>
             </h1>
@@ -167,7 +167,7 @@ const Login: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Role Selection Tabs */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">
+                <label className="text-xs font-semibold text-gray-400   px-1">
                   Quel est votre rôle ?
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -187,7 +187,7 @@ const Login: React.FC = () => {
                       <div className={`p-2 rounded-xl transition-colors duration-300 ${formData.role === role.value ? currentTheme.activeTabIcon : 'bg-white text-gray-400'}`}>
                         {role.icon}
                       </div>
-                      <span className="text-[10px] font-bold uppercase tracking-tight">{role.label}</span>
+                      <span className="text-[10px] font-semibold  ">{role.label}</span>
                     </button>
                   ))}
                 </div>
@@ -240,13 +240,13 @@ const Login: React.FC = () => {
 
             {/* Quick Demo Footer */}
             <div className="mt-12 pt-8 border-t border-gray-50">
-              <p className="text-center text-xs font-bold text-gray-300 uppercase tracking-widest mb-6">Accès Démo</p>
+              <p className="text-center text-xs font-semibold text-gray-300   mb-6">Accès Démo</p>
               <div className="flex flex-wrap justify-center gap-2">
                 {['admin', 'enseignant', 'parent'].map(r => (
                   <button 
                     key={r}
                     onClick={() => handleDemoLogin(r as UserRole)}
-                    className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-xl text-xs font-bold transition-colors border border-gray-100"
+                    className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-xl text-xs font-semibold transition-colors border border-gray-100"
                   >
                     {r.toUpperCase()}
                   </button>
@@ -256,7 +256,7 @@ const Login: React.FC = () => {
           </div>
           
           <p className="text-center mt-8 text-sm text-gray-400">
-            Besoin d'aide ? <button className="text-green-600 font-bold hover:underline">Support Technique</button>
+            Besoin d'aide ? <button className="text-green-600 font-semibold hover:underline">Support Technique</button>
           </p>
         </div>
       </div>

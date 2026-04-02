@@ -67,7 +67,7 @@ const EmployeLanding: React.FC = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
-                className="p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/10"
+                className="p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/10"
               >
                 <ChevronLeft size={20} />
                 <span className="hidden sm:inline">Accueil Principal</span>
@@ -80,7 +80,7 @@ const EmployeLanding: React.FC = () => {
                   <img src="/logo_eief.jpeg" alt="EIEF Logo" className="w-full h-full object-contain rounded-[10px] bg-white" />
                 </div>
                 <div className="hidden md:flex flex-col">
-                  <h1 className="text-sm font-[900] tracking-widest uppercase leading-none text-white">Portail Collaborateur</h1>
+                  <h1 className="text-sm font-[900]   leading-none text-white">Portail Collaborateur</h1>
                 </div>
               </div>
             </div>
@@ -88,7 +88,7 @@ const EmployeLanding: React.FC = () => {
             {/* Login Button */}
             <button
               onClick={() => navigate('/login')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white/10 border border-white/20 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg hover:bg-white hover:text-[#0B1120] hover:scale-105 transition-all duration-300"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white/10 border border-white/20 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-lg hover:bg-white hover:text-[#0B1120] hover:scale-105 transition-all duration-300"
             >
               <LayoutDashboard size={18} />
               Se Connecter
@@ -108,10 +108,10 @@ const EmployeLanding: React.FC = () => {
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 px-6 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-8 animate-fade-in-up">
             <ShieldCheck className="text-emerald-400" size={16} />
-            <span className="text-xs font-bold text-emerald-300 tracking-[0.2em] uppercase">Réseau Interne Sécurisé</span>
+            <span className="text-xs font-semibold text-emerald-300  ">Réseau Interne Sécurisé</span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-[900] text-white leading-[1.1] mb-8 tracking-tight animate-fade-in-up delay-100">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-[900] text-white leading-[1.1] mb-8  animate-fade-in-up delay-100">
             Le moteur de notre <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Excellence.</span>
           </h1>
@@ -128,7 +128,7 @@ const EmployeLanding: React.FC = () => {
               Accéder au Portail <ArrowRight size={20} />
             </button>
             <button
-              className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-white/5 text-white rounded-2xl font-bold text-lg border border-white/10 hover:bg-white/10 transition-all duration-300"
+              className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-white/5 text-white rounded-2xl font-semibold text-lg border border-white/10 hover:bg-white/10 transition-all duration-300"
             >
               <Layers size={20} /> Guide d'intégration
             </button>
@@ -140,7 +140,7 @@ const EmployeLanding: React.FC = () => {
       <section className="py-24 px-6 relative z-20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-3xl sm:text-4xl font-[900] text-white tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl font-[900] text-white  mb-4">
               Vos outils du quotidien
             </h2>
             <p className="text-slate-400 font-medium max-w-2xl mx-auto text-lg">
@@ -189,9 +189,9 @@ const EmployeLanding: React.FC = () => {
             <div className="w-full lg:w-1/2">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 rounded-full mb-6">
                 <Sparkles className="text-cyan-400" size={16} />
-                <span className="text-xs font-bold text-cyan-400 uppercase tracking-widest">Performances</span>
+                <span className="text-xs font-semibold text-cyan-400  ">Performances</span>
               </div>
-              <h2 className="text-3xl sm:text-5xl font-[900] text-white tracking-tight mb-6 leading-tight">
+              <h2 className="text-3xl sm:text-5xl font-[900] text-white  mb-6 leading-tight">
                 Zéro perte de temps.<br />
                 <span className="text-slate-500">100% focus sur l'enseignement.</span>
               </h2>
@@ -205,7 +205,7 @@ const EmployeLanding: React.FC = () => {
                     <Briefcase size={18} />
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-lg">Single Sign-On (SSO)</h4>
+                    <h4 className="text-white font-semibold text-lg">Single Sign-On (SSO)</h4>
                     <p className="text-slate-500">Une seule connexion pour tous vos services internes EIEF.</p>
                   </div>
                 </li>
@@ -214,7 +214,7 @@ const EmployeLanding: React.FC = () => {
                     <ShieldCheck size={18} />
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-lg">Hautement Sécurisé</h4>
+                    <h4 className="text-white font-semibold text-lg">Hautement Sécurisé</h4>
                     <p className="text-slate-500">Toutes les données RH et pédagogiques sont chiffrées de bout en bout.</p>
                   </div>
                 </li>
@@ -227,24 +227,24 @@ const EmployeLanding: React.FC = () => {
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-[50px]" />
                   <div className="relative z-10 flex flex-col gap-8">
                     <div className="pb-8 border-b border-white/10">
-                      <p className="text-slate-500 font-bold mb-2 uppercase tracking-widest text-xs">Temps moyen de saisie</p>
+                      <p className="text-slate-500 font-semibold mb-2   text-xs">Temps moyen de saisie</p>
                       <div className="flex items-end gap-2">
                         <span className="text-5xl font-black text-white">60%</span>
-                        <span className="text-emerald-400 font-bold mb-1">rapide</span>
+                        <span className="text-emerald-400 font-semibold mb-1">rapide</span>
                       </div>
                     </div>
                     <div className="pb-8 border-b border-white/10">
-                      <p className="text-slate-500 font-bold mb-2 uppercase tracking-widest text-xs">Satisfaction globale</p>
+                      <p className="text-slate-500 font-semibold mb-2   text-xs">Satisfaction globale</p>
                       <div className="flex items-end gap-2">
                         <span className="text-5xl font-black text-white">4.9</span>
-                        <span className="text-cyan-400 font-bold mb-1">/ 5</span>
+                        <span className="text-cyan-400 font-semibold mb-1">/ 5</span>
                       </div>
                     </div>
                     <div>
-                      <p className="text-slate-500 font-bold mb-2 uppercase tracking-widest text-xs">Disponibilité système</p>
+                      <p className="text-slate-500 font-semibold mb-2   text-xs">Disponibilité système</p>
                       <div className="flex items-end gap-2">
                         <span className="text-5xl font-black text-white">99.9%</span>
-                        <span className="text-emerald-400 font-bold mb-1">uptime</span>
+                        <span className="text-emerald-400 font-semibold mb-1">uptime</span>
                       </div>
                     </div>
                   </div>
@@ -259,7 +259,7 @@ const EmployeLanding: React.FC = () => {
       <section className="py-24 px-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 via-[#0B1120] to-cyan-900/30" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl md:text-5xl font-[900] text-white mb-8 tracking-tight">
+          <h2 className="text-4xl md:text-5xl font-[900] text-white mb-8 ">
             Votre Espace vous attend.
           </h2>
           <button

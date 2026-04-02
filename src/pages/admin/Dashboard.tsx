@@ -42,7 +42,7 @@ const AdminDashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-black gradient-bleu-or-text uppercase tracking-tighter">Tableau de Bord</h1>
+            <h1 className="text-xl font-semibold gradient-bleu-or-text">Tableau de Bord</h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400 font-medium">Aperçu stratégique de l'EIEF | Bienvenue, Ibrahima</p>
         </div>
@@ -87,11 +87,11 @@ const AdminDashboard: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-none shadow-soft p-0 overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
             <div className="p-6 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-white dark:bg-transparent">
-              <h3 className="font-black gradient-bleu-or-text uppercase tracking-tight flex items-center gap-2">
+              <h3 className="font-semibold gradient-bleu-or-text   flex items-center gap-2">
                 <Clock className="text-bleu-600 dark:text-bleu-400" size={20} />
                 Derniers Flux Financiers
               </h3>
-              <Button variant="outline" className="text-[10px] uppercase font-black tracking-widest px-3 py-1.5 h-auto dark:border-white/10 dark:text-white">Voir tout</Button>
+              <Button variant="outline" className="text-[10px]  font-semibold  px-3 py-1.5 h-auto dark:border-white/10 dark:text-white">Voir tout</Button>
             </div>
             <div className="divide-y divide-gray-50 dark:divide-white/5 bg-white dark:bg-transparent">
               {paiementsData.slice(0, 4).map((p, i) => (
@@ -101,13 +101,13 @@ const AdminDashboard: React.FC = () => {
                       <Wallet size={18} />
                     </div>
                     <div>
-                      <p className="font-bold text-gray-900 dark:text-white text-sm">{p.eleveNom}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-tight">{p.service} • {p.methode}</p>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{p.eleveNom}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 font-medium  ">{p.service} • {p.methode}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-gray-900 dark:text-white text-sm">{formatCurrency(p.montantPaye)}</p>
-                    <Badge variant="success" className="text-[9px] py-0 px-2 font-black uppercase">Validé</Badge>
+                    <p className="font-semibold text-gray-900 dark:text-white text-sm">{formatCurrency(p.montantPaye)}</p>
+                    <Badge variant="success" className="text-[9px] py-0 px-2 font-semibold ">Validé</Badge>
                   </div>
                 </div>
               ))}
@@ -118,7 +118,7 @@ const AdminDashboard: React.FC = () => {
           <Card className="border-none shadow-soft p-8 bg-gradient-to-br from-gray-900 to-gray-800 dark:from-black dark:to-gray-900 text-white relative overflow-hidden ring-1 ring-white/5">
             <div className="absolute top-0 right-0 w-64 h-64 bg-or-500/10 rounded-full blur-[80px]" />
             <div className="relative z-10 text-left">
-              <h3 className="text-xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3 gradient-bleu-or-text">
+              <h3 className="text-xl font-semibold   mb-6 flex items-center gap-3 gradient-bleu-or-text">
                 <ShoppingBag className="text-or-400" size={24} />
                 Réapprovisionnement Urgent
               </h3>
@@ -126,12 +126,12 @@ const AdminDashboard: React.FC = () => {
                 {produitsData.filter(p => p.stock <= p.stockMin).slice(0, 4).map((p, i) => (
                   <div key={i} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/10 transition-colors group">
                     <div>
-                      <p className="text-sm font-black text-white mb-0.5 group-hover:text-or-400 transition-colors">{p.nom}</p>
-                      <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{p.categorie}</p>
+                      <p className="text-sm font-semibold text-white mb-0.5 group-hover:text-or-400 transition-colors">{p.nom}</p>
+                      <p className="text-[10px] text-gray-400  font-semibold ">{p.categorie}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-black text-or-400">{p.stock} unités</p>
-                      <p className="text-[9px] text-gray-500 font-bold uppercase">Seuil: {p.stockMin}</p>
+                      <p className="text-sm font-semibold text-or-400">{p.stock} unités</p>
+                      <p className="text-[9px] text-gray-500 font-semibold ">Seuil: {p.stockMin}</p>
                     </div>
                   </div>
                 ))}
@@ -143,7 +143,7 @@ const AdminDashboard: React.FC = () => {
         {/* COLONNE DROITE: ACTIONS & ETAT SYSTEME */}
         <div className="space-y-6">
           <Card className="p-6 border-none shadow-soft bg-white dark:bg-gray-900/50 dark:backdrop-blur-md">
-            <h3 className="font-black gradient-bleu-or-text uppercase tracking-tight mb-6">Raccourcis Stratégiques</h3>
+            <h3 className="font-semibold gradient-bleu-or-text   mb-6">Raccourcis Stratégiques</h3>
             <div className="space-y-3">
               {[
                 { label: "Nouveau Dossier Élève", icon: GraduationCap, color: "bg-bleu-100 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-400" },
@@ -156,7 +156,7 @@ const AdminDashboard: React.FC = () => {
                     <div className={`p-3 rounded-xl transition-transform group-hover:scale-110 ${action.color}`}>
                       <action.icon size={20} />
                     </div>
-                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-tight">{action.label}</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300  ">{action.label}</span>
                   </div>
                   <ArrowRight size={18} className="text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white group-hover:translate-x-1 transition-all" />
                 </button>
@@ -165,10 +165,10 @@ const AdminDashboard: React.FC = () => {
           </Card>
 
           <Card variant="glass" className="p-6 border-bleu-100/50 dark:border-white/5 dark:bg-gray-900/50">
-            <h3 className="text-[10px] font-black gradient-bleu-or-text uppercase tracking-[0.2em] mb-6">État de la plateforme</h3>
+            <h3 className="text-[10px] font-semibold gradient-bleu-or-text   mb-6">État de la plateforme</h3>
             <div className="space-y-6">
               <div>
-                <div className="flex justify-between text-[10px] mb-2 font-black uppercase text-gray-400 tracking-wider">
+                <div className="flex justify-between text-[10px] mb-2 font-semibold  text-gray-400 ">
                   <span>Intégrité des données</span>
                   <span className="text-vert-600">100% stable</span>
                 </div>
@@ -177,7 +177,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <div className="flex justify-between text-[10px] mb-2 font-black uppercase text-gray-400 tracking-wider">
+                <div className="flex justify-between text-[10px] mb-2 font-semibold  text-gray-400 ">
                   <span>Recouvrement vs Objectif</span>
                   <span className="text-or-600">87% atteint</span>
                 </div>

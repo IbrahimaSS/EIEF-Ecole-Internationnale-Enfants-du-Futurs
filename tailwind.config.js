@@ -86,7 +86,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Outfit', 'Inter', 'sans-serif'],
+        sans: ['Inter', 'Plus Jakarta Sans', 'sans-serif'],
       },
       borderRadius: {
         'xl': '12px',

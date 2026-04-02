@@ -9,7 +9,7 @@ const ParentDashboard: React.FC = () => {
       transition={{ duration: 0.5 }}
       className="p-6"
     >
-      <h1 className="text-2xl font-bold">Espace Parent</h1>
+      <h1 className="text-2xl font-semibold">Espace Parent</h1>
       <p className="text-gray-600 mt-2">Suivez la scolarité de vos enfants</p>
     </motion.div>
   );

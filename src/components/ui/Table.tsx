@@ -71,8 +71,8 @@ function Table<T extends Record<string, any>>({
               <th
                 key={String(column.key)}
                 className={`
-                  px-6 py-4 text-left text-[10px] font-black 
-                  gradient-bleu-or-text uppercase tracking-widest opacity-80
+                  px-6 py-4 text-left text-[10px] font-semibold 
+                  gradient-bleu-or-text   opacity-80
                   ${column.sortable ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 transition-colors' : ''}
                 `}
                 onClick={() => column.sortable && handleSort(column.key)}
@@ -107,7 +107,7 @@ function Table<T extends Record<string, any>>({
       
       {data.length === 0 && (
         <div className="text-center py-12 text-gray-500 dark:text-gray-600">
-          <p className="font-black uppercase tracking-widest text-[10px]">Aucune donnée disponible</p>
+          <p className="font-semibold   text-[10px]">Aucune donnée disponible</p>
         </div>
       )}
     </div>

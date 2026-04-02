@@ -53,17 +53,17 @@ const Header: React.FC<HeaderProps> = ({
       <div className="h-full px-8 flex items-center justify-between">
         {/* Left side - Title and breadcrumb */}
         <div className="flex-1">
-          <h1 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white  ">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-[0.1em] mt-0.5">{subtitle}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium  tracking-[0.1em] mt-0.5">{subtitle}</p>
           )}
         </div>
 
         {/* Right side - Search, notifications, profile */}
         <div className="flex items-center gap-4">
-          
+
           {/* Theme Toggle */}
           <button
             onClick={toggleDarkMode}
@@ -93,7 +93,7 @@ const Header: React.FC<HeaderProps> = ({
           >
             <Bell size={20} />
             {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-semibold">
                 {notificationCount > 99 ? '99' : notificationCount}
               </span>
             )}
@@ -106,7 +106,7 @@ const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-all duration-200"
             >
               <Avatar name={userName} size="sm" className="ring-2 ring-gray-100 dark:ring-white/5" />
-              <span className="text-sm font-bold text-gray-700 dark:text-gray-300 hidden md:block uppercase tracking-tight">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 hidden md:block  ">
                 {userName.split(' ')[0]}
               </span>
             </button>
@@ -115,34 +115,34 @@ const Header: React.FC<HeaderProps> = ({
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/5 py-2 z-50 overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-50 dark:border-white/5">
-                  <p className="text-sm font-black text-gray-900 dark:text-white uppercase truncate">{userName}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Administrateur</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white  truncate">{userName}</p>
+                  <p className="text-[10px] font-semibold text-gray-400   mt-0.5">Administrateur</p>
                 </div>
-                
+
                 <button
                   onClick={() => {
                     onProfileClick?.();
                     setShowProfileMenu(false);
                   }}
-                  className="w-full px-5 py-3 text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-bleu-600 dark:hover:text-or-400 flex items-center gap-4 transition-all"
+                  className="w-full px-5 py-3 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-bleu-600 dark:hover:text-or-400 flex items-center gap-4 transition-all"
                 >
                   <User size={18} />
                   Mon Profil
                 </button>
-                
+
                 <button
                   onClick={() => {
                     onNotificationClick?.();
                     setShowProfileMenu(false);
                   }}
-                  className="w-full px-5 py-3 text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-bleu-600 dark:hover:text-or-400 flex items-center gap-4 transition-all"
+                  className="w-full px-5 py-3 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-bleu-600 dark:hover:text-or-400 flex items-center gap-4 transition-all"
                 >
                   <Settings size={18} />
                   Paramètres
                 </button>
-                
+
                 <div className="border-t border-gray-50 dark:border-white/5 mt-2 pt-2">
-                  <button className="w-full px-5 py-3 text-sm font-black text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-4 transition-all uppercase tracking-widest">
+                  <button className="w-full px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-4 transition-all  ">
                     <LogOut size={18} />
                     Quitter
                   </button>

@@ -118,7 +118,7 @@ const EleveLanding: React.FC = () => {
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => navigate('/')}
-                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold ${scrolled ? 'text-neutral-600 hover:bg-neutral-100' : 'text-white hover:bg-white/20'}`}
+                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-semibold ${scrolled ? 'text-neutral-600 hover:bg-neutral-100' : 'text-white hover:bg-white/20'}`}
               >
                 <ChevronLeft size={20} />
                 <span className="hidden sm:inline">Accueil Principal</span>
@@ -131,7 +131,7 @@ const EleveLanding: React.FC = () => {
                   <img src="/logo_eief.jpeg" alt="EIEF Logo" className="w-full h-full object-contain rounded-lg bg-white" />
                 </div>
                 <div className="hidden md:flex flex-col">
-                  <h1 className={`text-sm font-[900] tracking-tight leading-none ${scrolled ? 'text-neutral-900' : 'text-white'}`}>Portail Élève</h1>
+                  <h1 className={`text-sm font-[900]  leading-none ${scrolled ? 'text-neutral-900' : 'text-white'}`}>Portail Élève</h1>
                 </div>
               </div>
             </div>
@@ -139,7 +139,7 @@ const EleveLanding: React.FC = () => {
             {/* Login Button */}
             <button 
               onClick={() => navigate('/login')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white text-bleu-600 rounded-xl text-xs sm:text-sm font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white text-bleu-600 rounded-xl text-xs sm:text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
             >
               <Users size={18} />
               Se Connecter
@@ -165,7 +165,7 @@ const EleveLanding: React.FC = () => {
         <div className="relative z-10 max-w-7xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 px-6 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-8">
             <Star className="text-or-300" size={16} />
-            <span className="text-sm font-bold text-white tracking-wide uppercase">L'avenir vous appartient</span>
+            <span className="text-sm font-semibold text-white tracking-wide ">L'avenir vous appartient</span>
           </div>
           
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-[900] text-white leading-tight mb-6">
@@ -193,7 +193,7 @@ const EleveLanding: React.FC = () => {
       <section className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900  mb-4">
               Votre quotidien à <span className="gradient-bleu-or-text">l'EIEF</span>
             </h2>
             <p className="text-neutral-500 font-medium max-w-2xl mx-auto">
@@ -225,9 +225,9 @@ const EleveLanding: React.FC = () => {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-or-50 rounded-full mb-6">
               <Laptop className="text-or-500" size={16} />
-              <span className="text-xs font-bold text-or-600 uppercase tracking-wider">Plateforme Numérique</span>
+              <span className="text-xs font-semibold text-or-600  ">Plateforme Numérique</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl font-[900] text-neutral-900  mb-4">
               Les outils pour ta <span className="gradient-bleu-or-text">Réussite</span>
             </h2>
           </div>
@@ -250,7 +250,7 @@ const EleveLanding: React.FC = () => {
                   }`}>
                     <tab.icon size={24} />
                   </div>
-                  <span className={`font-bold text-lg ${activeTab === tab.id ? 'text-bleu-600' : ''}`}>
+                  <span className={`font-semibold text-lg ${activeTab === tab.id ? 'text-bleu-600' : ''}`}>
                     {tab.label}
                   </span>
                 </button>
@@ -286,7 +286,7 @@ const EleveLanding: React.FC = () => {
                   <div className="mt-10">
                     <button 
                       onClick={() => navigate('/login')}
-                      className="flex items-center gap-2 font-bold text-bleu-600 hover:text-or-500 transition-colors"
+                      className="flex items-center gap-2 font-semibold text-bleu-600 hover:text-or-500 transition-colors"
                     >
                       Découvrir ce module <ArrowRight size={18} />
                     </button>
@@ -315,7 +315,7 @@ const EleveLanding: React.FC = () => {
               <button className="w-20 h-20 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center text-white mb-6 hover:bg-white hover:text-bleu-600 transition-all hover:scale-110 shadow-[0_0_50px_rgba(255,255,255,0.3)]">
                 <Video size={32} className="ml-2" />
               </button>
-              <h3 className="text-3xl md:text-5xl font-[900] text-white tracking-tight mb-4">
+              <h3 className="text-3xl md:text-5xl font-[900] text-white  mb-4">
                 Visitez notre campus
               </h3>
               <p className="text-white/80 font-medium max-w-xl">
@@ -348,7 +348,7 @@ const EleveLanding: React.FC = () => {
             <div className="flex-shrink-0">
               <button 
                 onClick={() => navigate('/login')}
-                className="group flex items-center gap-3 px-8 py-4 gradient-bleu-or rounded-2xl text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300"
+                className="group flex items-center gap-3 px-8 py-4 gradient-bleu-or rounded-2xl text-white font-semibold shadow-2xl hover:scale-105 transition-all duration-300"
               >
                 <GraduationCap size={24} />
                 <span className="text-lg text-white">Se connecter</span>
