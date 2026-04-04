@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 import {
   LayoutDashboard,
   Users,
@@ -14,7 +15,8 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
@@ -45,6 +47,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   userName,
   currentPage
 }) => {
+  const navigate = useNavigate();
+  const { logout } = useAuthStore();
+
   const adminItems: SidebarItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/admin/dashboard' },
     { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, href: '/admin/utilisateurs' },
@@ -81,6 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'classes', label: 'Mes classes', icon: <GraduationCap size={20} />, href: '/enseignant/classes' },
     { id: 'notes', label: 'Notes', icon: <BookOpen size={20} />, href: '/enseignant/notes' },
     { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/enseignant/communication' },
+    { id: 'ressources', label: 'Ressources', icon: <BookOpen size={20} />, href: '/enseignant/ressources' },
   ];
 
   const parentItems: SidebarItem[] = [
@@ -92,9 +98,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const eleveItems: SidebarItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/eleve/dashboard' },
-    { id: 'cours', label: 'Mes cours', icon: <BookOpen size={20} />, href: '/eleve/cours' },
     { id: 'notes', label: 'Mes notes', icon: <GraduationCap size={20} />, href: '/eleve/notes' },
-    { id: 'emploi', label: 'Emploi du temps', icon: <Settings size={20} />, href: '/eleve/emploi' },
+    { id: 'emploi', label: 'Emploi du temps', icon: <Calendar size={20} />, href: '/eleve/emploi' },
+    { id: 'ressources', label: 'Ressources', icon: <BookOpen size={20} />, href: '/eleve/ressources' },
+    { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/eleve/communication' },
   ];
 
   const getItemsByRole = () => {
@@ -220,7 +227,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           {isOpen && (
             <div className="flex-1 overflow-hidden">
               <p className="text-white text-xs font-semibold   truncate">{userName}</p>
-              <button className="text-gray-500 hover:text-or-400 text-[10px] font-semibold   flex items-center gap-1 transition-all mt-0.5">
+              <button 
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                className="text-gray-500 hover:text-or-400 text-[10px] font-semibold   flex items-center gap-1 transition-all mt-0.5"
+              >
                 <LogOut size={12} />
                 Quitter
               </button>

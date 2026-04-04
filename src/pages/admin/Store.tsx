@@ -58,13 +58,13 @@ const AdminStore: React.FC = () => {
       label: 'Article',
       sortable: true,
       render: (_: any, row: any) => (
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl text-white shadow-lg transition-transform group-hover:scale-110 bg-gradient-to-br from-bleu-800 via-bleu-600 to-or-500 shadow-bleu-500/20">
+        <div className="flex items-center gap-4 py-1">
+          <div className="p-2.5 rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110 bg-gradient-to-br from-bleu-800 via-bleu-600 to-or-500 shadow-bleu-500/20">
             {row.categorie === 'Fournitures' ? <Package size={20} /> : <Briefcase size={20} />}
           </div>
-          <div className="text-left font-bold uppercase tracking-widest">
-            <div className="font-bold text-gray-900 dark:text-white leading-none mb-1 uppercase tracking-widest text-[11px]">{row.nom}</div>
-            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{row.fournisseur}</div>
+          <div className="text-left font-bold">
+            <div className="font-bold text-gray-900 dark:text-white leading-tight mb-0.5 text-[13px]">{row.nom}</div>
+            <div className="text-[11px] text-gray-400 font-semibold italic">{row.fournisseur}</div>
           </div>
         </div>
       )
@@ -75,7 +75,7 @@ const AdminStore: React.FC = () => {
       sortable: true,
       render: (val: string) => (
         <Badge variant="default" className={cn(
-          "text-[8px] font-bold uppercase tracking-widest px-3 py-1 border-none bg-opacity-10",
+          "text-[10px] font-bold px-3 py-1 border-none bg-opacity-10",
           val === 'Fournitures' ? 'bg-bleu-600 text-bleu-600' : 'bg-or-600 text-or-600'
         )}>
           {val}
@@ -89,31 +89,31 @@ const AdminStore: React.FC = () => {
     },
     {
       key: 'stock',
-      label: 'Statu Stock / Niv',
+      label: 'État du Stock',
       render: (val: number, row: any) => {
         const isCritical = val <= row.stockMin && val > 0;
         const isOut = val === 0;
         const percentage = Math.min((val / (row.stockMin * 3)) * 100, 100);
         return (
-          <div className="flex flex-col gap-2 min-w-[120px] text-left font-bold   uppercase tracking-widest">
-            <div className="flex items-center justify-between font-bold   uppercase tracking-widest">
+          <div className="flex flex-col gap-2 min-w-[120px] text-left">
+            <div className="flex items-center justify-between font-bold">
               <span className={cn(
-                "text-[10px] font-bold uppercase tracking-widest",
+                "text-[11px]",
                 isOut ? 'text-red-500' : isCritical ? 'text-orange-500' : 'text-green-500'
               )}>
-                {val} UNITÉS
+                {val} <span className="text-[9px] opacity-60 font-medium lowercase">Unités</span>
               </span>
-              <Badge variant={isOut ? 'error' : isCritical ? 'warning' : 'success'} className="text-[7px] px-1.5 h-3.5 border-none uppercase tracking-widest font-bold">
-                {isOut ? 'Rupture' : isCritical ? 'Critique' : 'Dispo'}
+              <Badge variant={isOut ? 'error' : isCritical ? 'warning' : 'success'} className="text-[8px] px-2 h-5 border-none font-bold uppercase tracking-wider">
+                {isOut ? 'Rupture' : isCritical ? 'Critique' : 'Disponible'}
               </Badge>
             </div>
-            <div className="w-full h-1 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${percentage}%` }}
                 className={cn(
-                  "h-full rounded-full",
-                  isOut ? 'bg-red-500' : isCritical ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.4)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
+                  "h-full rounded-full transition-all duration-1000",
+                  isOut ? 'bg-red-500' : isCritical ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.3)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]'
                 )}
               />
             </div>
@@ -131,22 +131,25 @@ const AdminStore: React.FC = () => {
           trigger={
             <button 
               onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === row.id ? null : row.id); }}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all text-gray-400 group"
+              className="p-2.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-2xl transition-all text-gray-400 group"
             >
               <ArrowRight size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </button>
           }
         >
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-2 min-w-[200px] text-left font-bold   uppercase tracking-widest">
-            <button onClick={() => setOpenMenuId(null)} className="w-full flex items-center gap-3 px-3 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-all uppercase tracking-widest">
-              <Eye size={16} /> Détails Article
+          <div className="bg-white dark:bg-gray-900 rounded-[1.5rem] shadow-2xl border border-gray-100 dark:border-white/10 p-2.5 min-w-[220px] text-left">
+            <div className="px-4 py-2 border-b border-gray-50 dark:border-white/5 mb-2">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Options Article</p>
+            </div>
+            <button onClick={() => setOpenMenuId(null)} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-all">
+              <Eye size={16} className="text-bleu-600" /> Détails Article
             </button>
-            <button onClick={() => setOpenMenuId(null)} className="w-full flex items-center gap-3 px-3 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-all uppercase tracking-widest">
-              <Edit size={16} /> Modifier
+            <button onClick={() => setOpenMenuId(null)} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-all">
+              <Edit size={16} className="text-or-600" /> Modifier
             </button>
-            <div className="h-px bg-gray-50 dark:bg-white/5 my-1 mx-2" />
-            <button onClick={() => setOpenMenuId(null)} className="w-full flex items-center gap-3 px-3 py-2.5 text-[11px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-xl transition-all uppercase tracking-widest">
-              <Trash2 size={16} /> Supprimer
+            <div className="h-px bg-gray-50 dark:bg-white/5 my-2 mx-2" />
+            <button onClick={() => setOpenMenuId(null)} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-xl transition-all font-bold">
+              <Trash2 size={16} /> Supprimer du Stock
             </button>
           </div>
         </Popover>
@@ -163,27 +166,31 @@ const AdminStore: React.FC = () => {
       onClick={() => setOpenMenuId(null)}
     >
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-2">
         <div>
-          <div className="flex items-center gap-3 mb-1 font-bold   uppercase tracking-widest text-left">
-            <ShoppingBag className="text-bleu-600 dark:text-bleu-400" size={28} />
-            <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight uppercase tracking-widest">Gestion de la Supérette</h1>
+          <div className="flex items-center gap-4 mb-2 text-left">
+            <div className="p-3 bg-white dark:bg-white/5 rounded-2xl shadow-soft">
+              <ShoppingBag className="text-bleu-600 dark:text-bleu-400" size={28} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold gradient-bleu-or-text tracking-tight">Gestion de la Supérette</h1>
+              <p className="text-gray-500 dark:text-gray-400 font-semibold text-sm">Inventaire des fournitures, tenues et accessoires scolaires</p>
+            </div>
           </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm text-left uppercase tracking-widest">Inventaire des fournitures, tenues et accessoires scolaires</p>
         </div>
         <div className="flex items-center gap-3">
           <Button 
             variant="outline" 
             onClick={() => setIsSaleModalOpen(true)}
-            className="flex gap-2 dark:border-white/10 dark:text-white text-[10px] uppercase tracking-widest font-bold px-5 h-11"
+            className="flex gap-2 dark:border-white/10 dark:text-white text-[12px] font-bold px-6 h-12 rounded-[1rem] shadow-sm"
           >
-            <DollarSign size={18} /> Saisir une Vente
+            <DollarSign size={18} /> Saisir une vente
           </Button>
           <Button 
             onClick={() => setIsAddModalOpen(true)}
-            className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 shadow-blue border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-bleu-600/20"
+            className="flex gap-2 bg-gradient-to-r from-bleu-700 to-bleu-500 shadow-blue border-none font-bold text-[12px] h-12 px-8 rounded-[1rem] shadow-lg shadow-bleu-600/20"
           >
-            <Plus size={20} /> Nouvel Article
+            <Plus size={20} /> Nouvel article
           </Button>
         </div>
       </div>
@@ -248,7 +255,7 @@ const AdminStore: React.FC = () => {
               placeholder="Chercher une fourniture, tenue..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-bold text-gray-700 dark:text-white shadow-sm text-xs uppercase tracking-widest"
+              className="w-full pl-14 pr-6 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-bold text-gray-700 dark:text-white shadow-sm text-sm"
             />
           </div>
         </div>
@@ -335,19 +342,19 @@ const AdminStore: React.FC = () => {
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
             className="fixed bottom-8 right-8 z-[100]"
           >
-            <div className="bg-vert-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle2 size={24} />
+            <div className="bg-vert-600 text-white px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-5 backdrop-blur-md">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                <CheckCircle2 size={28} />
               </div>
-              <div>
-                <p className="font-bold text-sm tracking-tight uppercase tracking-widest">Opération réussie !</p>
-                <p className="text-[10px] text-white/80 font-medium uppercase tracking-widest">L'inventaire a été mis à jour avec succès.</p>
+              <div className="text-left">
+                <p className="font-bold text-base tracking-tight">Opération accomplie !</p>
+                <p className="text-[12px] text-white/80 font-semibold italic">L'inventaire de la supérette a été mis à jour.</p>
               </div>
               <button 
                 onClick={() => setIsSuccess(false)}
-                className="ml-4 p-1 hover:bg-white/10 rounded-full transition-colors"
+                className="ml-6 p-2 hover:bg-white/10 rounded-full transition-all"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
           </motion.div>

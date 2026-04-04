@@ -1,9 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, GraduationCap, Users, UserCheck, BookOpen, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Mail, 
+  Lock, 
+  GraduationCap, 
+  Users, 
+  UserCheck, 
+  BookOpen, 
+  ShieldCheck, 
+  CheckCircle2,
+  ChevronRight,
+  ArrowRight,
+  Sparkles
+} from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { UserRole } from '../../types/auth';
-import { Button, Input } from '../../components/ui';
+import { Button, Input, Badge } from '../../components/ui';
+import { cn } from '../../utils/cn';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -15,11 +29,11 @@ const Login: React.FC = () => {
     role: 'admin' as UserRole
   });
 
-  const roles: Array<{ value: UserRole; label: string; icon: React.ReactNode }> = [
-    { value: 'admin', label: 'Admin', icon: <Users className="w-5 h-5" /> },
-    { value: 'enseignant', label: 'Enseignant', icon: <BookOpen className="w-5 h-5" /> },
-    { value: 'parent', label: 'Parent', icon: <UserCheck className="w-5 h-5" /> },
-    { value: 'eleve', label: 'Élève', icon: <GraduationCap className="w-5 h-5" /> }
+  const roles = [
+    { value: 'admin' as UserRole, label: 'Administration', icon: Users, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
+    { value: 'enseignant' as UserRole, label: 'Enseignant', icon: BookOpen, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
+    { value: 'parent' as UserRole, label: 'Espace Parent', icon: UserCheck, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
+    { value: 'eleve' as UserRole, label: 'Espace Élève', icon: GraduationCap, color: 'bg-gradient-to-r from-bleu-600 to-indigo-800', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' }
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,219 +60,236 @@ const Login: React.FC = () => {
     setFormData(prev => ({ ...prev, ...creds, role }));
   };
 
-  const themes = {
-    admin: {
-      leftBg: 'bg-[#0a192f]',
-      glow1: 'bg-[#FFB800]/20',
-      glow2: 'bg-bleu-500/20',
-      accentText: 'text-[#FFB800]',
-      activeTab: 'bg-slate-50 border-[#0a192f] text-[#0a192f] shadow-lg shadow-gray-200',
-      activeTabIcon: 'bg-[#0a192f] text-[#FFB800]',
-      submitBtn: 'bg-[#0a192f] hover:bg-[#112240] text-white shadow-xl shadow-gray-300',
-      linkColor: 'text-[#0a192f] hover:text-[#112240]',
-      checkboxColor: 'text-[#0a192f] focus:ring-[#0a192f]'
-    },
-    enseignant: {
-      leftBg: 'bg-vert-900',
-      glow1: 'bg-vert-400/20',
-      glow2: 'bg-bleu-400/20',
-      accentText: 'text-vert-400',
-      activeTab: 'bg-vert-50 border-vert-500 text-vert-700 shadow-lg shadow-vert-100',
-      activeTabIcon: 'bg-vert-100 text-vert-600',
-      submitBtn: 'bg-vert-600 hover:bg-vert-700 text-white shadow-xl shadow-vert-200',
-      linkColor: 'text-vert-600 hover:text-vert-700',
-      checkboxColor: 'text-vert-600 focus:ring-vert-500'
-    },
-    parent: {
-      leftBg: 'bg-rouge-900',
-      glow1: 'bg-rouge-400/20',
-      glow2: 'bg-orange-400/20',
-      accentText: 'text-rouge-400',
-      activeTab: 'bg-rouge-50 border-rouge-500 text-rouge-700 shadow-lg shadow-rouge-100',
-      activeTabIcon: 'bg-rouge-100 text-rouge-600',
-      submitBtn: 'bg-rouge-600 hover:bg-rouge-700 text-white shadow-xl shadow-rouge-200',
-      linkColor: 'text-rouge-600 hover:text-rouge-700',
-      checkboxColor: 'text-rouge-600 focus:ring-rouge-500'
-    },
-    eleve: {
-      leftBg: 'bg-bleu-900',
-      glow1: 'bg-bleu-400/20',
-      glow2: 'bg-cyan-400/20',
-      accentText: 'text-bleu-400',
-      activeTab: 'bg-bleu-50 border-bleu-500 text-bleu-700 shadow-lg shadow-bleu-100',
-      activeTabIcon: 'bg-bleu-100 text-bleu-600',
-      submitBtn: 'bg-bleu-600 hover:bg-bleu-700 text-white shadow-xl shadow-bleu-200',
-      linkColor: 'text-bleu-600 hover:text-bleu-700',
-      checkboxColor: 'text-bleu-600 focus:ring-bleu-500'
-    }
-  };
-
-  const currentTheme = themes[formData.role] || themes.admin;
+  const selectedRoleData = roles.find(r => r.value === formData.role)!;
 
   return (
-    <div className="min-h-screen flex bg-gray-50 overflow-hidden">
-      {/* Colonne gauche - Branding & Marketing */}
-      <div className={`hidden lg:flex lg:w-[45%] ${currentTheme.leftBg} relative overflow-hidden transition-colors duration-700`}>
-        {/* Abstract Background Decorations */}
-        <div className={`absolute top-[-10%] right-[-10%] w-[500px] h-[500px] ${currentTheme.glow1} rounded-full blur-[120px] transition-colors duration-700`} />
-        <div className={`absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] ${currentTheme.glow2} rounded-full blur-[120px] transition-colors duration-700`} />
-        
-        {/* Animated Grid Pattern (Subtle) */}
-        <div className="absolute inset-0 opacity-10" style={{ 
-          backgroundImage: 'radial-gradient(#ffffff 0.5px, transparent 0.5px)', 
-          backgroundSize: '30px 30px' 
-        }} />
-
-        <div className="relative z-10 flex flex-col items-center justify-center w-full h-full px-16 text-white text-center">
-          {/* Logo with Premium Presentation */}
-          <div className="relative mb-12 group">
-            <div className="absolute inset-0 bg-white/20 blur-2xl rounded-full scale-125 group-hover:scale-150 transition-transform duration-700" />
-            <div className="relative w-56 h-56 bg-white rounded-[40px] shadow-2xl flex items-center justify-center p-6 border-8 border-white/10 group-hover:rotate-3 transition-transform duration-500">
-              <img src="/logo_eief.jpeg" alt="Logo EIEF" className="w-full h-full object-contain" />
-            </div>
-          </div>
-          
-          <div className="space-y-4 mb-12">
-            <h1 className="text-4xl font-extrabold ">
-              École Internationale <br /> 
-              <span className={`${currentTheme.accentText} transition-colors duration-700`}>Les Enfants du Futur</span>
-            </h1>
-            <div className="flex items-center justify-center gap-4">
-              <div className="h-[2px] w-12 bg-white/30 rounded-full" />
-              <p className="text-xl font-medium italic text-gray-300">Faisons Plus !</p>
-              <div className="h-[2px] w-12 bg-white/30 rounded-full" />
-            </div>
-          </div>
-          
-          {/* Features Grid - Glassmorphism */}
-          <div className="grid grid-cols-2 gap-4 w-full">
-            {[
-              { icon: <GraduationCap className="text-red-400" />, text: 'Excellence' },
-              { icon: <Users className="text-green-400" />, text: 'Communauté' },
-              { icon: <ShieldCheck className="text-yellow-400" />, text: 'Sécurité' },
-              { icon: <CheckCircle2 className="text-blue-400" />, text: 'Réussite' }
-            ].map((f, i) => (
-              <div key={i} className="flex items-center gap-3 bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl hover:bg-white/10 transition-colors">
-                <div className="p-2 bg-white/10 rounded-lg">{f.icon}</div>
-                <span className="text-sm font-medium">{f.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8 relative overflow-hidden bg-slate-950">
+      {/* Dynamic Background Image */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900/40 to-slate-950 z-10" />
+        <motion.img 
+          initial={{ scale: 1.1 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
+          src="/modern_school_interior_blur_1775250431386.png" 
+          alt="School Background" 
+          className="w-full h-full object-cover opacity-40 blur-[2px]"
+        />
       </div>
 
-      {/* Colonne droite - Formulaire */}
-      <div className="w-full lg:w-[55%] flex items-center justify-center p-8 sm:p-12">
-        <div className="w-full max-w-lg">
-          {/* Header Mobile Only Logo */}
-          <div className="lg:hidden flex justify-center mb-8">
-            <div className="w-24 h-24 bg-white rounded-2xl shadow-xl p-3 flex items-center justify-center border-4 border-gray-100">
-              <img src="/logo_eief.jpeg" alt="Logo EIEF" className="w-full h-full object-contain" />
-            </div>
-          </div>
+      {/* Background Animated Glows */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <motion.div 
+           animate={{ 
+             x: [0, 100, 0], 
+             y: [0, -100, 0],
+             scale: [1, 1.2, 1]
+           }} 
+           transition={{ duration: 15, repeat: Infinity }}
+           className={cn("absolute -top-1/4 -right-1/4 w-[600px] h-[600px] rounded-full blur-[120px] transition-colors duration-1000", selectedRoleData.glow)}
+        />
+        <motion.div 
+           animate={{ 
+             x: [0, -100, 0], 
+             y: [0, 100, 0],
+             scale: [1, 1.1, 1]
+           }} 
+           transition={{ duration: 12, repeat: Infinity }}
+           className={cn("absolute -bottom-1/4 -left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] transition-colors duration-1000", selectedRoleData.glow)}
+        />
+      </div>
 
-          <div className="bg-white rounded-[32px] shadow-2xl shadow-gray-200/50 p-10 sm:p-12 border border-gray-100 relative">
-            {/* Form Header */}
-            <div className="text-center mb-10">
-              <h2 className="text-4xl font-black text-gray-900 mb-2">Bon retour !</h2>
-              <p className="text-gray-500">Accédez à votre espace sécurisé</p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Role Selection Tabs */}
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-gray-400   px-1">
-                  Quel est votre rôle ?
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {roles.map((role) => (
-                    <button
-                      key={role.value}
-                      type="button"
-                      onClick={() => handleInputChange('role', role.value)}
-                      className={`
-                        flex flex-col items-center gap-2 py-3 rounded-2xl transition-all duration-300 border-2
-                        ${formData.role === role.value
-                          ? currentTheme.activeTab
-                          : 'bg-gray-50 border-gray-100 text-gray-400 hover:bg-gray-100 hover:border-gray-200'
-                        }
-                      `}
-                    >
-                      <div className={`p-2 rounded-xl transition-colors duration-300 ${formData.role === role.value ? currentTheme.activeTabIcon : 'bg-white text-gray-400'}`}>
-                        {role.icon}
-                      </div>
-                      <span className="text-[10px] font-semibold  ">{role.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Inputs */}
-              <div className="space-y-4">
-                <Input
-                  label="Email Institutionnel"
-                  type="email"
-                  placeholder="nom.prenom@eief.edu.gn"
-                  icon={Mail}
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all text-lg"
-                  required
-                />
-
-                <Input
-                  label="Mot de passe"
-                  type="password"
-                  placeholder="••••••••"
-                  icon={Lock}
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className="rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all text-lg"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-between px-1">
-                <label className="flex items-center group cursor-pointer">
-                  <input type="checkbox" className={`w-5 h-5 rounded-lg border-gray-200 transition-all ${currentTheme.checkboxColor}`} />
-                  <span className="ml-3 text-sm text-gray-500 group-hover:text-gray-700 font-medium">Resté connecté</span>
-                </label>
-                <button type="button" className={`text-sm font-semibold transition-colors ${currentTheme.linkColor}`}>
-                  Oublié ?
-                </button>
-              </div>
-
-              <Button
-                type="submit"
-                variant="primary"
-                className={`w-full py-6 text-xl rounded-2xl transition-all duration-300 active:scale-[0.98] ${currentTheme.submitBtn}`}
-                loading={isLoading}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="w-full max-w-[1100px] grid grid-cols-1 lg:grid-cols-12 bg-white/5 backdrop-blur-[40px] rounded-[3rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.4)] overflow-hidden relative z-10"
+      >
+        {/* Branding Column */}
+        <div className="lg:col-span-5 p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden group bg-gradient-to-b from-bleu-900 via-bleu-800 to-or-600/80">
+           <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+           
+           <div className="relative z-10 text-left">
+              <button 
+                onClick={() => navigate('/')} 
+                className="mb-8 inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/80 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md border border-white/10 group/btn"
               >
-                {isLoading ? 'Authentification...' : 'S\'identifier'}
-              </Button>
-            </form>
+                <ArrowRight className="rotate-180 group-hover/btn:-translate-x-1 transition-transform" size={14} /> Retour à l'accueil
+              </button>
 
-            {/* Quick Demo Footer */}
-            <div className="mt-12 pt-8 border-t border-gray-50">
-              <p className="text-center text-xs font-semibold text-gray-300   mb-6">Accès Démo</p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {['admin', 'enseignant', 'parent'].map(r => (
-                  <button 
-                    key={r}
-                    onClick={() => handleDemoLogin(r as UserRole)}
-                    className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-xl text-xs font-semibold transition-colors border border-gray-100"
-                  >
-                    {r.toUpperCase()}
-                  </button>
-                ))}
+              <div className="inline-flex items-center gap-3 mb-10 group-hover:scale-105 transition-transform">
+                 <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center p-2 shadow-2xl rotate-[-6deg]">
+                    <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+                 </div>
+                 <div className="flex flex-col">
+                    <span className="text-white font-black text-2xl tracking-tighter leading-none">EIEF</span>
+                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">Éducation d'Excellence</span>
+                 </div>
               </div>
-            </div>
-          </div>
-          
-          <p className="text-center mt-8 text-sm text-gray-400">
-            Besoin d'aide ? <button className="text-green-600 font-semibold hover:underline">Support Technique</button>
-          </p>
+
+              <h1 className="text-4xl lg:text-5xl font-black text-white leading-tight mb-6 mt-4">
+                 Construisons le <br />
+                 <span className="inline-block mt-1 transition-all duration-500 bg-clip-text text-transparent bg-gradient-to-r from-or-300 via-or-500 to-or-700">
+                    Futur
+                 </span> Ensemble.
+              </h1>
+              <p className="text-white/60 font-medium text-sm leading-relaxed max-w-xs mb-10">
+                 Votre plateforme centralisée pour une gestion éducative innovante et performante.
+              </p>
+
+              <div className="grid grid-cols-1 gap-4">
+                 {[
+                   { label: "Suivi en temps réel", desc: "Notes, absences et exercices" },
+                   { label: "Communication fluide", desc: "Chat dédié parents/profs" },
+                   { label: "Sécurité garantie", desc: "Données cryptées et accès limité" }
+                 ].map((item, i) => (
+                   <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 transition-all hover:bg-white/10">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40">
+                         <CheckCircle2 size={20} />
+                      </div>
+                      <div className="text-left">
+                         <p className="text-white font-bold text-sm leading-none pt-1">{item.label}</p>
+                         <p className="text-white/40 text-[10px] font-semibold mt-1">{item.desc}</p>
+                      </div>
+                   </div>
+                 ))}
+              </div>
+           </div>
+
+           <div className="relative z-10 pt-16 flex items-center justify-between border-t border-white/5">
+              <div className="flex -space-x-3">
+                 {[1,2,3,4].map(i => (
+                    <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-black text-white/40">U{i}</div>
+                 ))}
+              </div>
+              <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Rejoignez-nous !</p>
+           </div>
         </div>
+
+        {/* Login Form Column */}
+        <div className="lg:col-span-7 bg-white/95 p-12 lg:p-16 border-l border-white/5 flex flex-col justify-center relative overflow-hidden">
+           <AnimatePresence mode="wait">
+              <motion.div 
+                key={formData.role} 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="w-full max-w-md mx-auto"
+              >
+                 <div className="text-left mb-10">
+                    <Badge className={cn("mb-4 border-none font-black text-[10px] uppercase tracking-[0.2em] px-3 h-7", selectedRoleData.bg, selectedRoleData.text)}>
+                       Accès {selectedRoleData.label}
+                    </Badge>
+                    <h2 className="text-4xl font-black text-gray-900 tracking-tight">Portail de Connexion</h2>
+                    <p className="text-gray-500 font-semibold text-sm mt-3 uppercase tracking-widest opacity-60">Saisissez vos identifiants institutionnels</p>
+                 </div>
+
+                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Role chips as tabs */}
+                    <div className="flex flex-wrap gap-2 mb-8">
+                       {roles.map(r => (
+                          <button
+                            key={r.value}
+                            type="button"
+                            onClick={() => handleInputChange('role', r.value)}
+                            className={cn(
+                              "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black transition-all border-2",
+                              formData.role === r.value
+                                ? `bg-white ${r.text} border-current shadow-xl shadow-current/10 ring-4 ${r.ring}`
+                                : "bg-gray-50 border-transparent text-gray-400 hover:bg-gray-100"
+                            )}
+                          >
+                             <r.icon size={14} />
+                             {r.label.split(' ')[0]}
+                          </button>
+                       ))}
+                    </div>
+
+                    <div className="space-y-4">
+                       <div className="relative group text-left">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block ml-1">Identifiant Email</label>
+                          <div className="relative">
+                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-current transition-colors" size={18} />
+                             <input 
+                               type="email"
+                               placeholder="email@eief.edu.gn"
+                               value={formData.email}
+                               onChange={(e) => handleInputChange('email', e.target.value)}
+                               className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-sm font-bold focus:bg-white focus:border-current focus:ring-4 focus:ring-current/10 outline-none transition-all placeholder:text-gray-300"
+                               style={{ color: '#2563eb' }}
+                               required
+                             />
+                          </div>
+                       </div>
+
+                       <div className="relative group text-left">
+                          <div className="flex items-center justify-between mb-2">
+                             <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Mot de passe</label>
+                             <button type="button" className="text-[10px] font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest">Oublié ?</button>
+                          </div>
+                          <div className="relative">
+                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-current transition-colors" size={18} />
+                             <input 
+                               type="password"
+                               placeholder="••••••••"
+                               value={formData.password}
+                               onChange={(e) => handleInputChange('password', e.target.value)}
+                               className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-sm font-bold focus:bg-white focus:border-current focus:ring-4 focus:ring-current/10 outline-none transition-all placeholder:text-gray-300"
+                               required
+                             />
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 px-1 py-2">
+                       <input type="checkbox" id="remember" className="w-5 h-5 rounded-lg border-gray-200 text-current focus:ring-current/20 transition-all cursor-pointer" style={{ color: '#2563eb' }} />
+                       <label htmlFor="remember" className="text-xs font-bold text-gray-500 cursor-pointer">Maintenir ma session active</label>
+                    </div>
+
+                    <Button 
+                      type="submit"
+                      disabled={isLoading}
+                      className={cn(
+                        "w-full h-16 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-2xl transition-all active:scale-[0.98] mt-4",
+                        selectedRoleData.color,
+                        "shadow-current/30 hover:scale-[1.02]"
+                      )}
+                    >
+                       {isLoading ? "Vérification..." : (
+                          <span className="flex items-center justify-center gap-2">
+                             Se connecter <ArrowRight size={18} />
+                          </span>
+                       )}
+                    </Button>
+                 </form>
+
+                 <div className="mt-12 pt-8 border-t border-gray-100 text-center">
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em] mb-6">Connexion Rapide Démo</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                       {roles.map(r => (
+                          <button 
+                            key={r.value}
+                            onClick={() => handleDemoLogin(r.value)}
+                            className="px-4 py-2 bg-gray-50 hover:bg-white border border-gray-100 rounded-xl text-[10px] font-black text-gray-500 hover:text-gray-900 hover:shadow-md transition-all uppercase tracking-widest"
+                          >
+                             {r.label.split(' ')[0]}
+                          </button>
+                       ))}
+                    </div>
+                 </div>
+              </motion.div>
+           </AnimatePresence>
+        </div>
+      </motion.div>
+
+      {/* Footer Branding for legal/support */}
+      <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center gap-8 text-white/30 text-[10px] font-black uppercase tracking-[0.2em] pointer-events-none">
+         <span>© 2026 EIEF EDUCATION</span>
+         <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+         <span>SUPPORT TECHNIQUE</span>
+         <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+         <span>VIE PRIVÉE</span>
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Bell, Settings, LogOut, User, Sun, Moon } from 'lucide-react';
 import Avatar from '../ui/Avatar';
+import { Camera, Lock, CheckCircle2, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 
 interface HeaderProps {
   title: string;
@@ -21,6 +24,8 @@ const Header: React.FC<HeaderProps> = ({
   onNotificationClick,
   onProfileClick
 }) => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -116,12 +121,14 @@ const Header: React.FC<HeaderProps> = ({
               <div className="absolute right-0 mt-3 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/5 py-2 z-50 overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-50 dark:border-white/5">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white  truncate">{userName}</p>
-                  <p className="text-[10px] font-semibold text-gray-400   mt-0.5">Administrateur</p>
+                  <p className="text-[10px] font-semibold text-gray-400 capitalize mt-0.5">
+                    {user?.role === 'admin' ? 'Administrateur' : user?.role || 'Utilisateur'}
+                  </p>
                 </div>
 
                 <button
                   onClick={() => {
-                    onProfileClick?.();
+                    navigate(`/${user?.role || 'admin'}/profil`);
                     setShowProfileMenu(false);
                   }}
                   className="w-full px-5 py-3 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-bleu-600 dark:hover:text-or-400 flex items-center gap-4 transition-all"
@@ -132,17 +139,24 @@ const Header: React.FC<HeaderProps> = ({
 
                 <button
                   onClick={() => {
-                    onNotificationClick?.();
+                    navigate(`/${user?.role || 'admin'}/${user?.role === 'admin' ? 'administration' : 'preferences'}`);
                     setShowProfileMenu(false);
                   }}
                   className="w-full px-5 py-3 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-bleu-600 dark:hover:text-or-400 flex items-center gap-4 transition-all"
                 >
                   <Settings size={18} />
-                  Paramètres
+                  Préférences
                 </button>
 
                 <div className="border-t border-gray-50 dark:border-white/5 mt-2 pt-2">
-                  <button className="w-full px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-4 transition-all  ">
+                  <button 
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      logout();
+                      navigate('/login');
+                    }}
+                    className="w-full px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-4 transition-all  "
+                  >
                     <LogOut size={18} />
                     Quitter
                   </button>
