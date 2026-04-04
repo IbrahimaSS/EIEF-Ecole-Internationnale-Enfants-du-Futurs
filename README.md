@@ -1,46 +1,30 @@
-# Getting Started with Create React App
+# 🚀 EIEF - Plateforme de Gestion Éducative
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Bienvenue sur le projet de l'**École Internationale les Enfants du Futur**. Ce dépôt contient le code source de la plateforme de gestion centralisée de l'établissement.
 
-## Available Scripts
+## 📖 À propos
+L'application EIEF est une solution complète (SaaS-like) destinée aux parents, élèves, enseignants et administrateurs. Elle se concentre sur une expérience utilisateur fluide (**Premium UI**) avec un support natif du **Mode Sombre** (Dark Mode).
 
-In the project directory, you can run:
+## 🛠️ Stack Technique
+- **Framework** : React + Vite (TypeScript)
+- **Styling** : Tailwind CSS
+- **Animations** : Framer Motion
+- **Icônes** : Lucide React
+- **Gestion d'État** : Zustand
+- **Routage** : React Router DOM
 
-### `npm start`
+## 🚀 Commencer
+Pour installer et lancer le projet en local :
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+1.  `npm install` (Installe les dépendances)
+2.  `npm run dev` (Lance le serveur de développement)
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+L'application sera accessible sur `http://localhost:3000`.
 
-### `npm test`
+## 📚 Documentation Complète
+Pour une explication détaillée de l'architecture, de la structure des dossiers et des fonctionnalités implémentées, veuillez consulter le fichier :
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+👉 **[DOCUMENTATION.MD](./DOCUMENTATION.md)**
 
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
+*Faisons Plus !* © 2026 EIEF.
