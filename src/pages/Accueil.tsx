@@ -258,9 +258,9 @@ const Accueil: React.FC = () => {
 
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
               {[
-                { title: 'Primaire', desc: 'S\'éveiller, explorer et acquérir les bases fondamentales dans un environnement ludique.', icon: Globe, img: '/Img1.jpeg', col: 'text-bleu-600 dark:text-bleu-400' },
-                { title: 'Collège', desc: 'Structurer la pensée critique et approfondir les connaissances académiques essentielles.', icon: Clock, img: '/smartboard.jpg', col: 'text-or-600 dark:text-or-400' },
-                { title: 'Lycée', desc: 'Préparer l\'excellence pour les concours nationaux et les prestigieuses universités.', icon: Sparkles, img: '/Img3.jpeg', col: 'text-vert-600 dark:text-vert-400' },
+                { title: 'Primaire', desc: 'S\'éveiller, explorer et acquérir les bases fondamentales dans un environnement ludique.', icon: Globe, img: '/Img3.jpeg', col: 'text-bleu-600 dark:text-bleu-400' },
+                { title: 'Collège', desc: 'Structurer la pensée critique et approfondir les connaissances académiques essentielles.', icon: Clock, img: '/Img7.jpeg', col: 'text-or-600 dark:text-or-400' },
+                { title: 'Lycée', desc: 'Préparer l\'excellence pour les concours nationaux et les prestigieuses universités.', icon: Sparkles, img: '/Img4.jpeg', col: 'text-vert-600 dark:text-vert-400' },
               ].map((prog, i) => (
                 <div key={i} className="group overflow-hidden rounded-2xl border border-gray-100 dark:border-white/5 bg-white dark:bg-gray-900/40 hover:shadow-2xl transition-all">
                    <div className="h-48 overflow-hidden dark:grayscale-[0.3] group-hover:grayscale-0 transition-all duration-700">
