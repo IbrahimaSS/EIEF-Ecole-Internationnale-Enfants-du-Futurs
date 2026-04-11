@@ -20,16 +20,3 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
 }
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
-  role: UserRole;
-}
-
-export interface AuthStore extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
-  setUser: (user: User) => void;
-  clearError: () => void;
-}
