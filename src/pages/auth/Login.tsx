@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Mail, 
@@ -8,26 +9,37 @@ import {
   Users, 
   UserCheck, 
   BookOpen, 
-  ShieldCheck, 
   CheckCircle2,
-  ChevronRight,
   ArrowRight,
-  Sparkles
+   AlertCircle
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { UserRole } from '../../types/auth';
-import { Button, Input, Badge } from '../../components/ui';
+import { Button, Badge } from '../../components/ui';
 import { cn } from '../../utils/cn';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { login, isLoading, error, clearError } = useAuthStore();
+   const location = useLocation();
+   const { login, isLoading, error, clearError, isAuthenticated, user, isInitialized } = useAuthStore();
   
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     role: 'admin' as UserRole
   });
+
+   useEffect(() => {
+      if (!isInitialized || !isAuthenticated || !user) {
+         return;
+      }
+
+      const fromPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+      const fallbackPath = `/${user.role}/dashboard`;
+      const targetPath = fromPath && fromPath.startsWith(`/${user.role}`) ? fromPath : fallbackPath;
+
+      navigate(targetPath, { replace: true });
+   }, [isAuthenticated, isInitialized, location.state, navigate, user]);
 
   const roles = [
     { value: 'admin' as UserRole, label: 'Administration', icon: Users, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
@@ -39,25 +51,18 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(formData);
-      navigate(`/${formData.role}/dashboard`);
-    } catch (err) {}
+         const actualRole = await login({
+            email: formData.email,
+            password: formData.password
+         });
+
+         navigate(`/${actualRole}/dashboard`, { replace: true });
+      } catch (_err) {}
   };
 
   const handleInputChange = (field: string, value: string | UserRole) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (error) clearError();
-  };
-
-  const handleDemoLogin = (role: UserRole) => {
-    const demoCredentials = {
-      admin: { email: 'admin@eief.edu.gn', password: 'admin123' },
-      enseignant: { email: 'enseignant@eief.edu.gn', password: 'prof123' },
-      parent: { email: 'parent@eief.edu.gn', password: 'parent123' },
-      eleve: { email: 'eleve@eief.edu.gn', password: 'eleve123' }
-    };
-    const creds = demoCredentials[role];
-    setFormData(prev => ({ ...prev, ...creds, role }));
   };
 
   const selectedRoleData = roles.find(r => r.value === formData.role)!;
@@ -242,6 +247,23 @@ const Login: React.FC = () => {
                        </div>
                     </div>
 
+                    <div className="rounded-2xl border border-bleu-100 bg-bleu-50/80 px-4 py-3 text-left">
+                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bleu-700">Rôle détecté automatiquement</p>
+                       <p className="mt-1 text-xs font-semibold text-bleu-900/80">
+                          Le portail affiché après connexion dépend du rôle renvoyé par votre compte backend.
+                       </p>
+                    </div>
+
+                    {error && (
+                      <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-left text-red-700">
+                         <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+                         <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Connexion impossible</p>
+                            <p className="mt-1 text-sm font-semibold">{error}</p>
+                         </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-3 px-1 py-2">
                        <input type="checkbox" id="remember" className="w-5 h-5 rounded-lg border-gray-200 text-current focus:ring-current/20 transition-all cursor-pointer" style={{ color: '#2563eb' }} />
                        <label htmlFor="remember" className="text-xs font-bold text-gray-500 cursor-pointer">Maintenir ma session active</label>
@@ -265,18 +287,10 @@ const Login: React.FC = () => {
                  </form>
 
                  <div className="mt-12 pt-8 border-t border-gray-100 text-center">
-                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em] mb-6">Connexion Rapide Démo</p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                       {roles.map(r => (
-                          <button 
-                            key={r.value}
-                            onClick={() => handleDemoLogin(r.value)}
-                            className="px-4 py-2 bg-gray-50 hover:bg-white border border-gray-100 rounded-xl text-[10px] font-black text-gray-500 hover:text-gray-900 hover:shadow-md transition-all uppercase tracking-widest"
-                          >
-                             {r.label.split(' ')[0]}
-                          </button>
-                       ))}
-                    </div>
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em] mb-3">Connexion backend</p>
+                    <p className="text-xs font-semibold text-gray-500">
+                      Les identifiants de démonstration locaux ont été retirés. Utilisez maintenant un compte existant du backend.
+                    </p>
                  </div>
               </motion.div>
            </AnimatePresence>

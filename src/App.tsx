@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 
 // Pages Admin
@@ -69,6 +70,12 @@ const NotFound = () => (
 );
 
 function App() {
+  const initializeAuth = useAuthStore((state) => state.initializeAuth);
+
+  useEffect(() => {
+    void initializeAuth();
+  }, [initializeAuth]);
+
   return (
     <Router>
       <div className="App">

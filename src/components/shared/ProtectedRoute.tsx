@@ -15,10 +15,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   redirectTo = '/login'
 }) => {
   const location = useLocation();
-  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const { isAuthenticated, user, isLoading, isInitialized } = useAuthStore();
 
-  // Si le chargement est en cours, afficher un spinner
-  if (isLoading) {
+  if (!isInitialized || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -29,7 +28,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Si non authentifié, rediriger vers login avec l'URL actuelle en paramètre
   if (!isAuthenticated) {
     return (
       <Navigate 
@@ -40,9 +38,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Si des rôles spécifiques sont requis et que l'utilisateur n'a pas le bon rôle
   if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.role)) {
-    // Rediriger vers le dashboard correspondant au rôle de l'utilisateur
     const roleRedirectMap: Record<UserRole, string> = {
       admin: '/admin/dashboard',
       enseignant: '/enseignant/dashboard',
@@ -58,7 +54,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Si tout est OK, afficher le contenu protégé
   return <>{children}</>;
 };
 
