@@ -1,5 +1,5 @@
 // src/hooks/useAdminDashboard.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { adminService, DashboardResponse } from '../services/adminService';
 
 const getToken = (): string | null => {
@@ -14,33 +14,35 @@ const getToken = (): string | null => {
 };
 
 export const useAdminDashboard = () => {
-  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [data, setData]       = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      const token = getToken();
+  const fetchDashboard = useCallback(async () => {
+    const token = getToken();
 
-      if (!token) {
-        setError('Token manquant. Veuillez vous reconnecter.');
-        setLoading(false);
-        return;
-      }
+    if (!token) {
+      setError('Token manquant. Veuillez vous reconnecter.');
+      setLoading(false);
+      return;
+    }
 
-      try {
-        setLoading(true);
-        const result = await adminService.getDashboard(token);
-        setData(result);
-      } catch (err: any) {
-        setError(err?.message || 'Erreur lors du chargement du tableau de bord');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboard();
+    try {
+      setLoading(true);
+      const result = await adminService.getDashboard(token);
+      setData(result);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Erreur lors du chargement du tableau de bord');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { data, loading, error };
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  // refetch exposé → appelé après chaque mutation utilisateur pour sync auto
+  return { data, loading, error, refetch: fetchDashboard };
 };
