@@ -1,3 +1,5 @@
+export type UUID = string;
+
 export type UserRole = "admin" | "enseignant" | "parent" | "eleve";
 
 export type BackendRole = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT" | "STAFF";

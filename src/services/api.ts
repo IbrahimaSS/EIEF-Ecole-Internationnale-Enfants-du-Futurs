@@ -23,15 +23,35 @@ interface ApiRequestOptions extends RequestInit {
   token?: string | null;
 }
 
+const getStoredToken = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem("auth-storage");
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.token ?? null;
+  } catch {
+    return null;
+  }
+};
+
 const buildHeaders = (options: ApiRequestOptions): Headers => {
   const headers = new Headers(options.headers);
+  const token = options.token ?? getStoredToken();
 
   if (!headers.has("Content-Type") && options.body) {
     headers.set("Content-Type", "application/json");
   }
 
-  if (options.token) {
-    headers.set(AUTH_HEADER_NAME, `${AUTH_HEADER_PREFIX} ${options.token}`);
+  if (token) {
+    headers.set(AUTH_HEADER_NAME, `${AUTH_HEADER_PREFIX} ${token}`);
   }
 
   return headers;

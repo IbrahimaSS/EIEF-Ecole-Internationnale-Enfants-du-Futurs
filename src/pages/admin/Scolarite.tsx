@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   GraduationCap, 
@@ -25,12 +25,17 @@ import {
 } from 'lucide-react';
 import { Card, Badge, StatCard, Button, Modal, Input, Select, Avatar } from '../../components/ui';
 import { cn } from '../../utils/cn';
+import { toast } from 'sonner';
 
-// Importation des données
-import elevesData from '../../data/eleves.json';
-import enseignantsData from '../../data/enseignants.json';
+// ============================================
+// IMPORTS DES HOOKS BACKEND (nouveaux imports)
+// ============================================
+import { useSchedules, useClassSchedules, useScheduleMutations } from '../../hooks/useSchedule';
+import { useTeacherDashboard, useTeacherClasses, useClassStudents } from '../../hooks/useTeacher';
+import { useAttendance, useScheduleAttendance } from '../../hooks/useAttendance';
+import { useAuthStore } from '../../store/authStore';
 
-const AdminScolarite: React.FC = () => {
+const Scolarite: React.FC = () => {
   const [activeSegment, setActiveSegment] = useState<'classes' | 'matieres'>('classes');
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isCreateClassModalOpen, setIsCreateClassModalOpen] = useState(false);
@@ -39,29 +44,231 @@ const AdminScolarite: React.FC = () => {
   const [filterSalle, setFilterSalle] = useState<string>('Toutes');
   const [filterAnnee, setFilterAnnee] = useState<string>('2024-2025');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [courseForm, setCourseForm] = useState({
+    classSubjectId: '',
+    dayOfWeek: '1',
+    startTime: '',
+    endTime: '',
+    room: '',
+  });
 
-  // Analyse des classes à partir des élèves
-  const classesMap = elevesData.reduce((acc: any, el) => {
-    if (!acc[el.classe]) {
-      acc[el.classe] = { nombreEleves: 0, niveau: el.classe.split(' ')[0] };
+  // ============================================
+  // RÉCUPÉRATION DES DONNÉES RÉELLES DU BACKEND
+  // ============================================
+  
+  // Récupérer l'utilisateur connecté (adapt selon ton auth)
+  const user = useAuthStore((state) => state.user);
+  const userId = user?.id;
+
+  // Dashboard du professeur (stats réelles)
+  const { data: teacherDashboard, isLoading: isLoadingDashboard } = useTeacherDashboard(userId || '');
+  
+  // Classes du professeur (données réelles du backend)
+  const { data: teacherClasses, isLoading: isLoadingClasses } = useTeacherClasses(userId || '');
+  
+  // Tous les emplois du temps
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useSchedules();
+  
+  // Emploi du temps filtré par classe si sélectionnée
+  const { data: classSchedules } = useClassSchedules(selectedClass?.classId || '');
+
+  // ============================================
+  // TRANSFORMATION DES DONNÉES BACKEND
+  // ============================================
+
+  // Transformer les classes du backend pour l'affichage
+  const classesList = useMemo(() => {
+    if (teacherClasses && teacherClasses.length > 0) {
+      return teacherClasses.map((cls: any, index: number) => {
+        const matchingSchedule = allSchedules?.find(
+          (schedule: any) =>
+            schedule.className === cls.className &&
+            schedule.subjectName === cls.subjectName
+        );
+
+        const resolvedClassSubjectId =
+          cls.classSubjectId ||
+          cls.subjectId ||
+          matchingSchedule?.classSubjectId ||
+          cls.classId;
+
+        return {
+          id: index,
+          classId: cls.classId,
+          classSubjectId: resolvedClassSubjectId,
+          subjectId: cls.subjectId || matchingSchedule?.classSubjectId || cls.classId,
+          name: cls.className,
+          niveau: cls.level || "Non défini",
+          nombreEleves: cls.studentCount,
+          profPrincipal: "Vous",
+          subjectName: cls.subjectName,
+          classAverage: cls.classAverage ?? 0,
+          room: cls.room,
+        };
+      });
     }
-    acc[el.classe].nombreEleves += 1;
-    return acc;
-  }, {});
 
-  const classesList = Object.keys(classesMap).map((className, index) => ({
-    id: index,
-    name: className,
-    ...classesMap[className],
-    profPrincipal: enseignantsData.find(p => p.classes.includes(className))?.lastName || "Non assigné"
-  }));
+    const uniqueScheduleClasses = new Map();
 
-  // Matières (simulées à partir des enseignants)
-  const matieresList = Array.from(new Set(enseignantsData.map(p => p.matiere))).map(m => ({
-    nom: m,
-    coefficient: m === 'Mathématiques' || m === 'Français' ? 5 : 3,
-    enseignants: enseignantsData.filter(p => p.matiere === m).length
-  }));
+    allSchedules?.forEach((schedule: any, index: number) => {
+      const key = `${schedule.className}-${schedule.subjectName}-${schedule.classSubjectId || index}`;
+
+      if (!uniqueScheduleClasses.has(key)) {
+        uniqueScheduleClasses.set(key, {
+          id: index,
+          classId: schedule.classId || schedule.classSubjectId || `schedule-class-${index}`,
+          classSubjectId: schedule.classSubjectId || schedule.classId || '',
+          subjectId: schedule.classSubjectId || schedule.classId || '',
+          name: schedule.className || 'Classe',
+          niveau: schedule.level || "Non défini",
+          nombreEleves: schedule.studentCount || 0,
+          profPrincipal: schedule.teacherName || "Non défini",
+          subjectName: schedule.subjectName || '',
+          classAverage: schedule.classAverage ?? 0,
+          room: schedule.room,
+        });
+      }
+    });
+
+    return Array.from(uniqueScheduleClasses.values());
+  }, [teacherClasses, allSchedules]);
+
+  // Matières uniques à partir des classes du professeur
+  const matieresList = Array.from(
+    new Map(teacherClasses?.map((c: any) => [c.subjectName, {
+      nom: c.subjectName,
+      coefficient: 3, // Tu peux ajuster ou récupérer du backend si dispo
+      enseignants: 1,
+      classId: c.classId,
+      subjectName: c.subjectName
+    }]) || []).values()
+  );
+
+  // Emploi du temps à afficher (tous ou filtré par classe)
+  const schedulesToShow = selectedClass ? classSchedules : allSchedules;
+
+  // ============================================
+  // GESTION DE LA PRÉSENCE (nouvelle fonctionnalité)
+  // ============================================
+  
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+  const [selectedScheduleForAttendance, setSelectedScheduleForAttendance] = useState<any>(null);
+  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  
+  const { data: classStudents } = useClassStudents(
+    selectedClass?.classId || '', 
+    selectedClass?.subjectId || selectedClass?.classSubjectId || ''
+  );
+  
+  const { data: existingAttendance } = useScheduleAttendance(
+    selectedScheduleForAttendance?.id || '',
+    attendanceDate
+  );
+  
+  const { bulkCreate, isBulkCreating } = useAttendance();
+  const { create, isCreating } = useScheduleMutations();
+
+  const classOptions = classesList.length > 0
+    ? classesList.map((c: any) => ({
+        value: c.classSubjectId || c.classId,
+        label: c.subjectName ? `${c.name} - ${c.subjectName}` : c.name,
+      }))
+    : [{ value: '', label: 'Aucune classe disponible' }];
+
+  const handleOpenAttendance = (schedule: any) => {
+    setSelectedScheduleForAttendance(schedule);
+    setIsAttendanceModalOpen(true);
+  };
+
+  const handleCloseSelectedClass = useCallback(() => {
+    setSelectedClass(null);
+  }, []);
+
+  const handleCloseCalendarModal = useCallback(() => {
+    setIsCalendarModalOpen(false);
+  }, []);
+
+  const handleCloseAttendanceModal = useCallback(() => {
+    setIsAttendanceModalOpen(false);
+  }, []);
+
+  const handleCloseCreateCourseModal = useCallback(() => {
+    setIsCreateClassModalOpen(false);
+  }, []);
+
+  const handleOpenCreateCourseModal = () => {
+    setCourseForm({
+      classSubjectId: classesList[0]?.classSubjectId || '',
+      dayOfWeek: '1',
+      startTime: '',
+      endTime: '',
+      room: '',
+    });
+    setIsCreateClassModalOpen(true);
+  };
+
+  const handleCreateCourse = () => {
+    if (!courseForm.classSubjectId) {
+      toast.error("Aucune classe disponible pour planifier un cours.");
+      return;
+    }
+
+    if (!courseForm.startTime || !courseForm.endTime) {
+      toast.error("Veuillez renseigner l'heure de début et l'heure de fin.");
+      return;
+    }
+
+    if (courseForm.endTime <= courseForm.startTime) {
+      toast.error("L'heure de fin doit être après l'heure de début.");
+      return;
+    }
+
+    create(
+      {
+        classSubjectId: courseForm.classSubjectId,
+        dayOfWeek: Number(courseForm.dayOfWeek),
+        startTime: courseForm.startTime,
+        endTime: courseForm.endTime,
+        room: courseForm.room.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          handleCloseCreateCourseModal();
+          setIsSuccess(true);
+          setTimeout(() => setIsSuccess(false), 3000);
+          setCourseForm({
+            classSubjectId: classesList[0]?.classSubjectId || '',
+            dayOfWeek: '1',
+            startTime: '',
+            endTime: '',
+            room: '',
+          });
+        },
+      }
+    );
+  };
+
+  const handleSaveAttendance = (entries: any[]) => {
+    if (selectedScheduleForAttendance) {
+      bulkCreate({
+        scheduleId: selectedScheduleForAttendance.id,
+        date: attendanceDate,
+        entries
+      }, {
+        onSuccess: () => {
+          handleCloseAttendanceModal();
+          setIsSuccess(true);
+          setTimeout(() => setIsSuccess(false), 3000);
+        }
+      });
+    }
+  };
+
+  // ============================================
+  // RENDU
+  // ============================================
+
+  const isLoading = isLoadingDashboard || isLoadingClasses || isLoadingSchedules;
 
   return (
     <motion.div
@@ -77,7 +284,9 @@ const AdminScolarite: React.FC = () => {
             <Building2 className="text-bleu-600 dark:text-bleu-400" size={28} />
             <h1 className="text-xl font-semibold gradient-bleu-or-text text-left">Gestion de la Scolarité</h1>
           </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm text-left">Organisation pédagogique, structures et enseignements de l'EIEF</p>
+          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm text-left">
+            {teacherDashboard ? `${teacherDashboard.classCount} classes • ${teacherDashboard.totalStudents} étudiants` : 'Chargement...'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button 
@@ -85,45 +294,45 @@ const AdminScolarite: React.FC = () => {
             onClick={() => setIsCalendarModalOpen(true)}
             className="flex gap-2 dark:border-white/10 dark:text-white"
           >
-            <CalendarIcon size={18} /> Calendrier
+            <CalendarIcon size={18} /> Emploi du Temps
           </Button>
           <Button 
-            onClick={() => setIsCreateClassModalOpen(true)}
+            onClick={handleOpenCreateCourseModal}
             className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 shadow-blue border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
           >
-            <Plus size={18} /> Créer une Classe
+            <Plus size={18} /> Nouveau Cours
           </Button>
         </div>
       </div>
 
-      {/* KPI GRID */}
+      {/* KPI GRID - DONNÉES RÉELLES DU BACKEND */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Classes"
-          value={classesList.length.toString()}
+          title="Mes Classes"
+          value={teacherDashboard?.classCount?.toString() || "0"}
           subtitle="Groupes pédagogiques"
           icon={<Layers />}
           color="bleu"
         />
         <StatCard
-          title="Moyenne / Classe"
-          value={Math.round(elevesData.length / classesList.length).toString()}
-          subtitle="Élèves par groupe"
+          title="Total Étudiants"
+          value={teacherDashboard?.totalStudents?.toString() || "0"}
+          subtitle="Élèves inscrits"
           icon={<Users />}
           color="bleu"
         />
         <StatCard
-          title="Matières Actives"
-          value={matieresList.length.toString()}
-          subtitle="Cursus EIEF"
+          title="Moyenne Générale"
+          value={teacherDashboard?.averageGrade ? `${teacherDashboard.averageGrade.toFixed(1)}/20` : "0/20"}
+          subtitle="Moyenne des classes"
           icon={<BookOpen />}
           color="or"
         />
         <StatCard
-          title="Inscriptions"
-          value="100%"
-          subtitle="Taux de remplissage"
-          icon={<UserCheck />}
+          title="Heures Cette Semaine"
+          value={`${teacherDashboard?.hoursThisWeek?.toString() || "0"}h`}
+          subtitle="Volume horaire"
+          icon={<Clock />}
           color="vert"
         />
       </div>
@@ -131,8 +340,8 @@ const AdminScolarite: React.FC = () => {
       {/* SEGMENTED CONTROL */}
       <div className="flex items-center gap-4 border-b border-gray-100 dark:border-white/5 pb-4">
         {[
-          { id: 'classes', label: 'Structure des Classes', icon: Building2 },
-          { id: 'matieres', label: 'Matières & Coefficients', icon: BookOpen },
+          { id: 'classes', label: 'Mes Classes', icon: Building2 },
+          { id: 'matieres', label: 'Matières Enseignées', icon: BookOpen },
         ].map((seg) => (
           <button
             key={seg.id}
@@ -161,33 +370,49 @@ const AdminScolarite: React.FC = () => {
             exit={{ opacity: 0, scale: 0.98 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
           >
-            {classesList.map((c, i) => (
-              <Card 
-                key={i} 
-                onClick={() => setSelectedClass(c)}
-                className="p-0 border-none shadow-soft overflow-hidden group cursor-pointer hover:scale-[1.03] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md"
-              >
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-white/5 dark:to-white/10 p-6 border-b border-gray-100 dark:border-white/5 group-hover:from-bleu-50 dark:group-hover:from-bleu-900/20 group-hover:to-bleu-100 dark:group-hover:to-bleu-900/10 transition-colors text-left">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-white dark:bg-gray-800 rounded-2xl flex items-center justify-center text-bleu-600 dark:text-bleu-400 shadow-sm group-hover:scale-110 transition-transform">
-                      <GraduationCap size={24} />
+            {isLoadingClasses ? (
+              <div className="col-span-full text-center py-12">Chargement des classes...</div>
+            ) : classesList.length === 0 ? (
+              <div className="col-span-full text-center py-12 text-gray-500">
+                Aucune classe assignée. Contactez l'administration.
+              </div>
+            ) : (
+              classesList.map((c: any) => (
+                <Card 
+                  key={c.classId} 
+                  onClick={() => setSelectedClass(c)}
+                  className="p-0 border-none shadow-soft overflow-hidden group cursor-pointer hover:scale-[1.03] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md"
+                >
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-white/5 dark:to-white/10 p-6 border-b border-gray-100 dark:border-white/5 group-hover:from-bleu-50 dark:group-hover:from-bleu-900/20 group-hover:to-bleu-100 dark:group-hover:to-bleu-900/10 transition-colors text-left">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-white dark:bg-gray-800 rounded-2xl flex items-center justify-center text-bleu-600 dark:text-bleu-400 shadow-sm group-hover:scale-110 transition-transform">
+                        <GraduationCap size={24} />
+                      </div>
+                      <Badge variant="info" className="text-[10px] font-semibold px-2">{c.niveau}</Badge>
                     </div>
-                    <Badge variant="info" className="text-[10px] font-semibold px-2">{c.niveau}</Badge>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1 leading-tight">{c.name}</h3>
+                    <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wider">
+                      {c.subjectName}
+                    </p>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1 leading-tight">{c.name}</h3>
-                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wider">Resp: {c.profPrincipal}</p>
-                </div>
-                <div className="p-6 bg-white dark:bg-transparent flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users size={16} className="text-gray-400 dark:text-gray-500" />
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.nombreEleves} Élèves</span>
+                  <div className="p-6 bg-white dark:bg-transparent">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-gray-400 dark:text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.nombreEleves} Élèves</span>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-bleu-600 dark:group-hover:bg-or-500 group-hover:text-white transition-all shadow-sm">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                      <span>Moy: {c.classAverage.toFixed(1)}/20</span>
+                      {c.room && <span>• Salle: {c.room}</span>}
+                    </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-bleu-600 dark:group-hover:bg-or-500 group-hover:text-white transition-all shadow-sm">
-                    <ChevronRight size={18} />
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </motion.div>
         ) : (
           <motion.div
@@ -197,320 +422,207 @@ const AdminScolarite: React.FC = () => {
             exit={{ opacity: 0, scale: 0.98 }}
             className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
           >
-            {matieresList.map((m, i) => (
-              <Card 
-                key={i} 
-                onClick={() => setSelectedSubject({
-                  ...m,
-                  chapters: Math.floor(Math.random() * 8) + 5,
-                  lessons: Math.floor(Math.random() * 20) + 15,
-                  evaluations: 4,
-                  exercises: 45
-                })}
-                className="p-6 border-none shadow-soft flex flex-col justify-between hover:shadow-xl hover:scale-[1.02] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md group text-left cursor-pointer"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="p-3 bg-bleu-50 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-400 rounded-2xl group-hover:scale-110 transition-transform shadow-inner">
-                      <BookOpen size={24} />
+            {matieresList.length === 0 ? (
+              <div className="col-span-full text-center py-12 text-gray-500">
+                Aucune matière enseignée actuellement.
+              </div>
+            ) : (
+              matieresList.map((m: any, i) => (
+                <Card 
+                  key={i} 
+                  onClick={() => setSelectedSubject({
+                    ...(m as Record<string, any>),
+                    chapters: Math.floor(Math.random() * 8) + 5, // Gardé mock si pas dispo backend
+                    lessons: Math.floor(Math.random() * 20) + 15,
+                    evaluations: 4,
+                    exercises: 45
+                  })}
+                  className="p-6 border-none shadow-soft flex flex-col justify-between hover:shadow-xl hover:scale-[1.02] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md group text-left cursor-pointer"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="p-3 bg-bleu-50 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-400 rounded-2xl group-hover:scale-110 transition-transform shadow-inner">
+                        <BookOpen size={24} />
+                      </div>
+                      <div className="text-center bg-gray-50 dark:bg-white/5 px-3 py-1.5 rounded-xl border border-gray-100 dark:border-white/5">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Coef</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white leading-none">{m.coefficient}</p>
+                      </div>
                     </div>
-                    <div className="text-center bg-gray-50 dark:bg-white/5 px-3 py-1.5 rounded-xl border border-gray-100 dark:border-white/5">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Coef</p>
-                      <p className="text-xl font-bold text-gray-900 dark:text-white leading-none">{m.coefficient}</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2 tracking-tight">{m.nom}</h4>
+                    <div className="flex items-center gap-4 text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5"><Layers size={12} /> {m.chapters} Chap.</span>
+                      <span className="flex items-center gap-1.5"><FileText size={12} /> {m.lessons} Leçons</span>
                     </div>
                   </div>
-                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2 tracking-tight">{m.nom}</h4>
-                  <div className="flex items-center gap-4 text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-                    <span className="flex items-center gap-1.5"><Layers size={12} /> {Math.floor(Math.random() * 8) + 5} Chap.</span>
-                    <span className="flex items-center gap-1.5"><FileText size={12} /> {Math.floor(Math.random() * 20) + 10} Leçons</span>
+                  <div className="mt-6 pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                      <div className="w-2 h-2 rounded-full bg-vert-500 animate-pulse" />
+                      {teacherClasses?.filter((c: any) => c.subjectName === m.nom).length || 0} Classes
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-bleu-600 dark:text-or-400 group-hover:translate-x-1 transition-transform uppercase tracking-wider">
+                      Détails <ChevronRight size={14} />
+                    </div>
                   </div>
-                </div>
-                <div className="mt-6 pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
-                    <div className="w-2 h-2 rounded-full bg-vert-500 animate-pulse" />
-                    {m.enseignants} Profs actifs
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-bold text-bleu-600 dark:text-or-400 group-hover:translate-x-1 transition-transform uppercase tracking-wider">
-                    Détails <ChevronRight size={14} />
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODALE: DÉTAILS D'UNE MATIÈRE */}
-      <Modal
-        isOpen={selectedSubject !== null}
-        onClose={() => setSelectedSubject(null)}
-        title={
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600 shadow-inner">
-              <BookOpen size={22} />
-            </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Détails : {selectedSubject?.nom}</span>
-          </div>
-        }
-        size="lg"
-      >
-        <div className="space-y-8 text-left py-2">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Chapitres', value: selectedSubject?.chapters, icon: Layers, color: 'text-bleu-600 bg-bleu-50' },
-              { label: 'Leçons', value: selectedSubject?.lessons, icon: FileText, color: 'text-or-600 bg-or-50' },
-              { label: 'Exercices', value: selectedSubject?.exercises, icon: ListTodo, color: 'text-vert-600 bg-vert-50' },
-              { label: 'Évals', value: selectedSubject?.evaluations, icon: ShieldCheck, color: 'text-red-600 bg-red-50' },
-            ].map((stat, i) => (
-              <div key={i} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 flex flex-col items-center">
-                <div className={cn("p-2 rounded-lg mb-3", stat.color)}>
-                  <stat.icon size={20} />
-                </div>
-                <p className="text-xl font-bold text-gray-900 dark:text-white leading-none mb-1">{stat.value}</p>
-                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Teachers List */}
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Corps Enseignant
-              </p>
-              <div className="space-y-3">
-                {enseignantsData.filter(p => p.matiere === selectedSubject?.nom).map((prof, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl group hover:border-bleu-500/30 transition-all">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={`${prof.firstName} ${prof.lastName}`} size="sm" />
-                      <div>
-                        <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{prof.firstName} {prof.lastName}</p>
-                        <p className="text-[9px] text-gray-400 font-medium whitespace-nowrap">Expertise: {selectedSubject?.nom}</p>
-                      </div>
-                    </div>
-                    <Button variant="outline" className="h-7 px-2 text-[8px] font-bold opacity-0 group-hover:opacity-100">PROFIL</Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Resources / Activities */}
-            <div className="space-y-6">
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-or-500 rounded-full" /> Ressources Clés
-                </p>
-                <div className="space-y-2">
-                  {[
-                    { title: "Syllabus Annuel 2024", type: "PDF" },
-                    { title: "Banque d'exercices corrigés", type: "DOCX" },
-                  ].map((res, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/5 rounded-xl cursor-not-allowed grayscale">
-                      <FileCheck className="text-gray-400" size={18} />
-                      <span className="text-xs font-semibold text-gray-400">{res.title}</span>
-                      <Badge variant="info" className="ml-auto text-[8px]">{res.type}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="p-4 bg-gradient-to-br from-bleu-600 to-bleu-800 rounded-2xl text-white shadow-lg">
-                <div className="flex items-start justify-between mb-4">
-                  <HelpCircle size={20} className="text-white/60" />
-                  <Badge variant="success" className="bg-white/20 text-white border-none">Actif</Badge>
-                </div>
-                <p className="text-xs font-bold mb-1">Mise à jour du Cursus</p>
-                <p className="text-[10px] text-white/70 mb-4 leading-relaxed">Les nouveaux sujets d'évaluation pour le trimestre 1 sont maintenant disponibles.</p>
-                <Button className="w-full bg-white text-bleu-600 hover:bg-white/90 border-none font-bold text-[9px] h-8 tracking-widest">DÉPLOYER</Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
-            <Button variant="outline" onClick={() => setSelectedSubject(null)} className="flex-1 h-12 font-bold uppercase text-[10px] tracking-wider">Fermer les détails</Button>
-            <Button className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider">Modifier le Syllabus</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODALE: DÉTAILS D'UNE CLASSE */}
+      {/* MODALE: DÉTAILS D'UNE CLASSE - AVEC DONNÉES RÉELLES */}
       <Modal 
         isOpen={selectedClass !== null} 
-        onClose={() => setSelectedClass(null)}
+        onClose={handleCloseSelectedClass}
         title={
           <div className="flex items-center gap-3">
             <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600 shadow-inner">
               <GraduationCap size={22} />
             </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Détails de la Salle : {selectedClass?.name}</span>
+            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">
+              {selectedClass?.name}
+            </span>
           </div>
         }
         size="xl"
       >
         <div className="space-y-8 text-left py-2">
-          {/* Bannière Image */}
-          <div className="relative h-56 rounded-3xl overflow-hidden shadow-2xl ring-1 ring-black/5">
-            <img 
-              src={selectedClass?.id % 2 === 0 ? "/Img1.jpeg" : "/Img2.jpeg"}
-              alt="Salle de classe EIEF"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-              <div className="flex items-center gap-4">
-                <Avatar name={selectedClass?.profPrincipal} size="md" />
-                <div>
-                  <p className="text-white font-bold text-lg leading-none mb-1">{selectedClass?.profPrincipal}</p>
-                  <p className="text-white/70 text-[10px] font-semibold uppercase tracking-widest leading-none">Professeur Principal</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
+          {/* Stats réelles */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Section: Effectif & Structure */}
             <div className="space-y-6">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Aperçu du Groupe
+                  <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Informations Classe
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <Card className="p-4 bg-gray-50 dark:bg-white/5 border-none">
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none mb-1">{selectedClass?.nombreEleves}</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none mb-1">
+                      {selectedClass?.nombreEleves || 0}
+                    </p>
                     <p className="text-[9px] text-gray-400 font-bold uppercase">Élèves Inscrits</p>
                   </Card>
                   <Card className="p-4 bg-gray-50 dark:bg-white/5 border-none text-left">
-                    <p className="text-2xl font-bold text-or-600 leading-none mb-1">30</p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">Capacité Totale</p>
+                    <p className="text-2xl font-bold text-or-600 leading-none mb-1">
+                      {selectedClass?.classAverage?.toFixed(1) || "0"}/20
+                    </p>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase">Moyenne Classe</p>
                   </Card>
                 </div>
               </div>
 
+              {/* Emploi du temps de cette classe */}
               <div>
-                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-or-500 rounded-full" /> 3 Premiers de Classe
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-vert-500 rounded-full" /> Emploi du Temps
                 </p>
-                <div className="space-y-2">
-                  {['Mamadou Bah', 'Aïssatou Sow', 'Fatoumata Camara'].map((name, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-or-100 text-or-600 text-[10px] flex items-center justify-center font-bold">{i+1}</span>
-                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{name}</span>
+                <div className="space-y-3">
+                  {classSchedules && classSchedules.length > 0 ? (
+                    classSchedules.map((schedule: any) => (
+                      <div 
+                        key={schedule.id} 
+                        className="flex items-center gap-4 p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl group hover:border-bleu-500/50 transition-all"
+                      >
+                        <div className="px-2 py-1 rounded-lg font-bold text-[9px] bg-bleu-100 text-bleu-600">
+                          {schedule.startTime} - {schedule.endTime}
+                        </div>
+                        <div className="flex flex-col flex-1">
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                            {schedule.subjectName}
+                          </span>
+                          <span className="text-[9px] text-gray-400">
+                            {schedule.room || "Salle non définie"}
+                          </span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleOpenAttendance(schedule)}
+                          className="text-[9px]"
+                        >
+                          <UserCheck size={14} className="mr-1" /> Présence
+                        </Button>
                       </div>
-                      <Badge variant="success" className="text-[9px]">18.5/20</Badge>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">Aucun cours programmé pour cette classe.</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Section: Emploi du Temps Express */}
+            {/* Liste des étudiants (si on a les données) */}
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-vert-500 rounded-full" /> Planning du Jour
+                <span className="w-1.5 h-4 bg-or-500 rounded-full" /> Étudiants
               </p>
-              <div className="space-y-3">
-                {[
-                  { time: '08:00 - 10:00', subj: 'Mathématiques', color: 'bg-bleu-100 text-bleu-600' },
-                  { time: '10:15 - 12:15', subj: 'Français', color: 'bg-or-100 text-or-600' },
-                  { time: '14:00 - 16:00', subj: 'Anglais', color: 'bg-vert-100 text-vert-600' },
-                ].map((slot, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl group hover:border-bleu-500/50 transition-all">
-                    <div className={cn("px-2 py-1 rounded-lg font-bold text-[9px]", slot.color)}>{slot.time}</div>
-                    <div className="flex flex-col">
-                       <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{slot.subj}</span>
-                       <span className="text-[9px] text-gray-400">Salle Multi-média 1</span>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {classStudents && classStudents.length > 0 ? (
+                  classStudents.map((student: any, i: number) => (
+                    <div 
+                      key={student.studentId} 
+                      className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar name={student.name} size="sm" />
+                        <div>
+                          <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{student.name}</p>
+                          <p className="text-[9px] text-gray-400">Moy: {student.average}/20 • Abs: {student.absenceCount}</p>
+                        </div>
+                      </div>
+                      <Badge 
+                        variant={student.absenceCount > 3 ? "error" : "success"} 
+                        className="text-[8px]"
+                      >
+                        {student.absenceCount > 3 ? "À risque" : "Bon"}
+                      </Badge>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">Sélectionnez une matière pour voir les étudiants.</p>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
-            <Button className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider">Générer le Bulletin de Classe</Button>
-            <Button variant="outline" onClick={() => setSelectedClass(null)} className="flex-1 h-12 font-bold uppercase text-[10px] tracking-wider">Fermer la vue</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODALE: CRÉER UNE CLASSE */}
-      <Modal 
-        isOpen={isCreateClassModalOpen} 
-        onClose={() => setIsCreateClassModalOpen(false)}
-        title={
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600 dark:text-or-400 shadow-inner">
-              <Plus size={22} />
-            </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Créer une Classe</span>
-          </div>
-        }
-        size="lg"
-      >
-        <div className="space-y-8 text-left py-2">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-              <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Configuration Structurelle
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input label="Nom de la classe" placeholder="ex: 3ème A" />
-              <Select 
-                label="Niveau d'enseignement" 
-                options={[
-                  { value: 'primaire', label: 'Primaire' },
-                  { value: 'college', label: 'Collège' },
-                  { value: 'lycee', label: 'Lycée' },
-                ]} 
-              />
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-              <span className="w-1.5 h-4 bg-or-500 rounded-full" /> Encadrement & Capacité
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Select 
-                label="Professeur Principal" 
-                options={enseignantsData.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName} (${p.matiere})` }))} 
-              />
-              <Input type="number" label="Capacité maximale" placeholder="30" />
-            </div>
-          </div>
-
-          <div className="flex gap-5 pt-8 border-t border-gray-100 dark:border-white/5">
-            <Button variant="outline" onClick={() => setIsCreateClassModalOpen(false)} className="flex-1 h-12 uppercase text-[10px] tracking-wider font-bold">Annuler</Button>
+            <Button className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider">
+              Voir le Bulletin de Classe
+            </Button>
             <Button 
-              onClick={() => { setIsCreateClassModalOpen(false); setIsSuccess(true); setTimeout(() => setIsSuccess(false), 3000); }} 
-              className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider"
+              variant="outline" 
+              onClick={handleCloseSelectedClass} 
+              className="flex-1 h-12 font-bold uppercase text-[10px] tracking-wider"
             >
-              Finaliser la création
+              Fermer
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* MODALE: CALENDRIER / EMPLOI DU TEMPS */}
+      {/* MODALE: CALENDRIER / EMPLOI DU TEMPS - DONNÉES RÉELLES */}
       <Modal 
         isOpen={isCalendarModalOpen} 
-        onClose={() => setIsCalendarModalOpen(false)}
+        onClose={handleCloseCalendarModal}
         title={
           <div className="flex items-center gap-3">
             <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600 shadow-inner">
               <CalendarIcon size={22} />
             </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Planning Académique</span>
+            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Mon Emploi du Temps</span>
           </div>
         }
         size="xl"
       >
         <div className="py-4 space-y-6 text-left">
-          {/* FILTERS BAR */}
+          {/* Filtres */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-gray-100 dark:border-white/5">
             <Select 
-              label="Filtrer par Salle / Classe" 
-              options={[{ value: 'Toutes', label: 'Toutes les Salles' }, ...classesList.map(c => ({ value: c.name, label: c.name }))]} 
+              label="Filtrer par Classe" 
+              options={[
+                { value: 'Toutes', label: 'Toutes mes classes' }, 
+                ...classesList.map((c: any) => ({ value: c.classId, label: c.name }))
+              ]} 
               value={filterSalle}
               onChange={(e) => setFilterSalle(e.target.value)}
             />
@@ -525,41 +637,235 @@ const AdminScolarite: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5">
-            <div className="flex items-center gap-6">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Semaine Active</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">Lundi 02 - Samedi 07 Sept. 2024</span>
-              </div>
-              <div className="h-10 w-px bg-gray-200 dark:bg-white/10 hidden sm:block" />
-              <Badge variant="success" className="hidden sm:block">Période : Trimestre 1</Badge>
+          {/* Planning hebdomadaire avec vraies données */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dIdx) => {
+              // Filtrer les cours pour ce jour (dayOfWeek: 1-7)
+              const daySchedules = schedulesToShow?.filter((s: any) => s.dayOfWeek === dIdx + 1) || [];
+              
+              return (
+                <div key={day} className="space-y-4">
+                  <div className="text-center py-2 bg-bleu-600 dark:bg-bleu-900/40 rounded-xl shadow-md">
+                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">{day}</span>
+                  </div>
+                  <div className="space-y-3 min-h-[300px]">
+                    {daySchedules.length > 0 ? (
+                      daySchedules.map((schedule: any) => (
+                        <div 
+                          key={schedule.id} 
+                          className="p-3 bg-white dark:bg-gray-800/50 rounded-xl border-l-[3px] border-bleu-500 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                          onClick={() => handleOpenAttendance(schedule)}
+                        >
+                          <p className="text-[10px] font-bold text-bleu-600 mb-1">
+                            {schedule.startTime} - {schedule.endTime}
+                          </p>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white mb-1 group-hover:text-bleu-500 transition-colors">
+                            {schedule.subjectName}
+                          </p>
+                          <p className="text-[9px] text-gray-500 flex items-center gap-1">
+                            <MapPin size={10} /> {schedule.room || "Salle ?"}
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-1">{schedule.className}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-[10px] text-gray-400 bg-gray-50 dark:bg-white/5 rounded-xl">
+                        Aucun cours
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODALE: PRISE DE PRÉSENCE */}
+      <Modal
+        isOpen={isAttendanceModalOpen}
+        onClose={handleCloseAttendanceModal}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-vert-100 dark:bg-vert-900/30 rounded-xl text-vert-600 shadow-inner">
+              <UserCheck size={22} />
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="h-9 px-4 text-[10px] font-bold">PRÉCÉDENT</Button>
-              <Button variant="outline" className="h-9 px-4 text-[10px] font-bold">SUIVANT</Button>
+            <div>
+              <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">
+                Prise de Présence
+              </span>
+              <p className="text-[10px] text-gray-500">
+                {selectedScheduleForAttendance?.subjectName} • {selectedScheduleForAttendance?.className}
+              </p>
+            </div>
+          </div>
+        }
+        size="lg"
+      >
+        <div className="space-y-6 text-left py-2">
+          <div className="flex items-center gap-4">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Date:</label>
+            <input 
+              type="date" 
+              value={attendanceDate}
+              onChange={(e) => setAttendanceDate(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+
+          {existingAttendance && existingAttendance.length > 0 && (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-[10px] text-yellow-700">
+              <AlertCircle size={14} className="inline mr-2" />
+              Des présences existent déjà pour cette date. Elles seront mises à jour.
+            </div>
+          )}
+
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {classStudents?.map((student: any) => {
+              const existing = existingAttendance?.find((a: any) => a.studentId === student.studentId);
+              
+              return (
+                <div key={student.studentId} className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={student.name} size="sm" />
+                    <div>
+                      <p className="text-xs font-bold">{student.name}</p>
+                      <p className="text-[9px] text-gray-400">Moy: {student.average}/20</p>
+                    </div>
+                  </div>
+                  <select 
+                    defaultValue={existing?.status || "PRESENT"}
+                    className="text-xs border rounded-lg px-2 py-1"
+                  >
+                    <option value="PRESENT">Présent</option>
+                    <option value="ABSENT">Absent</option>
+                    <option value="LATE">Retard</option>
+                    <option value="EXCUSED">Excusé</option>
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-4 pt-4 border-t">
+            <Button 
+              variant="outline" 
+              onClick={handleCloseAttendanceModal}
+              className="flex-1"
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={() => {
+                // Collecter les valeurs des selects et sauvegarder
+                const entries = classStudents?.map((s: any) => ({
+                  studentId: s.studentId,
+                  status: "PRESENT", // À récupérer du select
+                  note: ""
+                })) || [];
+                handleSaveAttendance(entries);
+              }}
+              disabled={isBulkCreating}
+              className="flex-1"
+            >
+              {isBulkCreating ? "Enregistrement..." : "Enregistrer les présences"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODALE: CRÉER UN COURS (remplace "Créer une Classe") */}
+      <Modal 
+        isOpen={isCreateClassModalOpen} 
+        onClose={handleCloseCreateCourseModal}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600 dark:text-or-400 shadow-inner">
+              <Plus size={22} />
+            </div>
+            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Planifier un Cours</span>
+          </div>
+        }
+        size="lg"
+      >
+        <div className="space-y-8 text-left py-2">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+              <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Configuration du Cours
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Select 
+                label="Classe" 
+                options={classOptions}
+                value={courseForm.classSubjectId}
+                onChange={(e) => setCourseForm((current) => ({
+                  ...current,
+                  classSubjectId: e.target.value,
+                }))}
+                disabled={classOptions.length === 1 && !classOptions[0].value}
+              />
+              <Select 
+                label="Jour de la semaine" 
+                options={[
+                  { value: '1', label: 'Lundi' },
+                  { value: '2', label: 'Mardi' },
+                  { value: '3', label: 'Mercredi' },
+                  { value: '4', label: 'Jeudi' },
+                  { value: '5', label: 'Vendredi' },
+                  { value: '6', label: 'Samedi' },
+                ]}
+                value={courseForm.dayOfWeek}
+                onChange={(e) => setCourseForm((current) => ({
+                  ...current,
+                  dayOfWeek: e.target.value,
+                }))}
+              />
+              <Input
+                type="time"
+                label="Heure de début"
+                value={courseForm.startTime}
+                onChange={(e) => setCourseForm((current) => ({
+                  ...current,
+                  startTime: e.target.value,
+                }))}
+              />
+              <Input
+                type="time"
+                label="Heure de fin"
+                value={courseForm.endTime}
+                onChange={(e) => setCourseForm((current) => ({
+                  ...current,
+                  endTime: e.target.value,
+                }))}
+              />
+              <Input
+                label="Salle"
+                placeholder="Ex: Salle B204"
+                value={courseForm.room}
+                onChange={(e) => setCourseForm((current) => ({
+                  ...current,
+                  room: e.target.value,
+                }))}
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dIdx) => (
-              <div key={day} className="space-y-4">
-                <div className="text-center py-2 bg-bleu-600 dark:bg-bleu-900/40 rounded-xl shadow-md">
-                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">{day}</span>
-                </div>
-                <div className="space-y-3 min-h-[300px] lg:border-r lg:border-dashed lg:border-gray-100 lg:dark:border-white/5 lg:pr-4 last:border-r-0">
-                  <div className="p-3 bg-white dark:bg-gray-800/50 rounded-xl border-l-[3px] border-bleu-500 shadow-sm hover:shadow-md transition-all cursor-pointer group">
-                    <p className="text-[10px] font-bold text-bleu-600 mb-1">08:00 - 10:00</p>
-                    <p className="text-xs font-bold text-gray-900 dark:text-white mb-1 group-hover:text-bleu-500 transition-colors">Mathématiques</p>
-                    <p className="text-[9px] text-gray-500 flex items-center gap-1"><MapPin size={10} /> Salle B204</p>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-gray-800/50 rounded-xl border-l-[3px] border-or-500 shadow-sm hover:shadow-md transition-all cursor-pointer group">
-                    <p className="text-[10px] font-bold text-or-600 mb-1">10:15 - 12:15</p>
-                    <p className="text-xs font-bold text-gray-900 dark:text-white mb-1 group-hover:text-or-500 transition-colors">Physique-Chimie</p>
-                    <p className="text-[9px] text-gray-500 flex items-center gap-1"><MapPin size={10} /> Labo A1</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex gap-5 pt-8 border-t border-gray-100 dark:border-white/5">
+            <Button 
+              variant="outline" 
+              onClick={handleCloseCreateCourseModal} 
+              className="flex-1 h-12 uppercase text-[10px] tracking-wider font-bold"
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={handleCreateCourse}
+              disabled={isCreating || (classOptions.length === 1 && !classOptions[0].value)}
+              loading={isCreating}
+              className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider"
+            >
+              Créer le cours
+            </Button>
           </div>
         </div>
       </Modal>
@@ -578,7 +884,7 @@ const AdminScolarite: React.FC = () => {
             </div>
             <div className="text-left flex-1">
               <p className="text-sm font-bold text-gray-900 dark:text-white">Opération réussie</p>
-              <p className="text-xs text-gray-500">La structure a été mise à jour.</p>
+              <p className="text-xs text-gray-500">Les données ont été synchronisées.</p>
             </div>
             <button onClick={() => setIsSuccess(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400">
               <X size={16} />
@@ -590,4 +896,4 @@ const AdminScolarite: React.FC = () => {
   );
 };
 
-export default AdminScolarite;
+export default Scolarite;
