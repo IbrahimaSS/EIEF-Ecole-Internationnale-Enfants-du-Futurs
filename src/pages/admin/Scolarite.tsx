@@ -871,8 +871,18 @@ const AdminScolarite: React.FC = () => {
             {[
               { label: 'Matricule', value: selectedStudent?.registrationNumber },
               { label: 'Classe',    value: selectedStudent?.className },
-              // Remplacez la ligne 873 par :
-{ label: 'Semestres',value: Array.from(new Set(studentGrades.map(g => g.semester))).join(', ') || '—' },
+{
+  label: 'Semestres',
+  value: Array.isArray(studentGrades) && studentGrades.length
+    ? Array.from(
+        new Set(
+          studentGrades
+            .map(g => g.semester)
+            .filter(Boolean)
+        )
+      ).join(', ')
+    : '—'
+},
               { label: 'Matières',  value: Object.keys(gradesBySubject).length || '—' },
             ].map(({ label, value }) => (
               <Card key={label} className="p-3 bg-gray-50 dark:bg-white/5 border-none">
