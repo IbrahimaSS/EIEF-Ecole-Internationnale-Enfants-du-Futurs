@@ -49,6 +49,7 @@ export interface UserResponse {
   phone?: string | null;
   roleName: string;
   active: boolean;
+  avatarUrl?: string | null;
 }
 
 export interface User {
@@ -60,6 +61,7 @@ export interface User {
   backendRole?: string;
   isActive?: boolean;
   avatar?: string;
+  avatarUrl?: string;
   telephone?: string;
   classe?: string; // Pour les élèves
   matiere?: string; // Pour les enseignants
@@ -111,4 +113,6 @@ export const mapUserResponseToUser = (response: UserResponse): User => ({
   backendRole: response.roleName,
   isActive: response.active,
   telephone: response.phone ?? undefined,
+  avatarUrl: response.avatarUrl ?? undefined,
+  avatar: response.avatarUrl ?? undefined,
 });

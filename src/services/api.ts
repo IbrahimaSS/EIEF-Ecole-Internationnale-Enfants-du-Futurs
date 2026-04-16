@@ -2,7 +2,7 @@ import { ApiErrorResponse, ApiResponse } from "../types/auth";
 
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://localhost:8080/api/v1";
+  "http://127.0.0.1:8080/api/v1";
 
 export const AUTH_HEADER_NAME = "enfantsfuture-auth-token";
 export const AUTH_HEADER_PREFIX = "enfantsfuture";

@@ -211,4 +211,12 @@ export const userService = {
 
   deleteEmployee: (token: string, id: string) =>
     apiRequest<void>(`/users/${id}`, { method: 'DELETE', token }),
+
+  // ── Profil ──────────────────────────────────────────────────────────────────
+  updateProfile: (token: string, userId: string, payload: any) =>
+    apiRequest<any>(`/users/me?userId=${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+      token,
+    }),
 };

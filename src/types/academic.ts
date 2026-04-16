@@ -1,3 +1,4 @@
+// src/types/academic.ts
 import { UUID } from "./auth"; // Adapte selon ton type UUID existant
 
 // ==================== ATTENDANCE ====================
@@ -52,6 +53,7 @@ export interface ScheduleResponse {
   subjectName: string;
   className: string;
   teacherName: string;
+  status?: 'completed' | 'current' | 'upcoming'; // Ajouté pour le Dashboard
 }
 
 // ==================== TEACHER DASHBOARD ====================
