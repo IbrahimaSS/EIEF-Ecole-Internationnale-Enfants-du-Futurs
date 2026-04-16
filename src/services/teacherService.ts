@@ -29,3 +29,4 @@ export const teacherService = {
       `${BASE_PATH}/classes/${classId}/students?subjectId=${subjectId}`
     ),
 };
+};

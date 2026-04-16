@@ -60,6 +60,7 @@ export interface ScheduleResponse {
 
 export interface TeacherClassDetailResponse {
   classId: UUID;
+  subjectId: UUID; // Important mapping
   className: string;
   subjectName: string;
   studentCount: number;
