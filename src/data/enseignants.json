@@ -1,0 +1,90 @@
+[
+  {
+    "id": "1",
+    "firstName": "Aïssatou",
+    "lastName": "Diallo",
+    "email": "aissatou.diallo@eief.edu.gn",
+    "telephone": "+224 622 111 222",
+    "matiere": "Mathématiques",
+    "classes": ["3ème A", "3ème B", "2nde A"],
+    "dateEmbauche": "2020-09-01",
+    "statut": "actif"
+  },
+  {
+    "id": "2",
+    "firstName": "Ibrahim",
+    "lastName": "Soumah",
+    "email": "ibrahima.soumah@eief.edu.gn",
+    "telephone": "+224 623 333 444",
+    "matiere": "Physique-Chimie",
+    "classes": ["4ème A", "4ème B", "3ème A"],
+    "dateEmbauche": "2019-09-01",
+    "statut": "actif"
+  },
+  {
+    "id": "3",
+    "firstName": "Fatoumata",
+    "lastName": "Camara",
+    "email": "fatoumata.camara@eief.edu.gn",
+    "telephone": "+224 624 555 666",
+    "matiere": "Français",
+    "classes": ["5ème A", "5ème B", "4ème A"],
+    "dateEmbauche": "2021-09-01",
+    "statut": "actif"
+  },
+  {
+    "id": "4",
+    "firstName": "Mamadou",
+    "lastName": "Bah",
+    "email": "mamadou.bah@eief.edu.gn",
+    "telephone": "+224 625 777 888",
+    "matiere": "Histoire-Géographie",
+    "classes": ["2nde A", "2nde C", "1ère"],
+    "dateEmbauche": "2018-09-01",
+    "statut": "actif"
+  },
+  {
+    "id": "5",
+    "firstName": "Mariam",
+    "lastName": "Kaba",
+    "email": "mariam.kaba@eief.edu.gn",
+    "telephone": "+224 626 999 000",
+    "matiere": "Anglais",
+    "classes": ["3ème A", "3ème B", "4ème B"],
+    "dateEmbauche": "2020-02-01",
+    "statut": "actif"
+  },
+  {
+    "id": "6",
+    "firstName": "Mohamed",
+    "lastName": "Sylla",
+    "email": "mohamed.sylla@eief.edu.gn",
+    "telephone": "+224 627 111 333",
+    "matiere": "SVT",
+    "classes": ["5ème A", "5ème B", "6ème"],
+    "dateEmbauche": "2019-02-01",
+    "statut": "actif"
+  },
+  {
+    "id": "7",
+    "firstName": "Aminata",
+    "lastName": "Barry",
+    "email": "aminata.barry@eief.edu.gn",
+    "telephone": "+224 628 444 555",
+    "matiere": "EPS",
+    "classes": ["Toutes"],
+    "dateEmbauche": "2021-09-01",
+    "statut": "actif"
+  },
+  {
+    "id": "8",
+    "firstName": "Oumar",
+    "lastName": "Bangoura",
+    "email": "oumar.bangoura@eief.edu.gn",
+    "telephone": "+224 629 666 777",
+    "matiere": "Informatique",
+    "classes": ["3ème A", "3ème B", "2nde A", "2nde C"],
+    "dateEmbauche": "2022-09-01",
+    "statut": "actif"
+  }
+]
