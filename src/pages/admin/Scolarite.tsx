@@ -1,598 +1,981 @@
-import React, { useCallback, useMemo, useState } from 'react';
+// src/pages/admin/AdminScolarite.tsx
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  GraduationCap, 
-  Search, 
-  Plus, 
-  Users, 
-  BookOpen, 
-  Calendar as CalendarIcon,
-  Layers,
-  ChevronRight,
-  UserCheck,
-  Building2,
-  Clock,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  MapPin,
-  MoreVertical,
-  FileText,
-  ListTodo,
-  ShieldCheck,
-  HelpCircle,
-  FileCheck
+import {
+  Building2, CalendarDays, BookOpen, Plus, Trash2, Search,
+  GraduationCap, Clock, Users, ChevronRight, X, CheckCircle2,
+  AlertCircle, Loader2, FileText, Download, Printer, MoreVertical,
+  Edit, Eye, ClipboardList, Award, TrendingUp, BarChart3,
 } from 'lucide-react';
-import { Card, Badge, StatCard, Button, Modal, Input, Select, Avatar } from '../../components/ui';
+import { Card, Badge, Button, Modal, Input, Select, Avatar, Table } from '../../components/ui';
 import { cn } from '../../utils/cn';
-import { toast } from 'sonner';
 
-// ============================================
-// IMPORTS DES HOOKS BACKEND (nouveaux imports)
-// ============================================
-import { useSchedules, useClassSchedules, useScheduleMutations } from '../../hooks/useSchedule';
-import { useTeacherDashboard, useTeacherClasses, useClassStudents } from '../../hooks/useTeacher';
-import { useAttendance, useScheduleAttendance } from '../../hooks/useAttendance';
-import { useAuthStore } from '../../store/authStore';
+// ─── API helpers ──────────────────────────────────────────────────────────────
 
-const Scolarite: React.FC = () => {
-  const [activeSegment, setActiveSegment] = useState<'classes' | 'matieres'>('classes');
-  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
-  const [isCreateClassModalOpen, setIsCreateClassModalOpen] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<any | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<any | null>(null);
-  const [filterSalle, setFilterSalle] = useState<string>('Toutes');
-  const [filterAnnee, setFilterAnnee] = useState<string>('2024-2025');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [courseForm, setCourseForm] = useState({
+const API_BASE =
+  (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+
+const AUTH_HEADER = 'enfantsfuture-auth-token';
+const AUTH_PREFIX = 'enfantsfuture';
+
+const getToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token ?? null;
+  } catch { return null; }
+};
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> ?? {}),
+  };
+  if (token) headers[AUTH_HEADER] = `${AUTH_PREFIX} ${token}`;
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const payload = await res.json();
+  if (!res.ok) throw new Error(payload?.message ?? 'Erreur API');
+  return payload.data as T;
+}
+
+// ─── Types (calqués sur les DTOs backend) ─────────────────────────────────────
+
+interface ClassResponse {
+  id: string;
+  name: string;
+  level: string;
+  academicYearName: string;
+  mainTeacherName: string;
+  maxStudents: number;
+  studentCount: number;
+}
+
+interface SubjectResponse {
+  id: string;
+  name: string;
+  code: string;
+  coefficient: number;
+}
+
+interface ScheduleResponse {
+  id: string;
+  classSubjectId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  room: string;
+  subjectName: string;
+  className: string;
+  teacherName: string;
+}
+
+interface GradeResponse {
+  id: string;
+  studentId: string;
+  studentName: string;
+  subjectId: string;
+  subjectName: string;
+  value: number;
+  semester: number;
+  evaluationType: string;
+  comment: string;
+  gradedAt: string;
+}
+
+interface StudentResponse {
+  id: string;
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  registrationNumber: string;
+  birthDate: string;
+  gender: string;
+  className: string;
+  parentName: string;
+  isActive: boolean;
+}
+
+// ClassSubject est l'association classe↔matière côté backend (CourseRequest attend un classSubjectId).
+// On les reconstruit depuis les schedules existants ou on les crée manuellement.
+
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
+const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const DAY_OPTIONS = DAYS.map((d, i) => ({ value: String(i + 1), label: d }));
+
+type TabId = 'emplois' | 'notes';
+type NotifKind = 'success' | 'error';
+interface Notif { kind: NotifKind; message: string }
+
+const empty = {
+  schedule: () => ({
     classSubjectId: '',
     dayOfWeek: '1',
     startTime: '',
     endTime: '',
     room: '',
-  });
+  }),
+};
 
-  // ============================================
-  // RÉCUPÉRATION DES DONNÉES RÉELLES DU BACKEND
-  // ============================================
-  
-  // Récupérer l'utilisateur connecté (adapt selon ton auth)
-  const user = useAuthStore((state) => state.user);
-  const userId = user?.id;
+// ─── Sous-composant: Badge de note coloré ─────────────────────────────────────
 
-  // Dashboard du professeur (stats réelles)
-  const { data: teacherDashboard, isLoading: isLoadingDashboard } = useTeacherDashboard(userId || '');
-  
-  // Classes du professeur (données réelles du backend)
-  const { data: teacherClasses, isLoading: isLoadingClasses } = useTeacherClasses(userId || '');
-  
-  // Tous les emplois du temps
-  const { data: allSchedules, isLoading: isLoadingSchedules } = useSchedules();
-  
-  // Emploi du temps filtré par classe si sélectionnée
-  const { data: classSchedules } = useClassSchedules(selectedClass?.classId || '');
+const GradeBadge: React.FC<{ value: number }> = ({ value }) => {
+  const color =
+    value >= 16 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+    value >= 12 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+    value >= 10 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+  return (
+    <span className={cn('inline-block px-2.5 py-1 rounded-full text-[11px] font-bold', color)}>
+      {value.toFixed(2)}/20
+    </span>
+  );
+};
 
-  // ============================================
-  // TRANSFORMATION DES DONNÉES BACKEND
-  // ============================================
+// ─── Composant principal ──────────────────────────────────────────────────────
 
-  // Transformer les classes du backend pour l'affichage
-  const classesList = useMemo(() => {
-    if (teacherClasses && teacherClasses.length > 0) {
-      return teacherClasses.map((cls: any, index: number) => {
-        const matchingSchedule = allSchedules?.find(
-          (schedule: any) =>
-            schedule.className === cls.className &&
-            schedule.subjectName === cls.subjectName
-        );
+const AdminScolarite: React.FC = () => {
 
-        const resolvedClassSubjectId =
-          cls.classSubjectId ||
-          cls.subjectId ||
-          matchingSchedule?.classSubjectId ||
-          cls.classId;
+  // ── Data ──────────────────────────────────────────────────────────────────
+  const [classes,   setClasses]   = useState<ClassResponse[]>([]);
+  const [subjects,  setSubjects]  = useState<SubjectResponse[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
+  const [students,  setStudents]  = useState<StudentResponse[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
 
-        return {
-          id: index,
-          classId: cls.classId,
-          classSubjectId: resolvedClassSubjectId,
-          subjectId: cls.subjectId || matchingSchedule?.classSubjectId || cls.classId,
-          name: cls.className,
-          niveau: cls.level || "Non défini",
-          nombreEleves: cls.studentCount,
-          profPrincipal: "Vous",
-          subjectName: cls.subjectName,
-          classAverage: cls.classAverage ?? 0,
-          room: cls.room,
-        };
-      });
+  // ── UI ────────────────────────────────────────────────────────────────────
+  const [activeTab,        setActiveTab]        = useState<TabId>('emplois');
+  const [selectedClass,    setSelectedClass]    = useState<ClassResponse | null>(null);
+  const [selectedStudent,  setSelectedStudent]  = useState<StudentResponse | null>(null);
+  const [studentGrades,    setStudentGrades]    = useState<GradeResponse[]>([]);
+  const [gradesLoading,    setGradesLoading]    = useState(false);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const [classSchedules,   setClassSchedules]   = useState<ScheduleResponse[]>([]);
+  const [classSchLoading,  setClassSchLoading]  = useState(false);
+  const [searchQuery,      setSearchQuery]      = useState('');
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isDetailModalOpen,   setIsDetailModalOpen]   = useState(false);
+  const [isGradesModalOpen,   setIsGradesModalOpen]   = useState(false);
+  const [submitting,       setSubmitting]       = useState(false);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [deleteTarget,     setDeleteTarget]     = useState<{ id: string; label: string } | null>(null);
+  const [notif,            setNotif]            = useState<Notif | null>(null);
+  const [scheduleForm,     setScheduleForm]     = useState(empty.schedule());
+  const [openMenuId,       setOpenMenuId]       = useState<string | null>(null);
+
+  // ── Notification ──────────────────────────────────────────────────────────
+ // Remplacez la ligne 171 par :
+  const notifTimer = useRef<NodeJS.Timeout | undefined>(undefined);
+  const showNotif = useCallback((kind: NotifKind, message: string) => {
+    clearTimeout(notifTimer.current);
+    setNotif({ kind, message });
+    notifTimer.current = setTimeout(() => setNotif(null), 3500);
+  }, []);
+
+  // ── Fetch initial ─────────────────────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [cls, subj, sch, stu] = await Promise.all([
+        apiFetch<ClassResponse[]>('/courses/classes'),
+        apiFetch<SubjectResponse[]>('/courses/subjects'),
+        apiFetch<ScheduleResponse[]>('/schedules'),
+        apiFetch<StudentResponse[]>('/users/students'),
+      ]);
+      setClasses(cls);
+      setSubjects(subj);
+      setSchedules(sch);
+      setStudents(stu);
+    } catch (e: any) {
+      setError(e?.message ?? 'Erreur de chargement.');
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    const uniqueScheduleClasses = new Map();
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    allSchedules?.forEach((schedule: any, index: number) => {
-      const key = `${schedule.className}-${schedule.subjectName}-${schedule.classSubjectId || index}`;
+  // ── Fetch emplois du temps d'une classe ───────────────────────────────────
+  const fetchClassSchedules = useCallback(async (classId: string) => {
+    setClassSchLoading(true);
+    try {
+      const data = await apiFetch<ScheduleResponse[]>(`/schedules/class/${classId}`);
+      setClassSchedules(data);
+    } catch { setClassSchedules([]); }
+    finally { setClassSchLoading(false); }
+  }, []);
 
-      if (!uniqueScheduleClasses.has(key)) {
-        uniqueScheduleClasses.set(key, {
-          id: index,
-          classId: schedule.classId || schedule.classSubjectId || `schedule-class-${index}`,
-          classSubjectId: schedule.classSubjectId || schedule.classId || '',
-          subjectId: schedule.classSubjectId || schedule.classId || '',
-          name: schedule.className || 'Classe',
-          niveau: schedule.level || "Non défini",
-          nombreEleves: schedule.studentCount || 0,
-          profPrincipal: schedule.teacherName || "Non défini",
-          subjectName: schedule.subjectName || '',
-          classAverage: schedule.classAverage ?? 0,
-          room: schedule.room,
+  // ── Fetch notes d'un élève ────────────────────────────────────────────────
+  const fetchStudentGrades = useCallback(async (studentId: string, semester?: string) => {
+    setGradesLoading(true);
+    try {
+      const qs = semester ? `?semester=${semester}` : '';
+      const data = await apiFetch<GradeResponse[]>(`/grades/student/${studentId}${qs}`);
+      setStudentGrades(data);
+    } catch { setStudentGrades([]); }
+    finally { setGradesLoading(false); }
+  }, []);
+
+  // ── Ouvrir détail classe ──────────────────────────────────────────────────
+  const openClassDetail = (cls: ClassResponse) => {
+    setSelectedClass(cls);
+    fetchClassSchedules(cls.id);
+    setIsDetailModalOpen(true);
+  };
+
+  // ── Ouvrir modal ajout/édition d'horaire ──────────────────────────────────
+  const openAddSchedule = (cls?: ClassResponse) => {
+    setEditingScheduleId(null);
+    // On pré-sélectionne le premier classSubjectId lié à cette classe si possible
+    // (les schedules existants en sont une bonne source)
+    const existing = cls
+      ? schedules.find(s => s.className === cls.name)?.classSubjectId ?? ''
+      : '';
+    setScheduleForm({ ...empty.schedule(), classSubjectId: existing });
+    if (cls) setSelectedClass(cls);
+    setIsScheduleModalOpen(true);
+  };
+
+  const openEditSchedule = (s: ScheduleResponse) => {
+    setEditingScheduleId(s.id);
+    setScheduleForm({
+      classSubjectId: s.classSubjectId,
+      dayOfWeek: String(s.dayOfWeek),
+      startTime: s.startTime,
+      endTime: s.endTime,
+      room: s.room ?? '',
+    });
+    setIsScheduleModalOpen(true);
+    setOpenMenuId(null);
+  };
+
+  // ── Soumettre horaire ─────────────────────────────────────────────────────
+  const handleSubmitSchedule = async () => {
+    if (!scheduleForm.classSubjectId) {
+      showNotif('error', 'Veuillez sélectionner une classe/matière.');
+      return;
+    }
+    if (!scheduleForm.startTime || !scheduleForm.endTime) {
+      showNotif('error', 'Heures de début et fin requises.');
+      return;
+    }
+    if (scheduleForm.endTime <= scheduleForm.startTime) {
+      showNotif('error', "L'heure de fin doit être après l'heure de début.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body = JSON.stringify({
+        classSubjectId: scheduleForm.classSubjectId,
+        dayOfWeek: Number(scheduleForm.dayOfWeek),
+        startTime: scheduleForm.startTime,
+        endTime: scheduleForm.endTime,
+        room: scheduleForm.room || undefined,
+      });
+      if (editingScheduleId) {
+        await apiFetch(`/schedules/${editingScheduleId}`, { method: 'PUT', body });
+        showNotif('success', 'Horaire mis à jour.');
+      } else {
+        await apiFetch('/schedules', { method: 'POST', body });
+        showNotif('success', 'Horaire créé.');
+      }
+      setIsScheduleModalOpen(false);
+      setEditingScheduleId(null);
+      setScheduleForm(empty.schedule());
+      await fetchAll();
+      if (selectedClass) fetchClassSchedules(selectedClass.id);
+    } catch (e: any) {
+      showNotif('error', e?.message ?? 'Erreur.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Supprimer horaire ─────────────────────────────────────────────────────
+  const handleDeleteSchedule = async () => {
+    if (!deleteTarget) return;
+    try {
+      await apiFetch(`/schedules/${deleteTarget.id}`, { method: 'DELETE' });
+      showNotif('success', 'Horaire supprimé.');
+      setDeleteTarget(null);
+      await fetchAll();
+      if (selectedClass) fetchClassSchedules(selectedClass.id);
+    } catch (e: any) {
+      showNotif('error', e?.message ?? 'Erreur suppression.');
+    }
+  };
+
+  // ── Ouvrir relevé ─────────────────────────────────────────────────────────
+  const openGrades = (student: StudentResponse) => {
+    setSelectedStudent(student);
+    setSelectedSemester('');
+    fetchStudentGrades(student.id);
+    setIsGradesModalOpen(true);
+  };
+
+  // ── Filtres recherche ──────────────────────────────────────────────────────
+  const q = searchQuery.toLowerCase();
+  const filteredClasses  = classes.filter(c =>
+    c.name.toLowerCase().includes(q) || (c.level ?? '').toLowerCase().includes(q)
+  );
+  const filteredStudents = students.filter(s =>
+    `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+    s.registrationNumber.toLowerCase().includes(q) ||
+    s.className.toLowerCase().includes(q)
+  );
+
+  // ── classSubject options pour le formulaire d'horaire ─────────────────────
+  // Le backend attend un UUID de classSubjectId. On les récupère depuis les
+  // schedules existants (chaque schedule a son classSubjectId) ou depuis
+  // les courses (GET /courses). Pour simplifier, on utilise ce qui est
+  // déjà chargé dans schedules et on dé-duplique.
+  const classSubjectOptions = (() => {
+    const seen = new Map<string, { value: string; label: string }>();
+    schedules.forEach(s => {
+      if (!seen.has(s.classSubjectId)) {
+        seen.set(s.classSubjectId, {
+          value: s.classSubjectId,
+          label: `${s.className} — ${s.subjectName}`,
         });
       }
     });
+    return [
+      { value: '', label: 'Sélectionner une classe/matière...' },
+      ...Array.from(seen.values()),
+    ];
+  })();
 
-    return Array.from(uniqueScheduleClasses.values());
-  }, [teacherClasses, allSchedules]);
+  // ── Calcul résumé relevé ──────────────────────────────────────────────────
+  const gradesBySubject = studentGrades.reduce<Record<string, GradeResponse[]>>((acc, g) => {
+    const key = g.subjectName;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(g);
+    return acc;
+  }, {});
 
-  // Matières uniques à partir des classes du professeur
-  const matieresList = Array.from(
-    new Map(teacherClasses?.map((c: any) => [c.subjectName, {
-      nom: c.subjectName,
-      coefficient: 3, // Tu peux ajuster ou récupérer du backend si dispo
-      enseignants: 1,
-      classId: c.classId,
-      subjectName: c.subjectName
-    }]) || []).values()
-  );
+  const overallAvg = studentGrades.length
+    ? studentGrades.reduce((s, g) => s + Number(g.value), 0) / studentGrades.length
+    : null;
 
-  // Emploi du temps à afficher (tous ou filtré par classe)
-  const schedulesToShow = selectedClass ? classSchedules : allSchedules;
-
-  // ============================================
-  // GESTION DE LA PRÉSENCE (nouvelle fonctionnalité)
-  // ============================================
-  
-  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
-  const [selectedScheduleForAttendance, setSelectedScheduleForAttendance] = useState<any>(null);
-  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  
-  const { data: classStudents } = useClassStudents(
-    selectedClass?.classId || '', 
-    selectedClass?.subjectId || selectedClass?.classSubjectId || ''
-  );
-  
-  const { data: existingAttendance } = useScheduleAttendance(
-    selectedScheduleForAttendance?.id || '',
-    attendanceDate
-  );
-  
-  const { bulkCreate, isBulkCreating } = useAttendance();
-  const { create, isCreating } = useScheduleMutations();
-
-  const classOptions = classesList.length > 0
-    ? classesList.map((c: any) => ({
-        value: c.classSubjectId || c.classId,
-        label: c.subjectName ? `${c.name} - ${c.subjectName}` : c.name,
-      }))
-    : [{ value: '', label: 'Aucune classe disponible' }];
-
-  const handleOpenAttendance = (schedule: any) => {
-    setSelectedScheduleForAttendance(schedule);
-    setIsAttendanceModalOpen(true);
-  };
-
-  const handleCloseSelectedClass = useCallback(() => {
-    setSelectedClass(null);
-  }, []);
-
-  const handleCloseCalendarModal = useCallback(() => {
-    setIsCalendarModalOpen(false);
-  }, []);
-
-  const handleCloseAttendanceModal = useCallback(() => {
-    setIsAttendanceModalOpen(false);
-  }, []);
-
-  const handleCloseCreateCourseModal = useCallback(() => {
-    setIsCreateClassModalOpen(false);
-  }, []);
-
-  const handleOpenCreateCourseModal = () => {
-    setCourseForm({
-      classSubjectId: classesList[0]?.classSubjectId || '',
-      dayOfWeek: '1',
-      startTime: '',
-      endTime: '',
-      room: '',
-    });
-    setIsCreateClassModalOpen(true);
-  };
-
-  const handleCreateCourse = () => {
-    if (!courseForm.classSubjectId) {
-      toast.error("Aucune classe disponible pour planifier un cours.");
-      return;
-    }
-
-    if (!courseForm.startTime || !courseForm.endTime) {
-      toast.error("Veuillez renseigner l'heure de début et l'heure de fin.");
-      return;
-    }
-
-    if (courseForm.endTime <= courseForm.startTime) {
-      toast.error("L'heure de fin doit être après l'heure de début.");
-      return;
-    }
-
-    create(
-      {
-        classSubjectId: courseForm.classSubjectId,
-        dayOfWeek: Number(courseForm.dayOfWeek),
-        startTime: courseForm.startTime,
-        endTime: courseForm.endTime,
-        room: courseForm.room.trim() || undefined,
+  // ── Colonnes tableau schedules ────────────────────────────────────────────
+  const scheduleColumns = [
+    {
+      key: 'dayOfWeek', label: 'Jour', sortable: true,
+      render: (v: number) => (
+        <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">{DAYS[v - 1]}</span>
+      ),
+    },
+    {
+      key: 'startTime', label: 'Horaire',
+      render: (_: any, row: ScheduleResponse) => (
+        <span className="text-sm font-medium text-bleu-600 dark:text-bleu-300">
+          {row.startTime} – {row.endTime}
+        </span>
+      ),
+    },
+    { key: 'className',   label: 'Classe',   render: (v: string) => <span className="text-sm">{v}</span> },
+    { key: 'subjectName', label: 'Matière',  render: (v: string) => <span className="text-sm font-medium">{v}</span> },
+    { key: 'teacherName', label: 'Enseignant', render: (v: string) => <span className="text-sm text-gray-500">{v || '—'}</span> },
+    { key: 'room',        label: 'Salle',    render: (v: string) => <span className="text-sm text-gray-500">{v || '—'}</span> },
+    {
+      key: 'actions', label: '',
+      render: (_: any, row: ScheduleResponse) => {
+        const isOpen = openMenuId === row.id;
+        return (
+          <div className="relative flex justify-end px-2">
+            <button
+              onClick={e => { e.stopPropagation(); setOpenMenuId(isOpen ? null : row.id); }}
+              className={cn(
+                'p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all text-gray-400 focus:outline-none',
+                isOpen && 'bg-gray-100 dark:bg-white/5 text-bleu-600 dark:text-or-400'
+              )}
+            >
+              <MoreVertical size={18} />
+            </button>
+            <AnimatePresence>
+              {isOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, x: 10 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, x: 10 }}
+                  className="absolute right-full mr-2 top-0 w-44 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-[1.25rem] shadow-2xl border border-gray-100 dark:border-white/5 p-2 z-[60]"
+                >
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={e => { e.stopPropagation(); openEditSchedule(row); }}
+                      className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-or-50 dark:hover:bg-or-900/40 hover:text-or-600 rounded-xl transition-all w-full"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-or-50 dark:bg-or-900/20 flex items-center justify-center"><Edit size={13} /></div>
+                      Modifier
+                    </button>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        setOpenMenuId(null);
+                        setDeleteTarget({ id: row.id, label: `${DAYS[row.dayOfWeek - 1]} ${row.startTime}` });
+                      }}
+                      className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-xl transition-all w-full"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center"><Trash2 size={13} /></div>
+                      Supprimer
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
       },
-      {
-        onSuccess: () => {
-          handleCloseCreateCourseModal();
-          setIsSuccess(true);
-          setTimeout(() => setIsSuccess(false), 3000);
-          setCourseForm({
-            classSubjectId: classesList[0]?.classSubjectId || '',
-            dayOfWeek: '1',
-            startTime: '',
-            endTime: '',
-            room: '',
-          });
-        },
-      }
-    );
-  };
+    },
+  ];
 
-  const handleSaveAttendance = (entries: any[]) => {
-    if (selectedScheduleForAttendance) {
-      bulkCreate({
-        scheduleId: selectedScheduleForAttendance.id,
-        date: attendanceDate,
-        entries
-      }, {
-        onSuccess: () => {
-          handleCloseAttendanceModal();
-          setIsSuccess(true);
-          setTimeout(() => setIsSuccess(false), 3000);
-        }
-      });
-    }
-  };
+  // ── Colonnes tableau élèves (pour relevé) ─────────────────────────────────
+  const studentColumns = [
+    {
+      key: 'lastName', label: 'Élève', sortable: true,
+      render: (_: any, row: StudentResponse) => (
+        <div className="flex items-center gap-3">
+          <Avatar name={`${row.firstName} ${row.lastName}`} size="sm" />
+          <div>
+            <div className="font-semibold text-gray-900 dark:text-white text-sm leading-none mb-1">
+              {row.firstName} {row.lastName}
+            </div>
+            <div className="text-[10px] text-gray-400 font-medium">{row.registrationNumber}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: 'className', label: 'Classe', render: (v: string) => <span className="text-sm">{v}</span> },
+    {
+      key: 'isActive', label: 'Statut',
+      render: (v: boolean) => <Badge variant={v ? 'success' : 'default'}>{v ? 'Actif' : 'Inactif'}</Badge>,
+    },
+    {
+      key: 'actions', label: '',
+      render: (_: any, row: StudentResponse) => (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => openGrades(row)}
+          className="flex items-center gap-2 text-[10px] h-8 px-3"
+        >
+          <FileText size={13} /> Relevé de notes
+        </Button>
+      ),
+    },
+  ];
 
-  // ============================================
-  // RENDU
-  // ============================================
-
-  const isLoading = isLoadingDashboard || isLoadingClasses || isLoadingSchedules;
-
+  // ─── Rendu ────────────────────────────────────────────────────────────────
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="space-y-8"
+      onClick={() => setOpenMenuId(null)}
     >
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Building2 className="text-bleu-600 dark:text-bleu-400" size={28} />
-            <h1 className="text-xl font-semibold gradient-bleu-or-text text-left">Gestion de la Scolarité</h1>
+            <h1 className="text-xl font-semibold gradient-bleu-or-text">Gestion de la Scolarité</h1>
           </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm text-left">
-            {teacherDashboard ? `${teacherDashboard.classCount} classes • ${teacherDashboard.totalStudents} étudiants` : 'Chargement...'}
+          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">
+            {classes.length} classes • {students.length} élèves • {schedules.length} créneaux
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            onClick={() => setIsCalendarModalOpen(true)}
-            className="flex gap-2 dark:border-white/10 dark:text-white"
-          >
-            <CalendarIcon size={18} /> Emploi du Temps
-          </Button>
-          <Button 
-            onClick={handleOpenCreateCourseModal}
-            className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 shadow-blue border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
-          >
-            <Plus size={18} /> Nouveau Cours
-          </Button>
-        </div>
+        <Button
+          onClick={() => openAddSchedule()}
+          className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
+        >
+          <Plus size={18} /> Nouveau Créneau
+        </Button>
       </div>
 
-      {/* KPI GRID - DONNÉES RÉELLES DU BACKEND */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Mes Classes"
-          value={teacherDashboard?.classCount?.toString() || "0"}
-          subtitle="Groupes pédagogiques"
-          icon={<Layers />}
-          color="bleu"
-        />
-        <StatCard
-          title="Total Étudiants"
-          value={teacherDashboard?.totalStudents?.toString() || "0"}
-          subtitle="Élèves inscrits"
-          icon={<Users />}
-          color="bleu"
-        />
-        <StatCard
-          title="Moyenne Générale"
-          value={teacherDashboard?.averageGrade ? `${teacherDashboard.averageGrade.toFixed(1)}/20` : "0/20"}
-          subtitle="Moyenne des classes"
-          icon={<BookOpen />}
-          color="or"
-        />
-        <StatCard
-          title="Heures Cette Semaine"
-          value={`${teacherDashboard?.hoursThisWeek?.toString() || "0"}h`}
-          subtitle="Volume horaire"
-          icon={<Clock />}
-          color="vert"
-        />
-      </div>
-
-      {/* SEGMENTED CONTROL */}
-      <div className="flex items-center gap-4 border-b border-gray-100 dark:border-white/5 pb-4">
+      {/* STATS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { id: 'classes', label: 'Mes Classes', icon: Building2 },
-          { id: 'matieres', label: 'Matières Enseignées', icon: BookOpen },
-        ].map((seg) => (
-          <button
-            key={seg.id}
-            onClick={() => setActiveSegment(seg.id as any)}
-            className={`
-              flex items-center gap-3 px-6 py-2.5 rounded-2xl text-[10px] font-semibold transition-all
-              ${activeSegment === seg.id 
-                ? 'bg-bleu-600 dark:bg-or-500 text-white shadow-lg' 
-                : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-              }
-            `}
-          >
-            <seg.icon size={16} />
-            {seg.label}
-          </button>
+          { label: 'Classes',   value: classes.length,   icon: Building2,     color: 'text-bleu-600' },
+          { label: 'Élèves',    value: students.length,  icon: GraduationCap, color: 'text-or-500' },
+          { label: 'Matières',  value: subjects.length,  icon: BookOpen,      color: 'text-vert-600' },
+          { label: 'Créneaux',  value: schedules.length, icon: CalendarDays,  color: 'text-purple-600' },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="p-5 border-none bg-gradient-to-br from-bleu-500/5 to-or-500/5 dark:from-bleu-900/10 dark:to-or-900/10 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-widest">{label}</p>
+              <Icon size={16} className={color} />
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+          </Card>
         ))}
       </div>
 
-      {/* CONTENT AREA */}
+      {/* ONGLETS */}
+      <Card className="p-4 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none overflow-x-auto">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
+            {([
+              { id: 'emplois', label: 'Emplois du temps', icon: CalendarDays },
+              { id: 'notes',   label: 'Relevés de notes', icon: ClipboardList },
+            ] as const).map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={e => { e.stopPropagation(); setActiveTab(tab.id); setSearchQuery(''); }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[10px] font-semibold transition-all duration-300 whitespace-nowrap ${
+                    isActive
+                      ? 'bg-white dark:bg-or-500 text-bleu-600 dark:text-white shadow-sm'
+                      : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <Icon size={15} /> {tab.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
+            <input
+              type="text"
+              placeholder={activeTab === 'emplois' ? 'Rechercher une classe...' : 'Rechercher un élève...'}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm text-sm"
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* ERREUR */}
+      {error && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400 text-sm font-semibold">
+          <AlertCircle size={18} /> {error}
+          <button onClick={fetchAll} className="ml-auto text-[11px] underline">Réessayer</button>
+        </div>
+      )}
+
+      {/* CONTENU */}
       <AnimatePresence mode="wait">
-        {activeSegment === 'classes' ? (
-          <motion.div
-            key="classes"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            {isLoadingClasses ? (
-              <div className="col-span-full text-center py-12">Chargement des classes...</div>
-            ) : classesList.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-gray-500">
-                Aucune classe assignée. Contactez l'administration.
+
+        {/* ── TAB: EMPLOIS DU TEMPS ────────────────────────────────────────── */}
+        {activeTab === 'emplois' && (
+          <motion.div key="emplois" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-6">
+
+            {/* Grille des classes */}
+            {loading ? (
+              <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                <Loader2 size={22} className="animate-spin" />
+                <span className="text-sm font-medium">Chargement...</span>
+              </div>
+            ) : filteredClasses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+                <Building2 size={40} className="opacity-20" />
+                <span className="text-sm font-medium">Aucune classe trouvée</span>
               </div>
             ) : (
-              classesList.map((c: any) => (
-                <Card 
-                  key={c.classId} 
-                  onClick={() => setSelectedClass(c)}
-                  className="p-0 border-none shadow-soft overflow-hidden group cursor-pointer hover:scale-[1.03] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md"
-                >
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-white/5 dark:to-white/10 p-6 border-b border-gray-100 dark:border-white/5 group-hover:from-bleu-50 dark:group-hover:from-bleu-900/20 group-hover:to-bleu-100 dark:group-hover:to-bleu-900/10 transition-colors text-left">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 bg-white dark:bg-gray-800 rounded-2xl flex items-center justify-center text-bleu-600 dark:text-bleu-400 shadow-sm group-hover:scale-110 transition-transform">
-                        <GraduationCap size={24} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {filteredClasses.map(cls => {
+                  const count = schedules.filter(s => s.className === cls.name).length;
+                  return (
+                    <Card
+                      key={cls.id}
+                      className="p-0 border-none shadow-soft overflow-hidden group cursor-pointer hover:scale-[1.03] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md"
+                    >
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-white/5 dark:to-white/10 p-5 border-b border-gray-100 dark:border-white/5 group-hover:from-bleu-50 dark:group-hover:from-bleu-900/20 group-hover:to-bleu-100 dark:group-hover:to-bleu-900/10 transition-colors">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-xl flex items-center justify-center text-bleu-600 dark:text-bleu-400 shadow-sm">
+                            <GraduationCap size={20} />
+                          </div>
+                          <Badge variant="info" className="text-[9px] font-semibold px-2">{cls.level || 'N/A'}</Badge>
+                        </div>
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">{cls.name}</h3>
+                        <p className="text-[10px] text-gray-400 font-medium">{cls.mainTeacherName || 'Prof non défini'}</p>
                       </div>
-                      <Badge variant="info" className="text-[10px] font-semibold px-2">{c.niveau}</Badge>
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1 leading-tight">{c.name}</h3>
-                    <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wider">
-                      {c.subjectName}
-                    </p>
-                  </div>
-                  <div className="p-6 bg-white dark:bg-transparent">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Users size={16} className="text-gray-400 dark:text-gray-500" />
-                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.nombreEleves} Élèves</span>
+                      <div className="p-5 bg-white dark:bg-transparent flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                            <Users size={13} /> {cls.studentCount} élèves
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                            <Clock size={13} /> {count} créneau{count !== 1 ? 'x' : ''}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => openClassDetail(cls)}
+                            className="px-3 py-1.5 text-[9px] font-bold bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600 dark:text-bleu-300 rounded-lg hover:bg-bleu-100 transition-all flex items-center gap-1"
+                          >
+                            <Eye size={11} /> Voir
+                          </button>
+                          <button
+                            onClick={() => openAddSchedule(cls)}
+                            className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"
+                          >
+                            <Plus size={11} /> Ajouter
+                          </button>
+                        </div>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-bleu-600 dark:group-hover:bg-or-500 group-hover:text-white transition-all shadow-sm">
-                        <ChevronRight size={18} />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                      <span>Moy: {c.classAverage.toFixed(1)}/20</span>
-                      {c.room && <span>• Salle: {c.room}</span>}
-                    </div>
-                  </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Tableau global des créneaux */}
+            {schedules.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <CalendarDays size={14} className="text-bleu-500" />
+                  Tous les créneaux ({schedules.length})
+                </p>
+                <Card className="p-2 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
+                  <Table data={schedules as any} columns={scheduleColumns as any} />
                 </Card>
-              ))
+              </div>
             )}
           </motion.div>
-        ) : (
-          <motion.div
-            key="matieres"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
-          >
-            {matieresList.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-gray-500">
-                Aucune matière enseignée actuellement.
-              </div>
-            ) : (
-              matieresList.map((m: any, i) => (
-                <Card 
-                  key={i} 
-                  onClick={() => setSelectedSubject({
-                    ...(m as Record<string, any>),
-                    chapters: Math.floor(Math.random() * 8) + 5, // Gardé mock si pas dispo backend
-                    lessons: Math.floor(Math.random() * 20) + 15,
-                    evaluations: 4,
-                    exercises: 45
-                  })}
-                  className="p-6 border-none shadow-soft flex flex-col justify-between hover:shadow-xl hover:scale-[1.02] transition-all duration-300 dark:bg-gray-900/50 dark:backdrop-blur-md group text-left cursor-pointer"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="p-3 bg-bleu-50 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-400 rounded-2xl group-hover:scale-110 transition-transform shadow-inner">
-                        <BookOpen size={24} />
-                      </div>
-                      <div className="text-center bg-gray-50 dark:bg-white/5 px-3 py-1.5 rounded-xl border border-gray-100 dark:border-white/5">
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Coef</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white leading-none">{m.coefficient}</p>
-                      </div>
-                    </div>
-                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2 tracking-tight">{m.nom}</h4>
-                    <div className="flex items-center gap-4 text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-                      <span className="flex items-center gap-1.5"><Layers size={12} /> {m.chapters} Chap.</span>
-                      <span className="flex items-center gap-1.5"><FileText size={12} /> {m.lessons} Leçons</span>
-                    </div>
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
-                      <div className="w-2 h-2 rounded-full bg-vert-500 animate-pulse" />
-                      {teacherClasses?.filter((c: any) => c.subjectName === m.nom).length || 0} Classes
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-bleu-600 dark:text-or-400 group-hover:translate-x-1 transition-transform uppercase tracking-wider">
-                      Détails <ChevronRight size={14} />
-                    </div>
-                  </div>
-                </Card>
-              ))
-            )}
+        )}
+
+        {/* ── TAB: RELEVÉS DE NOTES ────────────────────────────────────────── */}
+        {activeTab === 'notes' && (
+          <motion.div key="notes" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
+            <Card className="p-2 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
+              {loading ? (
+                <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                  <Loader2 size={22} className="animate-spin" />
+                  <span className="text-sm font-medium">Chargement...</span>
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+                  <GraduationCap size={40} className="opacity-20" />
+                  <span className="text-sm font-medium">Aucun élève trouvé</span>
+                </div>
+              ) : (
+                <Table data={filteredStudents as any} columns={studentColumns as any} />
+              )}
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODALE: DÉTAILS D'UNE CLASSE - AVEC DONNÉES RÉELLES */}
-      <Modal 
-        isOpen={selectedClass !== null} 
-        onClose={handleCloseSelectedClass}
+      {/* ── MODALE: DÉTAIL EMPLOI DU TEMPS D'UNE CLASSE ────────────────────── */}
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => { setIsDetailModalOpen(false); setSelectedClass(null); }}
         title={
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600 shadow-inner">
-              <GraduationCap size={22} />
+            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600"><CalendarDays size={22} /></div>
+            <div>
+              <span className="font-bold gradient-bleu-or-text">Emploi du temps</span>
+              <p className="text-[10px] text-gray-500 font-normal">{selectedClass?.name}</p>
             </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">
-              {selectedClass?.name}
-            </span>
           </div>
         }
         size="xl"
       >
-        <div className="space-y-8 text-left py-2">
-          {/* Stats réelles */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Informations Classe
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <Card className="p-4 bg-gray-50 dark:bg-white/5 border-none">
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none mb-1">
-                      {selectedClass?.nombreEleves || 0}
-                    </p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">Élèves Inscrits</p>
-                  </Card>
-                  <Card className="p-4 bg-gray-50 dark:bg-white/5 border-none text-left">
-                    <p className="text-2xl font-bold text-or-600 leading-none mb-1">
-                      {selectedClass?.classAverage?.toFixed(1) || "0"}/20
-                    </p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">Moyenne Classe</p>
-                  </Card>
-                </div>
-              </div>
+        <div className="space-y-6 text-left py-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1 h-3 bg-bleu-500 rounded-full" />
+              {classSchedules.length} créneau{classSchedules.length !== 1 ? 'x' : ''} programmé{classSchedules.length !== 1 ? 's' : ''}
+            </p>
+            <Button
+              size="sm"
+              onClick={() => { setIsDetailModalOpen(false); openAddSchedule(selectedClass!); }}
+              className="flex items-center gap-2 text-[10px] h-8 px-3 bg-bleu-600 border-none text-white"
+            >
+              <Plus size={13} /> Ajouter un créneau
+            </Button>
+          </div>
 
-              {/* Emploi du temps de cette classe */}
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-vert-500 rounded-full" /> Emploi du Temps
-                </p>
-                <div className="space-y-3">
-                  {classSchedules && classSchedules.length > 0 ? (
-                    classSchedules.map((schedule: any) => (
-                      <div 
-                        key={schedule.id} 
-                        className="flex items-center gap-4 p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl group hover:border-bleu-500/50 transition-all"
-                      >
-                        <div className="px-2 py-1 rounded-lg font-bold text-[9px] bg-bleu-100 text-bleu-600">
-                          {schedule.startTime} - {schedule.endTime}
-                        </div>
-                        <div className="flex flex-col flex-1">
-                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                            {schedule.subjectName}
-                          </span>
-                          <span className="text-[9px] text-gray-400">
-                            {schedule.room || "Salle non définie"}
-                          </span>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleOpenAttendance(schedule)}
-                          className="text-[9px]"
-                        >
-                          <UserCheck size={14} className="mr-1" /> Présence
-                        </Button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">Aucun cours programmé pour cette classe.</p>
-                  )}
-                </div>
-              </div>
+          {/* Vue semaine */}
+          {classSchLoading ? (
+            <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
+              <Loader2 size={20} className="animate-spin" /> Chargement...
             </div>
-
-            {/* Liste des étudiants (si on a les données) */}
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-or-500 rounded-full" /> Étudiants
-              </p>
-              <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {classStudents && classStudents.length > 0 ? (
-                  classStudents.map((student: any, i: number) => (
-                    <div 
-                      key={student.studentId} 
-                      className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar name={student.name} size="sm" />
-                        <div>
-                          <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{student.name}</p>
-                          <p className="text-[9px] text-gray-400">Moy: {student.average}/20 • Abs: {student.absenceCount}</p>
-                        </div>
-                      </div>
-                      <Badge 
-                        variant={student.absenceCount > 3 ? "error" : "success"} 
-                        className="text-[8px]"
-                      >
-                        {student.absenceCount > 3 ? "À risque" : "Bon"}
-                      </Badge>
+          ) : classSchedules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
+              <CalendarDays size={36} className="opacity-20" />
+              <span className="text-sm">Aucun créneau pour cette classe.</span>
+              <Button onClick={() => { setIsDetailModalOpen(false); openAddSchedule(selectedClass!); }} className="mt-2 text-[10px]">
+                <Plus size={14} className="mr-1" /> Créer le premier créneau
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+              {DAYS.map((day, dIdx) => {
+                const daySlots = classSchedules.filter(s => s.dayOfWeek === dIdx + 1);
+                return (
+                  <div key={day} className="space-y-2">
+                    <div className="text-center py-1.5 bg-bleu-600 dark:bg-bleu-900/40 rounded-lg">
+                      <span className="text-[9px] font-bold text-white uppercase tracking-widest">{day}</span>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">Sélectionnez une matière pour voir les étudiants.</p>
+                    <div className="space-y-2 min-h-[80px]">
+                      {daySlots.length === 0 ? (
+                        <div className="p-2 text-center text-[9px] text-gray-400 bg-gray-50 dark:bg-white/5 rounded-lg">—</div>
+                      ) : daySlots.map(s => (
+                        <div key={s.id} className="p-2 bg-white dark:bg-gray-800/50 rounded-lg border-l-2 border-bleu-500 shadow-sm text-left relative group">
+                          <p className="text-[9px] font-bold text-bleu-600 mb-0.5">{s.startTime}–{s.endTime}</p>
+                          <p className="text-[10px] font-bold text-gray-900 dark:text-white">{s.subjectName}</p>
+                          {s.room && <p className="text-[9px] text-gray-400">{s.room}</p>}
+                          <button
+                            onClick={() => setDeleteTarget({ id: s.id, label: `${day} ${s.startTime}` })}
+                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-red-400 hover:text-red-600"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
+            <Button variant="outline" onClick={() => { setIsDetailModalOpen(false); setSelectedClass(null); }} className="flex-1 h-11">
+              Fermer
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODALE: CRÉER / MODIFIER UN CRÉNEAU ────────────────────────────── */}
+      <Modal
+        isOpen={isScheduleModalOpen}
+        onClose={() => { setIsScheduleModalOpen(false); setEditingScheduleId(null); }}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600"><CalendarDays size={22} /></div>
+            <span className="font-bold gradient-bleu-or-text">
+              {editingScheduleId ? 'Modifier le créneau' : 'Nouveau créneau'}
+            </span>
+          </div>
+        }
+        size="lg"
+      >
+        <div className="space-y-6 text-left py-2" onClick={e => e.stopPropagation()}>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Configuration
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <Select
+                  label="Classe / Matière"
+                  options={classSubjectOptions}
+                  value={scheduleForm.classSubjectId}
+                  onChange={e => setScheduleForm(f => ({ ...f, classSubjectId: e.target.value }))}
+                />
+                {classSubjectOptions.length <= 1 && (
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    ⚠ Aucune association classe/matière trouvée. Créez d'abord un cours via l'administration académique.
+                  </p>
                 )}
               </div>
+              <Select
+                label="Jour de la semaine"
+                options={DAY_OPTIONS}
+                value={scheduleForm.dayOfWeek}
+                onChange={e => setScheduleForm(f => ({ ...f, dayOfWeek: e.target.value }))}
+              />
+              <Input
+                label="Salle"
+                placeholder="ex: Salle A101"
+                value={scheduleForm.room}
+                onChange={e => setScheduleForm(f => ({ ...f, room: e.target.value }))}
+              />
+              <Input
+                type="time"
+                label="Heure de début"
+                value={scheduleForm.startTime}
+                onChange={e => setScheduleForm(f => ({ ...f, startTime: e.target.value }))}
+              />
+              <Input
+                type="time"
+                label="Heure de fin"
+                value={scheduleForm.endTime}
+                onChange={e => setScheduleForm(f => ({ ...f, endTime: e.target.value }))}
+              />
             </div>
           </div>
 
           <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
-            <Button className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider">
-              Voir le Bulletin de Classe
+            <Button variant="outline" onClick={() => { setIsScheduleModalOpen(false); setEditingScheduleId(null); }} className="flex-1 h-12">
+              Annuler
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleCloseSelectedClass} 
-              className="flex-1 h-12 font-bold uppercase text-[10px] tracking-wider"
+            <Button onClick={handleSubmitSchedule} disabled={submitting} className="flex-1 h-12 shadow-lg shadow-bleu-600/20 flex items-center justify-center gap-2">
+              {submitting && <Loader2 size={16} className="animate-spin" />}
+              {editingScheduleId ? 'Enregistrer les modifications' : 'Créer le créneau'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODALE: RELEVÉ DE NOTES ─────────────────────────────────────────── */}
+      <Modal
+        isOpen={isGradesModalOpen}
+        onClose={() => { setIsGradesModalOpen(false); setSelectedStudent(null); setStudentGrades([]); }}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600"><Award size={22} /></div>
+            <div>
+              <span className="font-bold gradient-bleu-or-text">Relevé de notes</span>
+              <p className="text-[10px] text-gray-500 font-normal">
+                {selectedStudent?.firstName} {selectedStudent?.lastName} • {selectedStudent?.className}
+              </p>
+            </div>
+          </div>
+        }
+        size="xl"
+      >
+        <div className="space-y-6 text-left py-2">
+
+          {/* Filtres */}
+          <div className="flex items-center gap-4">
+            <Select
+              label="Semestre"
+              options={[
+                { value: '',  label: 'Tous les semestres' },
+                { value: '1', label: 'Semestre 1' },
+                { value: '2', label: 'Semestre 2' },
+              ]}
+              value={selectedSemester}
+              onChange={e => {
+                setSelectedSemester(e.target.value);
+                if (selectedStudent) fetchStudentGrades(selectedStudent.id, e.target.value || undefined);
+              }}
+            />
+            {overallAvg !== null && (
+              <div className="flex-1 flex justify-end">
+                <div className="px-4 py-2 bg-gradient-to-r from-bleu-50 to-or-50 dark:from-bleu-900/20 dark:to-or-900/20 rounded-2xl text-center">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Moyenne générale</p>
+                  <GradeBadge value={overallAvg} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Infos élève */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Matricule', value: selectedStudent?.registrationNumber },
+              { label: 'Classe',    value: selectedStudent?.className },
+              // Remplacez la ligne 873 par :
+{ label: 'Semestres',value: Array.from(new Set(studentGrades.map(g => g.semester))).join(', ') || '—' },
+              { label: 'Matières',  value: Object.keys(gradesBySubject).length || '—' },
+            ].map(({ label, value }) => (
+              <Card key={label} className="p-3 bg-gray-50 dark:bg-white/5 border-none">
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{value || '—'}</p>
+              </Card>
+            ))}
+          </div>
+
+          {/* Notes par matière */}
+          {gradesLoading ? (
+            <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
+              <Loader2 size={20} className="animate-spin" /> Chargement des notes...
+            </div>
+          ) : studentGrades.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
+              <BarChart3 size={36} className="opacity-20" />
+              <span className="text-sm">Aucune note enregistrée pour cet élève.</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(gradesBySubject).map(([subjectName, grades]) => {
+                const subjectAvg = grades.reduce((s, g) => s + Number(g.value), 0) / grades.length;
+                const coef = subjects.find(s => s.name === subjectName)?.coefficient ?? 1;
+                return (
+                  <div key={subjectName} className="border border-gray-100 dark:border-white/5 rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-bleu-100 dark:bg-bleu-900/30 flex items-center justify-center text-bleu-600">
+                          <BookOpen size={15} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{subjectName}</p>
+                          <p className="text-[9px] text-gray-400">Coef. {coef} • {grades.length} évaluation{grades.length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-gray-400 mb-1">Moyenne</p>
+                        <GradeBadge value={subjectAvg} />
+                      </div>
+                    </div>
+                    <div className="divide-y divide-gray-50 dark:divide-white/5">
+                      {grades.map(g => (
+                        <div key={g.id} className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-transparent">
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                              {g.evaluationType || 'Évaluation'}
+                            </p>
+                            <p className="text-[9px] text-gray-400">
+                              Sem. {g.semester} • {g.gradedAt ? new Date(g.gradedAt).toLocaleDateString('fr-FR') : '—'}
+                            </p>
+                            {g.comment && <p className="text-[9px] text-gray-400 italic">{g.comment}</p>}
+                          </div>
+                          <GradeBadge value={Number(g.value)} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Actions impression */}
+          <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
+            <Button
+              variant="outline"
+              onClick={() => window.print()}
+              className="flex-1 h-12 flex items-center justify-center gap-2"
+            >
+              <Printer size={16} /> Imprimer
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // Export CSV simple
+                const rows = [
+                  ['Matière', 'Type', 'Note', 'Semestre', 'Date', 'Commentaire'],
+                  ...studentGrades.map(g => [
+                    g.subjectName,
+                    g.evaluationType ?? '',
+                    String(g.value),
+                    String(g.semester),
+                    g.gradedAt ? new Date(g.gradedAt).toLocaleDateString('fr-FR') : '',
+                    g.comment ?? '',
+                  ]),
+                ];
+                const csv = rows.map(r => r.join(';')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `releve_${selectedStudent?.lastName}_${selectedStudent?.firstName}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex-1 h-12 flex items-center justify-center gap-2"
+            >
+              <Download size={16} /> Exporter CSV
+            </Button>
+            <Button
+              onClick={() => { setIsGradesModalOpen(false); setSelectedStudent(null); setStudentGrades([]); }}
+              className="flex-1 h-12"
             >
               Fermer
             </Button>
@@ -600,293 +983,62 @@ const Scolarite: React.FC = () => {
         </div>
       </Modal>
 
-      {/* MODALE: CALENDRIER / EMPLOI DU TEMPS - DONNÉES RÉELLES */}
-      <Modal 
-        isOpen={isCalendarModalOpen} 
-        onClose={handleCloseCalendarModal}
-        title={
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600 shadow-inner">
-              <CalendarIcon size={22} />
-            </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Mon Emploi du Temps</span>
-          </div>
-        }
-        size="xl"
-      >
-        <div className="py-4 space-y-6 text-left">
-          {/* Filtres */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-gray-100 dark:border-white/5">
-            <Select 
-              label="Filtrer par Classe" 
-              options={[
-                { value: 'Toutes', label: 'Toutes mes classes' }, 
-                ...classesList.map((c: any) => ({ value: c.classId, label: c.name }))
-              ]} 
-              value={filterSalle}
-              onChange={(e) => setFilterSalle(e.target.value)}
-            />
-            <Select 
-              label="Année Académique" 
-              options={[
-                { value: '2023-2024', label: '2023 - 2024' },
-                { value: '2024-2025', label: '2024 - 2025' },
-              ]} 
-              value={filterAnnee}
-              onChange={(e) => setFilterAnnee(e.target.value)}
-            />
-          </div>
-
-          {/* Planning hebdomadaire avec vraies données */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dIdx) => {
-              // Filtrer les cours pour ce jour (dayOfWeek: 1-7)
-              const daySchedules = schedulesToShow?.filter((s: any) => s.dayOfWeek === dIdx + 1) || [];
-              
-              return (
-                <div key={day} className="space-y-4">
-                  <div className="text-center py-2 bg-bleu-600 dark:bg-bleu-900/40 rounded-xl shadow-md">
-                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">{day}</span>
-                  </div>
-                  <div className="space-y-3 min-h-[300px]">
-                    {daySchedules.length > 0 ? (
-                      daySchedules.map((schedule: any) => (
-                        <div 
-                          key={schedule.id} 
-                          className="p-3 bg-white dark:bg-gray-800/50 rounded-xl border-l-[3px] border-bleu-500 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                          onClick={() => handleOpenAttendance(schedule)}
-                        >
-                          <p className="text-[10px] font-bold text-bleu-600 mb-1">
-                            {schedule.startTime} - {schedule.endTime}
-                          </p>
-                          <p className="text-xs font-bold text-gray-900 dark:text-white mb-1 group-hover:text-bleu-500 transition-colors">
-                            {schedule.subjectName}
-                          </p>
-                          <p className="text-[9px] text-gray-500 flex items-center gap-1">
-                            <MapPin size={10} /> {schedule.room || "Salle ?"}
-                          </p>
-                          <p className="text-[9px] text-gray-400 mt-1">{schedule.className}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-[10px] text-gray-400 bg-gray-50 dark:bg-white/5 rounded-xl">
-                        Aucun cours
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODALE: PRISE DE PRÉSENCE */}
+      {/* ── MODALE: CONFIRMER SUPPRESSION ───────────────────────────────────── */}
       <Modal
-        isOpen={isAttendanceModalOpen}
-        onClose={handleCloseAttendanceModal}
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
         title={
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-vert-100 dark:bg-vert-900/30 rounded-xl text-vert-600 shadow-inner">
-              <UserCheck size={22} />
-            </div>
-            <div>
-              <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">
-                Prise de Présence
-              </span>
-              <p className="text-[10px] text-gray-500">
-                {selectedScheduleForAttendance?.subjectName} • {selectedScheduleForAttendance?.className}
-              </p>
-            </div>
+            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-600"><Trash2 size={22} /></div>
+            <span className="font-bold text-red-600">Confirmer la suppression</span>
           </div>
         }
-        size="lg"
+        size="sm"
       >
-        <div className="space-y-6 text-left py-2">
-          <div className="flex items-center gap-4">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Date:</label>
-            <input 
-              type="date" 
-              value={attendanceDate}
-              onChange={(e) => setAttendanceDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-
-          {existingAttendance && existingAttendance.length > 0 && (
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-[10px] text-yellow-700">
-              <AlertCircle size={14} className="inline mr-2" />
-              Des présences existent déjà pour cette date. Elles seront mises à jour.
-            </div>
-          )}
-
-          <div className="space-y-2 max-h-[400px] overflow-y-auto">
-            {classStudents?.map((student: any) => {
-              const existing = existingAttendance?.find((a: any) => a.studentId === student.studentId);
-              
-              return (
-                <div key={student.studentId} className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={student.name} size="sm" />
-                    <div>
-                      <p className="text-xs font-bold">{student.name}</p>
-                      <p className="text-[9px] text-gray-400">Moy: {student.average}/20</p>
-                    </div>
-                  </div>
-                  <select 
-                    defaultValue={existing?.status || "PRESENT"}
-                    className="text-xs border rounded-lg px-2 py-1"
-                  >
-                    <option value="PRESENT">Présent</option>
-                    <option value="ABSENT">Absent</option>
-                    <option value="LATE">Retard</option>
-                    <option value="EXCUSED">Excusé</option>
-                  </select>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-4 pt-4 border-t">
-            <Button 
-              variant="outline" 
-              onClick={handleCloseAttendanceModal}
-              className="flex-1"
-            >
-              Annuler
-            </Button>
-            <Button 
-              onClick={() => {
-                // Collecter les valeurs des selects et sauvegarder
-                const entries = classStudents?.map((s: any) => ({
-                  studentId: s.studentId,
-                  status: "PRESENT", // À récupérer du select
-                  note: ""
-                })) || [];
-                handleSaveAttendance(entries);
-              }}
-              disabled={isBulkCreating}
-              className="flex-1"
-            >
-              {isBulkCreating ? "Enregistrement..." : "Enregistrer les présences"}
+        <div className="text-left space-y-6 py-2">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Êtes-vous sûr de vouloir supprimer le créneau <strong>{deleteTarget?.label}</strong> ?
+            Cette action est irréversible.
+          </p>
+          <div className="flex gap-4">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} className="flex-1 h-12">Annuler</Button>
+            <Button onClick={handleDeleteSchedule} className="flex-1 h-12 bg-red-600 hover:bg-red-700 border-none shadow-lg">
+              Supprimer
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* MODALE: CRÉER UN COURS (remplace "Créer une Classe") */}
-      <Modal 
-        isOpen={isCreateClassModalOpen} 
-        onClose={handleCloseCreateCourseModal}
-        title={
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600 dark:text-or-400 shadow-inner">
-              <Plus size={22} />
-            </div>
-            <span className="tracking-tight gradient-bleu-or-text font-bold text-xl">Planifier un Cours</span>
-          </div>
-        }
-        size="lg"
-      >
-        <div className="space-y-8 text-left py-2">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-              <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Configuration du Cours
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Select 
-                label="Classe" 
-                options={classOptions}
-                value={courseForm.classSubjectId}
-                onChange={(e) => setCourseForm((current) => ({
-                  ...current,
-                  classSubjectId: e.target.value,
-                }))}
-                disabled={classOptions.length === 1 && !classOptions[0].value}
-              />
-              <Select 
-                label="Jour de la semaine" 
-                options={[
-                  { value: '1', label: 'Lundi' },
-                  { value: '2', label: 'Mardi' },
-                  { value: '3', label: 'Mercredi' },
-                  { value: '4', label: 'Jeudi' },
-                  { value: '5', label: 'Vendredi' },
-                  { value: '6', label: 'Samedi' },
-                ]}
-                value={courseForm.dayOfWeek}
-                onChange={(e) => setCourseForm((current) => ({
-                  ...current,
-                  dayOfWeek: e.target.value,
-                }))}
-              />
-              <Input
-                type="time"
-                label="Heure de début"
-                value={courseForm.startTime}
-                onChange={(e) => setCourseForm((current) => ({
-                  ...current,
-                  startTime: e.target.value,
-                }))}
-              />
-              <Input
-                type="time"
-                label="Heure de fin"
-                value={courseForm.endTime}
-                onChange={(e) => setCourseForm((current) => ({
-                  ...current,
-                  endTime: e.target.value,
-                }))}
-              />
-              <Input
-                label="Salle"
-                placeholder="Ex: Salle B204"
-                value={courseForm.room}
-                onChange={(e) => setCourseForm((current) => ({
-                  ...current,
-                  room: e.target.value,
-                }))}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-5 pt-8 border-t border-gray-100 dark:border-white/5">
-            <Button 
-              variant="outline" 
-              onClick={handleCloseCreateCourseModal} 
-              className="flex-1 h-12 uppercase text-[10px] tracking-wider font-bold"
-            >
-              Annuler
-            </Button>
-            <Button 
-              onClick={handleCreateCourse}
-              disabled={isCreating || (classOptions.length === 1 && !classOptions[0].value)}
-              loading={isCreating}
-              className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold uppercase text-[10px] tracking-wider"
-            >
-              Créer le cours
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* SUCCESS TOAST */}
+      {/* ── TOAST ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {isSuccess && (
-          <motion.div 
+        {notif && (
+          <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="fixed bottom-10 right-10 z-[100] bg-white dark:bg-gray-900 shadow-2xl rounded-2xl p-4 border border-green-100 dark:border-green-900/30 flex items-center gap-4 min-w-[300px]"
+            className={cn(
+              'fixed bottom-10 right-10 z-[100] bg-white dark:bg-gray-900 shadow-2xl rounded-2xl p-4 flex items-center gap-4 min-w-[300px]',
+              notif.kind === 'success'
+                ? 'border border-green-100 dark:border-green-900/30'
+                : 'border border-red-100 dark:border-red-900/30'
+            )}
+            onClick={e => e.stopPropagation()}
           >
-            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center text-green-600">
-              <CheckCircle2 size={24} />
+            <div className={cn(
+              'w-10 h-10 rounded-xl flex items-center justify-center',
+              notif.kind === 'success'
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
+                : 'bg-red-100 dark:bg-red-900/30 text-red-500'
+            )}>
+              {notif.kind === 'success' ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
             </div>
             <div className="text-left flex-1">
-              <p className="text-sm font-bold text-gray-900 dark:text-white">Opération réussie</p>
-              <p className="text-xs text-gray-500">Les données ont été synchronisées.</p>
+              <p className="text-sm font-bold text-gray-900 dark:text-white">
+                {notif.kind === 'success' ? 'Opération réussie' : 'Erreur'}
+              </p>
+              <p className="text-xs text-gray-500">{notif.message}</p>
             </div>
-            <button onClick={() => setIsSuccess(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400">
+            <button onClick={() => setNotif(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400">
               <X size={16} />
             </button>
           </motion.div>
@@ -896,4 +1048,4 @@ const Scolarite: React.FC = () => {
   );
 };
 
-export default Scolarite;
+export default AdminScolarite;
