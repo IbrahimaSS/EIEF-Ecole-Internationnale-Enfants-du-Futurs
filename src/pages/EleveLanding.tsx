@@ -80,7 +80,7 @@ const EleveLanding: React.FC = () => {
       icon: Award, 
       title: 'Suivi de mes Évaluations',
       desc: 'Consultez vos notes dès qu\'elles sont publiées. Un accès direct et privé pour vous et vos parents.',
-      features: ['Historique par trimestre', 'Calcul de moyenne automatique', 'Graphe de progression']
+      features: ['Historique par semestre', 'Calcul de moyenne automatique', 'Graphe de progression']
     },
     { 
       id: 'planning', 

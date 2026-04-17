@@ -244,9 +244,8 @@ const EnseignantNotes: React.FC = () => {
                 onChange={(e) => setSelectedSemester(e.target.value)}
                 className="w-full bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10 font-bold text-left"
                 options={[
-                  { value: "1", label: "Trimestre 1" },
-                  { value: "2", label: "Trimestre 2" },
-                  { value: "3", label: "Trimestre 3" },
+                  { value: "1", label: "Semestre 1 (S1)" },
+                  { value: "2", label: "Semestre 2 (S2)" },
                 ]}
               />
             </div>

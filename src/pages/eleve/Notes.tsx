@@ -18,15 +18,15 @@ import {
 import { Card, Badge, Button, Avatar } from '../../components/ui';
 import { cn } from '../../utils/cn';
 
-type Trimestre = 'T1' | 'T2' | 'T3';
+type Semestre = 'S1' | 'S2';
 
 const EleveNotes: React.FC = () => {
-  const [selectedTrimestre, setSelectedTrimestre] = useState<Trimestre>('T2');
+  const [selectedSemestre, setSelectedSemestre] = useState<Semestre>('S1');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Mock data for the student
   const gradesData = {
-    T1: {
+    S1: {
       moyenneGle: '14.5',
       rang: '5ème',
       absences: 2,
@@ -37,9 +37,9 @@ const EleveNotes: React.FC = () => {
         { nom: 'Anglais', note: '16.5', coef: 2, evolution: '+2.0', remark: 'Excellent' },
         { nom: 'Histoire-Géo', note: '14.0', coef: 2, evolution: '+1.0', remark: 'Bien' },
       ],
-      appreciation: 'Un bon premier trimestre. Fatoumata est sérieuse et appliquée.'
+      appreciation: 'Un bon premier semestre. Fatoumata est sérieuse et appliquée.'
     },
-    T2: {
+    S2: {
       moyenneGle: '15.42',
       rang: '3ème',
       absences: 0,
@@ -51,18 +51,11 @@ const EleveNotes: React.FC = () => {
         { nom: 'Histoire-Géo', note: '14.5', coef: 2, evolution: '+0.5', remark: 'Solide' },
         { nom: 'SVT', note: '16.0', coef: 3, evolution: '+2.0', remark: 'Très prometteur' },
       ],
-      appreciation: 'Excellent trimestre. Les efforts ont payé dans toutes les matières. Félicitations !'
-    },
-    T3: {
-      moyenneGle: '-',
-      rang: '-',
-      absences: 0,
-      matieres: [],
-      appreciation: 'Trimestre en cours.'
+      appreciation: 'Excellent semestre. Les efforts ont payé dans toutes les matières. Félicitations !'
     }
   };
 
-  const currentData = gradesData[selectedTrimestre];
+  const currentData = gradesData[selectedSemestre];
   const filteredMatieres = currentData.matieres.filter(m => 
     m.nom.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -82,23 +75,23 @@ const EleveNotes: React.FC = () => {
           </div>
           <div className="text-left font-bold">
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Mes Notes & Bulletins</h1>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">Consulte tes moyennes et tes rapports trimestriels</p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">Consulte tes moyennes et tes rapports semestriels</p>
           </div>
         </div>
 
         <div className="flex items-center bg-gray-100 dark:bg-white/5 rounded-2xl p-1.5 gap-1 self-start lg:self-center">
-           {(['T1', 'T2', 'T3'] as Trimestre[]).map((tri) => (
+           {(['S1', 'S2'] as Semestre[]).map((sem) => (
              <button
-               key={tri}
-               onClick={() => setSelectedTrimestre(tri)}
+               key={sem}
+               onClick={() => setSelectedSemestre(sem)}
                className={cn(
                  "px-6 py-2.5 rounded-xl text-xs font-black transition-all",
-                 selectedTrimestre === tri 
+                 selectedSemestre === sem 
                    ? "bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-md" 
                    : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                )}
              >
-               Trimestre {tri.slice(1)}
+               Semestre {sem.slice(1)}
              </button>
            ))}
         </div>
@@ -106,7 +99,7 @@ const EleveNotes: React.FC = () => {
 
       <AnimatePresence mode="wait">
         <motion.div
-           key={selectedTrimestre}
+           key={selectedSemestre}
            initial={{ opacity: 0, x: -10 }}
            animate={{ opacity: 1, x: 0 }}
            exit={{ opacity: 0, x: 10 }}
@@ -239,9 +232,9 @@ const EleveNotes: React.FC = () => {
                <div className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Clock size={40} className="text-gray-300 dark:text-gray-600" />
                </div>
-               <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Trimestre en cours</h3>
+               <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Semestre en cours</h3>
                <p className="text-[13px] text-gray-500 font-semibold max-w-sm mx-auto">
-                  Les notes de ce trimestre n'ont pas encore été publiées. Reviens plus tard pour consulter tes résultats.
+                  Les notes de ce semestre n'ont pas encore été publiées. Reviens plus tard pour consulter tes résultats.
                </p>
             </div>
           )}

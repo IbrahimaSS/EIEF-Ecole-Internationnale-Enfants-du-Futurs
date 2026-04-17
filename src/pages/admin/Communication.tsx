@@ -63,7 +63,7 @@ const AdminCommunication: React.FC = () => {
 
   const messages = [
     { id: 1, titre: 'Réunion parents-professeurs', contenu: 'Veuillez noter que la réunion annuelle se tiendra samedi prochain à 10h...', date: 'Aujourd\'hui, 14:30', cible: 'Parents', statut: 'Envoyé', type: 'Annonce', urgent: false },
-    { id: 2, titre: 'Nouveau calendrier scolaire', contenu: 'Le calendrier des examens du second trimestre est désormais disponible.', date: 'Aujourd\'hui, 10:15', cible: 'Tous', statut: 'Envoyé', type: 'Message', urgent: false },
+    { id: 2, titre: 'Nouveau calendrier scolaire', contenu: 'Le calendrier des examens du second semestre est désormais disponible.', date: 'Aujourd\'hui, 10:15', cible: 'Tous', statut: 'Envoyé', type: 'Message', urgent: false },
     { id: 3, titre: 'Alerte météo : École fermée', contenu: 'En raison des fortes pluies, l\'établissement sera fermé ce jour.', date: 'Hier, 07:30', cible: 'Tous', statut: 'Délivré', type: 'Urgent', urgent: true },
     { id: 4, titre: 'Frais de scolarité', contenu: 'Le délai de paiement pour le mois d\'Avril approche. Merci de régulariser.', date: 'Hier, 16:45', cible: 'Parents', statut: 'Envoyé', type: 'Message', urgent: false },
   ];
@@ -135,7 +135,7 @@ const AdminCommunication: React.FC = () => {
         <StatCard
           title="Messages envoyés"
           value="452"
-          subtitle="Trimestre en cours"
+          subtitle="Semestre en cours"
           icon={<Send />}
           trend={{ value: "+12.5%", direction: "up" }}
           color="bleu"

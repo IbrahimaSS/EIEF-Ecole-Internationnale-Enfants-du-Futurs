@@ -50,7 +50,7 @@ const EnseignantCommunication: React.FC = () => {
 
   const annonces = [
     { id: 1, titre: 'Réunion parents-professeurs', contenu: 'Veuillez noter que la réunion annuelle se tiendra samedi prochain à 10h. Votre présence est requise.', date: 'Aujourd\'hui, 14:30', expediteur: 'Direction', type: 'Annonce', urgent: false },
-    { id: 2, titre: 'Nouveau calendrier scolaire', contenu: 'Le calendrier des examens du second trimestre est désormais disponible.', date: 'Aujourd\'hui, 10:15', expediteur: 'Scolarité', type: 'Message', urgent: false },
+    { id: 2, titre: 'Nouveau calendrier scolaire', contenu: 'Le calendrier des examens du second semestre est désormais disponible.', date: 'Aujourd\'hui, 10:15', expediteur: 'Scolarité', type: 'Message', urgent: false },
     { id: 3, titre: 'Alerte météo : École fermée', contenu: 'En raison des fortes pluies, l\'établissement sera fermé ce jour.', date: 'Hier, 07:30', expediteur: 'Administration', type: 'Urgent', urgent: true },
   ];
 

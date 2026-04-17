@@ -1069,7 +1069,7 @@ const AdminScolarite: React.FC = () => {
                               {g.evaluationType || 'Évaluation'}
                             </p>
                             <p className="text-[9px] text-gray-400">
-                              Sem. {g.semester} • {g.gradedAt ? new Date(g.gradedAt).toLocaleDateString('fr-FR') : '—'}
+                              S{g.semester} • {g.gradedAt ? new Date(g.gradedAt).toLocaleDateString('fr-FR') : '—'}
                             </p>
                             {g.comment && <p className="text-[9px] text-gray-400 italic">{g.comment}</p>}
                           </div>

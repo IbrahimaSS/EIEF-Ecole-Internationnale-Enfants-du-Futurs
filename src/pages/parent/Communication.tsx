@@ -29,7 +29,7 @@ const ParentCommunication: React.FC = () => {
   // ANNONCES (lecture seule)
   const annonces = [
     { id: 1, titre: 'Réunion Parents-Professeurs', contenu: 'La réunion trimestrielle se tiendra ce samedi de 09h à 12h dans les salles de classe respectives. Votre présence est vivement souhaitée.', date: "Aujourd'hui, 09:00", expediteur: 'Direction', urgent: false },
-    { id: 2, titre: 'Nouveau calendrier d\'examens', contenu: 'Le calendrier des examens du 3ème trimestre est disponible. Consultez-le dans l\'onglet Documents.', date: "Hier, 14:30", expediteur: 'Scolarité', urgent: false },
+    { id: 2, titre: 'Nouveau calendrier d\'examens', contenu: 'Le calendrier des examens du 2nd semestre est disponible. Consultez-le dans l\'onglet Documents.', date: "Hier, 14:30", expediteur: 'Scolarité', urgent: false },
     { id: 3, titre: 'Alerte météo : Cours suspendus', contenu: 'En raison des fortes pluies annoncées, les cours de demain matin sont suspendus jusqu\'à 10h.', date: "02 Avr, 18:00", expediteur: 'Administration', urgent: true },
     { id: 4, titre: 'Inscription cantine', contenu: 'Les inscriptions pour la cantine du mois de mai sont ouvertes. Merci de régler avant le 25 avril.', date: "01 Avr, 10:00", expediteur: 'Intendance', urgent: false },
   ];
@@ -86,7 +86,7 @@ const ParentCommunication: React.FC = () => {
       { id: 101, user: 'Mme Condé', date: 'il y a 1h', content: 'Je suis intéressée, comment s\'inscrire concrètement ?' },
       { id: 102, user: 'Admin EIEF', date: 'il y a 30 min', content: 'Passez directement au secrétariat ou envoyez un email.' },
     ]},
-    { id: 2, user: 'Mme Touré', role: 'Parent', content: 'Bonjour à tous ! Quelqu\'un sait-il si les uniformes doivent être changés pour le 3ème trimestre ?', date: 'il y a 5h', replies: 3, repliesList: [
+    { id: 2, user: 'Mme Touré', role: 'Parent', content: 'Bonjour à tous ! Quelqu\'un sait-il si les uniformes doivent être changés pour le 2nd semestre ?', date: 'il y a 5h', replies: 3, repliesList: [
       { id: 201, user: 'M. Diallo', date: 'il y a 4h', content: 'Non, les mêmes uniformes restent valables jusqu\'à la fin de l\'année.' },
     ]},
     { id: 3, user: 'Dr. Keita', role: 'Enseignant', content: 'Les supports de révision pour le bac blanc sont disponibles sur le portail. Pensez à les imprimer pour vos enfants !', date: 'Hier', replies: 15, repliesList: [] },

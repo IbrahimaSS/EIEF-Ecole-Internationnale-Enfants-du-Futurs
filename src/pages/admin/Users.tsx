@@ -11,6 +11,8 @@ import { cn } from '../../utils/cn';
 import { useUsers } from '../../hooks/useUsers';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import { userService } from '../../services/userService';
+import { classService } from '../../services/classService';
+import type { ClassResponse } from '../../types/academic';
 import type {
   StudentRequest, TeacherRequest,
   ParentRequest, ParentResponse,
@@ -76,6 +78,9 @@ const AdminUsers: React.FC = () => {
   const [loadingE,      setLoadingE]     = useState(false);
   const [errorE,        setErrorE]       = useState<string | null>(null);
 
+  // ── State classes (pour le sélecteur dans le formulaire élève) ─────────────
+  const [classes,        setClasses]      = useState<ClassResponse[]>([]);
+
   // ── UI state ───────────────────────────────────────────────────────────────
   const [activeTab,       setActiveTab]       = useState<TabId>('eleves');
   const [searchQuery,     setSearchQuery]     = useState('');
@@ -126,10 +131,19 @@ const AdminUsers: React.FC = () => {
     finally { setLoadingE(false); }
   }, []);
 
+  // ── Fetch classes ──────────────────────────────────────────────────────────
+  const fetchClasses = useCallback(async () => {
+    try {
+      const data = await classService.getAll();
+      setClasses(data);
+    } catch (err) { console.error('Erreur chargement classes:', err); }
+  }, []);
+
   useEffect(() => {
     fetchParents();
     fetchEmployees();
-  }, [fetchParents, fetchEmployees]);
+    fetchClasses();
+  }, [fetchParents, fetchEmployees, fetchClasses]);
 
   // ── Recherche élèves / enseignants (debounce 350ms) ───────────────────────
   const searchTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -231,12 +245,14 @@ const AdminUsers: React.FC = () => {
     setOpenMenuRowId(null);
     setEditingId(row.id);
     if (activeTab === 'eleves') {
+      const matchedClass = classes.find(c => c.name === row.className);
       setStudentForm({
         email: row.email ?? '', password: '',
         firstName: row.firstName, lastName: row.lastName,
         phone: row.phone ?? '', registrationNumber: row.registrationNumber,
         birthDate: row.birthDate ?? '', gender: row.gender ?? '',
-        classId: '', parentId: '',
+        classId: matchedClass?.id ?? '',
+        parentId: row.parentId ?? '',
       });
     } else if (activeTab === 'enseignants') {
       setTeacherForm({
@@ -279,48 +295,57 @@ const AdminUsers: React.FC = () => {
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, x: 10 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.95, x: 10 }}
-              className="absolute right-full mr-2 top-0 w-48 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-[1.25rem] shadow-2xl border border-gray-100 dark:border-white/5 p-2 z-[60] ring-1 ring-black/5"
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 p-2 z-[100] ring-1 ring-black/5"
             >
-              <div className="flex flex-col gap-1 text-left">
-                <button className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/40 hover:text-bleu-600 rounded-xl transition-all w-full">
-                  <div className="w-8 h-8 rounded-lg bg-bleu-50 dark:bg-bleu-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Eye size={14} />
+              <div className="flex flex-col gap-1">
+                {/* VOIR PROFIL */}
+                <button 
+                  onClick={e => { e.stopPropagation(); setOpenMenuRowId(null); }}
+                  className="flex items-center gap-3 px-3 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/40 hover:text-bleu-600 rounded-xl transition-all w-full text-left"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-bleu-50 dark:bg-bleu-900/20 flex items-center justify-center">
+                    <Eye size={16} />
                   </div>
-                  <div className="flex flex-col text-left">
+                  <div className="flex flex-col">
                     <span>Voir le profil</span>
-                    <span className="text-[9px] font-normal text-gray-400">Consulter les détails</span>
+                    <span className="text-[9px] font-medium text-gray-400">Détails de l'utilisateur</span>
                   </div>
                 </button>
+
+                {/* MODIFIER */}
                 <button
                   onClick={e => { e.stopPropagation(); openEdit(row); }}
-                  className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-or-50 dark:hover:bg-or-900/40 hover:text-or-600 rounded-xl transition-all w-full"
+                  className="flex items-center gap-3 px-3 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:bg-or-50 dark:hover:bg-or-900/40 hover:text-or-600 rounded-xl transition-all w-full text-left"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-or-50 dark:bg-or-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Edit size={14} />
+                  <div className="w-8 h-8 rounded-lg bg-or-50 dark:bg-or-900/20 flex items-center justify-center">
+                    <Edit size={16} />
                   </div>
-                  <div className="flex flex-col text-left">
+                  <div className="flex flex-col">
                     <span>Modifier</span>
-                    <span className="text-[9px] font-normal text-gray-400">Éditer les informations</span>
+                    <span className="text-[9px] font-medium text-gray-400">Éditer les informations</span>
                   </div>
                 </button>
-                <div className="h-px bg-gray-100 dark:bg-white/5 my-1 mx-2" />
+
+                <div className="h-px bg-gray-100 dark:bg-white/5 my-1" />
+
+                {/* SUPPRIMER */}
                 <button
                   onClick={e => {
                     e.stopPropagation();
                     setOpenMenuRowId(null);
                     setDeleteTarget({ id: row.id, name: `${row.firstName} ${row.lastName}` });
                   }}
-                  className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-xl transition-all w-full"
+                  className="flex items-center gap-3 px-3 py-2.5 text-[11px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-xl transition-all w-full text-left"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Trash2 size={14} />
+                  <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+                    <Trash2 size={16} />
                   </div>
-                  <div className="flex flex-col text-left">
+                  <div className="flex flex-col">
                     <span>Supprimer</span>
-                    <span className="text-[9px] font-normal text-red-400">Action irréversible</span>
+                    <span className="text-[9px] font-medium text-red-400">Action irréversible</span>
                   </div>
                 </button>
               </div>
@@ -692,7 +717,21 @@ const AdminUsers: React.FC = () => {
         onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
       />
 
-      {/* ← NOUVEAU : liaison élève ↔ parent */}
+      {/* Affectation de classe */}
+      <Select
+        label="Classe"
+        options={[
+          { value: '', label: 'Sélectionner une classe...' },
+          ...classes.map(c => ({
+            value: c.id,
+            label: `${c.name}${c.level ? ' (' + c.level + ')' : ''}`,
+          })),
+        ]}
+        value={studentForm.classId ?? ''}
+        onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
+      />
+
+      {/* Liaison élève ↔ parent */}
       <Select
         label="Parent / Tuteur"
         options={[
