@@ -665,32 +665,49 @@ const AdminUsers: React.FC = () => {
 
           {/* ─ Champs spécifiques par type ─ */}
           {activeTab === 'eleves' && (
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input label="Numéro de matricule" placeholder="EIEF2024..."
-                  value={studentForm.registrationNumber}
-                  onChange={e => setStudentForm(f => ({ ...f, registrationNumber: e.target.value }))}
-                />
-                <Input label="Date de naissance" type="date"
-                  value={studentForm.birthDate ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, birthDate: e.target.value }))}
-                />
-                <Select label="Genre"
-                  options={[{ value: '', label: 'Sélectionner...' }, { value: 'M', label: 'Masculin' }, { value: 'F', label: 'Féminin' }]}
-                  value={studentForm.gender ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, gender: e.target.value }))}
-                />
-                <Input label="Téléphone" placeholder="+224 ..."
-                  value={studentForm.phone ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
-                />
-              </div>
-            </div>
-          )}
+  <div>
+    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+      <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
+    </p>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <Input label="Numéro de matricule" placeholder="EIEF2024..."
+        value={studentForm.registrationNumber}
+        onChange={e => setStudentForm(f => ({ ...f, registrationNumber: e.target.value }))}
+      />
+      <Input label="Date de naissance" type="date"
+        value={studentForm.birthDate ?? ''}
+        onChange={e => setStudentForm(f => ({ ...f, birthDate: e.target.value }))}
+      />
+      <Select label="Genre"
+        options={[
+          { value: '', label: 'Sélectionner...' },
+          { value: 'M', label: 'Masculin' },
+          { value: 'F', label: 'Féminin' },
+        ]}
+        value={studentForm.gender ?? ''}
+        onChange={e => setStudentForm(f => ({ ...f, gender: e.target.value }))}
+      />
+      <Input label="Téléphone" placeholder="+224 ..."
+        value={studentForm.phone ?? ''}
+        onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
+      />
 
+      {/* ← NOUVEAU : liaison élève ↔ parent */}
+      <Select
+        label="Parent / Tuteur"
+        options={[
+          { value: '', label: 'Sélectionner un parent...' },
+          ...parents.map(p => ({
+            value: p.id,
+            label: `${p.firstName} ${p.lastName}`,
+          })),
+        ]}
+        value={studentForm.parentId ?? ''}
+        onChange={e => setStudentForm(f => ({ ...f, parentId: e.target.value }))}
+      />
+    </div>
+  </div>
+)}
           {activeTab === 'enseignants' && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
