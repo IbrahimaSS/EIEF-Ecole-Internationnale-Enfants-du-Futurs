@@ -17,7 +17,7 @@ import {
 import { Card, Avatar, Badge, Button } from '../../components/ui';
 import { cn } from '../../utils/cn';
 
-type Trimestre = 'T1' | 'T2' | 'T3';
+type Semestre = 'S1' | 'S2';
 
 interface Matiere {
   nom: string;
@@ -26,7 +26,7 @@ interface Matiere {
   appreciation: string;
 }
 
-interface TrimestreData {
+interface SemestreData {
   moyenneGle: string;
   rang: string;
   absences: number;
@@ -40,13 +40,13 @@ interface Enfant {
   name: string;
   classe: string;
   niveau: string;
-  trimestres: Record<Trimestre, TrimestreData>;
+  semestres: Record<Semestre, SemestreData>;
   emploiDuTemps: { jour: string; heure: string; matiere: string; salle: string }[];
 }
 
 const ParentEleves: React.FC = () => {
   const [expandedChild, setExpandedChild] = useState<number | null>(1);
-  const [selectedTrimestre, setSelectedTrimestre] = useState<Record<number, Trimestre>>({ 1: 'T2', 2: 'T2' });
+  const [selectedSemestre, setSelectedSemestre] = useState<Record<number, Semestre>>({ 1: 'S1', 2: 'S1' });
 
   const enfants: Enfant[] = [
     {
@@ -54,13 +54,13 @@ const ParentEleves: React.FC = () => {
       name: 'Aïssatou Bah',
       classe: 'Terminale S1',
       niveau: 'Lycée',
-      trimestres: {
-        T1: {
+      semestres: {
+        S1: {
           moyenneGle: '14.2',
           rang: '5ème / 32',
           absences: 2,
           retards: 0,
-          appreciationConseil: 'Bon début d\'année. Aïssatou montre un réel potentiel qu\'elle doit concrétiser au prochain trimestre.',
+          appreciationConseil: 'Bon début d\'année. Aïssatou montre un réel potentiel qu\'elle doit concrétiser au prochain semestre.',
           matieres: [
             { nom: 'Mathématiques', note: '15.0', coef: 5, appreciation: 'Bon travail' },
             { nom: 'Physique-Chimie', note: '14.0', coef: 4, appreciation: 'Sérieuse et investie' },
@@ -70,12 +70,12 @@ const ParentEleves: React.FC = () => {
             { nom: 'Histoire-Géo', note: '14.0', coef: 2, appreciation: 'Assez bien' },
           ],
         },
-        T2: {
+        S2: {
           moyenneGle: '15.5',
           rang: '3ème / 32',
           absences: 0,
           retards: 1,
-          appreciationConseil: 'Excellent trimestre. Aïssatou progresse remarquablement. Félicitations du conseil de classe.',
+          appreciationConseil: 'Excellent semestre. Aïssatou progresse remarquablement. Félicitations du conseil de classe.',
           matieres: [
             { nom: 'Mathématiques', note: '17.5', coef: 5, appreciation: 'Excellent travail' },
             { nom: 'Physique-Chimie', note: '15.0', coef: 4, appreciation: 'Très bien, à continuer' },
@@ -84,14 +84,6 @@ const ParentEleves: React.FC = () => {
             { nom: 'Anglais', note: '16.0', coef: 2, appreciation: 'Very good' },
             { nom: 'Histoire-Géo', note: '14.5', coef: 2, appreciation: 'Solide' },
           ],
-        },
-        T3: {
-          moyenneGle: '-',
-          rang: '-',
-          absences: 0,
-          retards: 0,
-          appreciationConseil: 'Le trimestre 3 est en cours. Les résultats seront disponibles en fin de période.',
-          matieres: [],
         },
       },
       emploiDuTemps: [
@@ -106,13 +98,13 @@ const ParentEleves: React.FC = () => {
       name: 'Mamadou Bah',
       classe: '4ème B',
       niveau: 'Collège',
-      trimestres: {
-        T1: {
+      semestres: {
+        S1: {
           moyenneGle: '11.0',
           rang: '18ème / 35',
           absences: 4,
           retards: 5,
-          appreciationConseil: 'Trimestre insuffisant. Un manque de travail personnel notable. Mamadou doit se ressaisir.',
+          appreciationConseil: 'Semestre insuffisant. Un manque de travail personnel notable. Mamadou doit se ressaisir.',
           matieres: [
             { nom: 'Mathématiques', note: '09.5', coef: 4, appreciation: 'Insuffisant, reprendre les bases' },
             { nom: 'Français', note: '12.0', coef: 4, appreciation: 'Correct, mais peut progresser' },
@@ -121,7 +113,7 @@ const ParentEleves: React.FC = () => {
             { nom: 'SVT', note: '11.5', coef: 3, appreciation: 'Moyen' },
           ],
         },
-        T2: {
+        S2: {
           moyenneGle: '12.0',
           rang: '12ème / 35',
           absences: 2,
@@ -134,14 +126,6 @@ const ParentEleves: React.FC = () => {
             { nom: 'Histoire-Géo', note: '14.0', coef: 2, appreciation: 'Participation active' },
             { nom: 'SVT', note: '12.5', coef: 3, appreciation: 'Convenable' },
           ],
-        },
-        T3: {
-          moyenneGle: '-',
-          rang: '-',
-          absences: 0,
-          retards: 0,
-          appreciationConseil: 'Le trimestre 3 est en cours. Les résultats seront disponibles en fin de période.',
-          matieres: [],
         },
       },
       emploiDuTemps: [
@@ -156,14 +140,13 @@ const ParentEleves: React.FC = () => {
     setExpandedChild(expandedChild === id ? null : id);
   };
 
-  const setTrimestreForChild = (childId: number, tri: Trimestre) => {
-    setSelectedTrimestre(prev => ({ ...prev, [childId]: tri }));
+  const setSemestreForChild = (childId: number, sem: Semestre) => {
+    setSelectedSemestre(prev => ({ ...prev, [childId]: sem }));
   };
 
-  const trimestres: { key: Trimestre; label: string }[] = [
-    { key: 'T1', label: 'Trimestre 1' },
-    { key: 'T2', label: 'Trimestre 2' },
-    { key: 'T3', label: 'Trimestre 3' },
+  const semestres: { key: Semestre; label: string }[] = [
+    { key: 'S1', label: 'Semestre 1' },
+    { key: 'S2', label: 'Semestre 2' },
   ];
 
   return (
@@ -181,7 +164,7 @@ const ParentEleves: React.FC = () => {
           </div>
           <div className="text-left font-bold">
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Mes enfants</h1>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">Suivez les résultats scolaires par trimestre</p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">Suivez les résultats scolaires par semestre</p>
           </div>
         </div>
       </div>
@@ -190,10 +173,10 @@ const ParentEleves: React.FC = () => {
       <div className="space-y-6">
         {enfants.map((enfant) => {
           const isExpanded = expandedChild === enfant.id;
-          const currentTri = selectedTrimestre[enfant.id] || 'T2';
-          const triData = enfant.trimestres[currentTri];
-          const moyenneNum = triData.moyenneGle !== '-' ? parseFloat(triData.moyenneGle) : 0;
-          const isTriEnCours = triData.matieres.length === 0;
+          const currentSem = selectedSemestre[enfant.id] || 'S1';
+          const semData = enfant.semestres[currentSem];
+          const moyenneNum = semData.moyenneGle !== '-' ? parseFloat(semData.moyenneGle) : 0;
+          const isSemEnCours = semData.matieres.length === 0;
 
           return (
             <Card key={enfant.id} className="p-0 border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50 overflow-hidden">
@@ -217,22 +200,22 @@ const ParentEleves: React.FC = () => {
                   
                   <div className="flex flex-wrap gap-6 mt-3">
                     <div className="flex items-center gap-2">
-                      <TrendingUp size={16} className={!isTriEnCours ? (moyenneNum >= 14 ? 'text-vert-500' : moyenneNum >= 10 ? 'text-or-500' : 'text-rouge-500') : 'text-gray-400'} />
+                      <TrendingUp size={16} className={!isSemEnCours ? (moyenneNum >= 14 ? 'text-vert-500' : moyenneNum >= 10 ? 'text-or-500' : 'text-rouge-500') : 'text-gray-400'} />
                       <span className="text-[12px] font-semibold text-gray-500">Moyenne:</span>
-                      <span className={`font-black text-lg ${!isTriEnCours ? (moyenneNum >= 14 ? 'text-vert-600 dark:text-vert-400' : moyenneNum >= 10 ? 'text-or-600' : 'text-rouge-600') : 'text-gray-400'}`}>
-                        {triData.moyenneGle}{!isTriEnCours && <span className="text-[10px] text-gray-400">/20</span>}
+                      <span className={`font-black text-lg ${!isSemEnCours ? (moyenneNum >= 14 ? 'text-vert-600 dark:text-vert-400' : moyenneNum >= 10 ? 'text-or-600' : 'text-rouge-600') : 'text-gray-400'}`}>
+                        {semData.moyenneGle}{!isSemEnCours && <span className="text-[10px] text-gray-400">/20</span>}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Award size={16} className="text-or-500" />
                       <span className="text-[12px] font-semibold text-gray-500">Rang:</span>
-                      <span className="font-bold text-sm text-gray-900 dark:text-white">{triData.rang}</span>
+                      <span className="font-bold text-sm text-gray-900 dark:text-white">{semData.rang}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Activity size={16} className={triData.absences > 2 ? 'text-rouge-500' : 'text-vert-500'} />
+                      <Activity size={16} className={semData.absences > 2 ? 'text-rouge-500' : 'text-vert-500'} />
                       <span className="text-[12px] font-semibold text-gray-500">Absences:</span>
-                      <span className={`font-bold text-sm ${triData.absences > 2 ? 'text-rouge-600' : 'text-gray-900 dark:text-white'}`}>
-                        {triData.absences}h
+                      <span className={`font-bold text-sm ${semData.absences > 2 ? 'text-rouge-600' : 'text-gray-900 dark:text-white'}`}>
+                        {semData.absences}h
                       </span>
                     </div>
                   </div>
@@ -255,25 +238,25 @@ const ParentEleves: React.FC = () => {
                   >
                     <div className="border-t border-gray-100 dark:border-white/5">
 
-                      {/* SÉLECTEUR DE TRIMESTRE */}
+                      {/* SÉLECTEUR DE SEMESTRE */}
                       <div className="px-6 pt-5 pb-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                           <BarChart3 size={18} className="text-bleu-500" />
                           <h3 className="font-bold text-gray-900 dark:text-white">Résultats scolaires</h3>
                         </div>
                         <div className="flex bg-gray-100 dark:bg-white/5 rounded-xl p-1 gap-1">
-                          {trimestres.map(tri => (
+                          {semestres.map(sem => (
                             <button 
-                              key={tri.key}
-                              onClick={(e) => { e.stopPropagation(); setTrimestreForChild(enfant.id, tri.key); }}
+                              key={sem.key}
+                              onClick={(e) => { e.stopPropagation(); setSemestreForChild(enfant.id, sem.key); }}
                               className={cn(
                                 "px-4 py-2 rounded-lg text-[11px] font-bold transition-all",
-                                currentTri === tri.key 
+                                currentSem === sem.key 
                                   ? "bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-sm" 
                                   : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                               )}
                             >
-                              {tri.label}
+                              {sem.label}
                             </button>
                           ))}
                         </div>
@@ -281,20 +264,20 @@ const ParentEleves: React.FC = () => {
 
                       <AnimatePresence mode="wait">
                         <motion.div 
-                          key={currentTri}
+                          key={currentSem}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.2 }}
                         >
-                          {isTriEnCours ? (
-                            /* TRIMESTRE EN COURS (PAS DE NOTES) */
+                          {isSemEnCours ? (
+                            /* SEMESTRE EN COURS (PAS DE NOTES) */
                             <div className="p-8 text-center">
                               <div className="w-16 h-16 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Clock size={32} className="text-gray-300 dark:text-gray-600" />
                               </div>
-                              <p className="font-bold text-gray-500 text-sm">Trimestre en cours</p>
-                              <p className="text-[11px] text-gray-400 font-semibold mt-2 max-w-md mx-auto">{triData.appreciationConseil}</p>
+                              <p className="font-bold text-gray-500 text-sm">Semestre en cours</p>
+                              <p className="text-[11px] text-gray-400 font-semibold mt-2 max-w-md mx-auto">{semData.appreciationConseil}</p>
                             </div>
                           ) : (
                             /* BULLETIN + EMPLOI DU TEMPS */
@@ -305,7 +288,7 @@ const ParentEleves: React.FC = () => {
                                 <div className="flex items-center justify-between mb-4">
                                   <div className="flex items-center gap-2">
                                     <BookOpen size={18} className="text-bleu-500" />
-                                    <h3 className="font-bold text-gray-900 dark:text-white">Bulletin - {trimestres.find(t => t.key === currentTri)?.label}</h3>
+                                    <h3 className="font-bold text-gray-900 dark:text-white">Bulletin - {semestres.find(s => s.key === currentSem)?.label}</h3>
                                   </div>
                                   <Button 
                                     variant="ghost" 
@@ -320,16 +303,16 @@ const ParentEleves: React.FC = () => {
                                   <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl text-center">
                                     <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Moyenne</p>
                                     <p className={`text-xl font-black mt-1 ${moyenneNum >= 14 ? 'text-vert-600' : moyenneNum >= 10 ? 'text-or-600' : 'text-rouge-600'}`}>
-                                      {triData.moyenneGle}<span className="text-[10px] text-gray-400">/20</span>
+                                      {semData.moyenneGle}<span className="text-[10px] text-gray-400">/20</span>
                                     </p>
                                   </div>
                                   <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl text-center">
                                     <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Rang</p>
-                                    <p className="text-xl font-black text-gray-900 dark:text-white mt-1">{triData.rang}</p>
+                                    <p className="text-xl font-black text-gray-900 dark:text-white mt-1">{semData.rang}</p>
                                   </div>
                                   <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl text-center">
                                     <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Absences</p>
-                                    <p className={`text-xl font-black mt-1 ${triData.absences > 2 ? 'text-rouge-600' : 'text-vert-600'}`}>{triData.absences}h</p>
+                                    <p className={`text-xl font-black mt-1 ${semData.absences > 2 ? 'text-rouge-600' : 'text-vert-600'}`}>{semData.absences}h</p>
                                   </div>
                                 </div>
 
@@ -345,7 +328,7 @@ const ParentEleves: React.FC = () => {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                                      {triData.matieres.map((m, idx) => (
+                                      {semData.matieres.map((m, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors">
                                           <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">{m.nom}</td>
                                           <td className="px-4 py-3 text-center">
@@ -371,13 +354,13 @@ const ParentEleves: React.FC = () => {
                                       : "bg-rouge-50 dark:bg-rouge-900/10 border-rouge-100 dark:border-rouge-900/20 text-rouge-700 dark:text-rouge-400"
                                 )}>
                                   <p className="text-[10px] font-bold uppercase tracking-widest mb-1">Avis du conseil de classe</p>
-                                  <p className="text-[12px] font-semibold leading-relaxed">{triData.appreciationConseil}</p>
+                                  <p className="text-[12px] font-semibold leading-relaxed">{semData.appreciationConseil}</p>
                                 </div>
 
-                                {triData.absences > 0 && (
+                                {semData.absences > 0 && (
                                   <div className="mt-3 p-3 bg-rouge-50 dark:bg-rouge-900/10 rounded-xl flex items-center gap-3 text-rouge-600 dark:text-rouge-400">
                                     <AlertTriangle size={18} />
-                                    <p className="text-[12px] font-bold">{triData.absences} heure(s) d'absence et {triData.retards} retard(s) ce trimestre.</p>
+                                    <p className="text-[12px] font-bold">{semData.absences} heure(s) d'absence et {semData.retards} retard(s) ce semestre.</p>
                                   </div>
                                 )}
                               </div>
@@ -405,13 +388,13 @@ const ParentEleves: React.FC = () => {
                                 <div className="mt-6 p-4 bg-bleu-50 dark:bg-bleu-900/10 rounded-xl">
                                   <p className="text-[10px] font-bold text-bleu-600 uppercase tracking-widest mb-3">Évolution</p>
                                   <div className="space-y-2">
-                                    {(['T1', 'T2'] as Trimestre[]).map(tri => {
-                                      const d = enfant.trimestres[tri];
+                                    {(['S1', 'S2'] as Semestre[]).map(sem => {
+                                      const d = enfant.semestres[sem];
                                       if (d.moyenneGle === '-') return null;
                                       const moy = parseFloat(d.moyenneGle);
                                       return (
-                                        <div key={tri} className="flex items-center justify-between text-sm">
-                                          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">{trimestres.find(t => t.key === tri)?.label}</span>
+                                        <div key={sem} className="flex items-center justify-between text-sm">
+                                          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">{semestres.find(s => s.key === sem)?.label}</span>
                                           <div className="flex items-center gap-2">
                                             <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                               <div 
