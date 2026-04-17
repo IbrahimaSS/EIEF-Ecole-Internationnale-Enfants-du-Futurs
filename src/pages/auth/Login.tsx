@@ -206,7 +206,7 @@ const Login: React.FC = () => {
                             )}
                           >
                              <r.icon size={14} />
-                             {r.label.split(' ')[0]}
+                             {r.label}
                           </button>
                        ))}
                     </div>
