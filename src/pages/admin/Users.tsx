@@ -164,6 +164,32 @@ const AdminUsers: React.FC = () => {
     `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
     e.email.toLowerCase().includes(q)
   );
+  // 1. Ajouter un state pour les classes (après le state employees)
+const [classes, setClasses] = useState<{ id: string; name: string; level: string }[]>([]);
+
+// 2. Ajouter le fetch des classes
+const fetchClasses = useCallback(async () => {
+  const token = getToken();
+  if (!token) return;
+  try {
+    const API_BASE = (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+    const res = await fetch(`${API_BASE}/courses/classes`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'enfantsfuture-auth-token': `enfantsfuture ${token}`,
+      },
+    });
+    const payload = await res.json();
+    if (res.ok) setClasses(payload.data ?? []);
+  } catch {}
+}, []);
+
+// 3. Appeler fetchClasses dans useEffect
+useEffect(() => {
+  fetchParents();
+  fetchEmployees();
+  fetchClasses(); // ← ajouter
+}, [fetchParents, fetchEmployees, fetchClasses]);
 
   // ── Soumission formulaire ──────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -664,7 +690,7 @@ const AdminUsers: React.FC = () => {
           </div>
 
           {/* ─ Champs spécifiques par type ─ */}
-          {activeTab === 'eleves' && (
+         {activeTab === 'eleves' && (
   <div>
     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
       <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
@@ -692,11 +718,25 @@ const AdminUsers: React.FC = () => {
         onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
       />
 
-      {/* ← NOUVEAU : liaison élève ↔ parent */}
+      {/* Liaison élève ↔ classe */}
+      <Select
+        label="Classe"
+        options={[
+          { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
+          ...classes.map(c => ({
+            value: c.id,
+            label: c.level ? `${c.name} — ${c.level}` : c.name,
+          })),
+        ]}
+        value={studentForm.classId ?? ''}
+        onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
+      />
+
+      {/* Liaison élève ↔ parent */}
       <Select
         label="Parent / Tuteur"
         options={[
-          { value: '', label: 'Sélectionner un parent...' },
+          { value: '', label: parents.length === 0 ? 'Aucun parent disponible' : 'Sélectionner un parent...' },
           ...parents.map(p => ({
             value: p.id,
             label: `${p.firstName} ${p.lastName}`,

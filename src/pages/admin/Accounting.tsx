@@ -18,40 +18,35 @@ import {
   CheckCircle2,
   X,
   CreditCard as BankIcon,
-  Loader2
+  Loader2,
+  Printer
 } from 'lucide-react';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Select, Popover, Avatar } from '../../components/ui';
+import { apiRequest } from '../../services/api';
 
-// Utilise le chemin correct vers ton fichier api.ts
-// Adapte ce chemin selon ta structure réelle
-import { apiRequest } from '../../services/api'; // ou '../../services/api' ou '../../utils/api'
+// ─── Types alignés avec le backend ───────────────────────────────────────────
 
-// Si tu n'as pas de fichier api séparé, copie-colle ces fonctions ici:
-// const API_BASE_URL = process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8080/api/v1";
-// const getStoredToken = () => { ... };
-// export const apiRequest = async <T>(path: string, options: any): Promise<T> => { ... };
-
-// Types basés sur ton backend
 type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
 type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
 
 interface PaymentResponse {
-  id: string;
-  amount: number;
+  id: string;           // UUID → string en TS
+  amount: number;       // BigDecimal → number
   method: PaymentMethod;
   reference: string;
   studentName: string;
   categoryName: string;
   status: PaymentStatus;
-  paidAt: string | null;
+  paidAt: string | null; // LocalDateTime → ISO string ou null
 }
 
+// Aligné sur le record PaymentRequest du backend
 interface PaymentRequest {
-  amount: number;
-  reference: string;
+  amount: number;         // BigDecimal @NotNull @Positive
+  reference: string;      // @NotBlank
   method: PaymentMethod;
-  studentId: string;
-  categoryId: number | null;
+  studentId: string;      // UUID @NotNull
+  categoryId: number | null; // Long (optionnel)
 }
 
 interface Student {
@@ -60,22 +55,25 @@ interface Student {
   lastName: string;
 }
 
+// ─── Composant principal ──────────────────────────────────────────────────────
+
 const AdminAccounting: React.FC = () => {
-  // États
   const [payments, setPayments] = useState<PaymentResponse[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('Tous');
   const [isEncaissementModalOpen, setIsEncaissementModalOpen] = useState(false);
   const [isRapportsModalOpen, setIsRapportsModalOpen] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentResponse | null>(null);
   const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Formulaire d'encaissement
   const [formData, setFormData] = useState<PaymentRequest>({
     amount: 0,
     reference: '',
@@ -84,29 +82,25 @@ const AdminAccounting: React.FC = () => {
     categoryId: null
   });
 
-  // Récupère le token depuis localStorage si tu n'as pas de authStore
-  const getToken = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = window.localStorage.getItem("auth-storage");
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed?.state?.token ?? null;
-    } catch {
-      return null;
-    }
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  const showSuccess = (msg: string) => {
+    setSuccessMessage(msg);
+    setIsSuccess(true);
+    setTimeout(() => setIsSuccess(false), 3500);
   };
 
-  const token = getToken();
+  const getApiBaseUrl = () =>
+    (process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8080/api/v1');
 
-  // Chargement des paiements
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+
+  // GET /payments → ApiResponse<List<PaymentResponse>>
+  // apiRequest extrait déjà payload.data, donc on reçoit directement PaymentResponse[]
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await apiRequest<PaymentResponse[]>('/payments', {
-        token,
-        method: 'GET'
-      });
+      const data = await apiRequest<PaymentResponse[]>('/payments', { method: 'GET' });
       setPayments(data);
       setError(null);
     } catch (err: any) {
@@ -114,174 +108,360 @@ const AdminAccounting: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
-  // Chargement des étudiants
+  // GET /students → ApiResponse<List<Student>>
   const fetchStudents = useCallback(async () => {
     try {
-      const data = await apiRequest<Student[]>('/students', {
-        token,
-        method: 'GET'
-      });
+      const data = await apiRequest<Student[]>('/students', { method: 'GET' });
       setStudents(data);
     } catch (err: any) {
       console.error('Erreur chargement élèves:', err);
     }
-  }, [token]);
+  }, []);
 
-  // Chargement initial
   useEffect(() => {
     fetchPayments();
     fetchStudents();
   }, [fetchPayments, fetchStudents]);
 
-  // Calculs des KPIs
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+
   const totalRecettes = payments
     .filter(p => p.status === 'PAID')
     .reduce((acc, curr) => acc + Number(curr.amount), 0);
-    
+
   const totalAttendu = payments.reduce((acc, curr) => acc + Number(curr.amount), 0);
+
   const totalImpayes = payments
     .filter(p => p.status === 'PENDING' || p.status === 'OVERDUE')
     .reduce((acc, curr) => acc + Number(curr.amount), 0);
-    
-  const tauxRecouvrement = totalAttendu > 0 
-    ? Math.round((totalRecettes / totalAttendu) * 100) 
+
+  const tauxRecouvrement = totalAttendu > 0
+    ? Math.round((totalRecettes / totalAttendu) * 100)
     : 0;
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-GN').format(amount) + ' FGN';
-  };
+  // ── Formatage ─────────────────────────────────────────────────────────────
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('fr-GN').format(amount) + ' FGN';
+
+  const formatDate = (val: string | null) =>
+    val
+      ? new Date(val).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '-';
 
   const getMethodIcon = (method: PaymentMethod) => {
     switch (method) {
       case 'MOBILE_MONEY': return <Smartphone size={14} className="text-orange-500" />;
-      case 'CASH': return <Banknote size={14} className="text-green-500" />;
-      case 'BANK_TRANSFER': return <CreditCard size={14} className="text-blue-500" />;
-      case 'CHECK': return <FileText size={14} className="text-purple-500" />;
-      default: return null;
+      case 'CASH':         return <Banknote size={14} className="text-green-500" />;
+      case 'BANK_TRANSFER':return <CreditCard size={14} className="text-blue-500" />;
+      case 'CHECK':        return <FileText size={14} className="text-purple-500" />;
+      default:             return null;
     }
   };
 
   const getMethodLabel = (method: PaymentMethod) => {
     switch (method) {
       case 'MOBILE_MONEY': return 'Mobile Money';
-      case 'CASH': return 'Espèces';
-      case 'BANK_TRANSFER': return 'Virement';
-      case 'CHECK': return 'Chèque';
-      default: return method;
-    }
-  };
-
-  const getStatusBadge = (status: PaymentStatus) => {
-    switch (status) {
-      case 'PAID': return <Badge variant="success" className="text-[9px] px-3 font-bold uppercase tracking-widest">Payé</Badge>;
-      case 'PARTIAL': return <Badge variant="warning" className="text-[9px] px-3 font-bold uppercase tracking-widest">Partiel</Badge>;
-      case 'PENDING': return <Badge variant="default" className="text-[9px] px-3 font-bold uppercase tracking-widest">En attente</Badge>;
-      case 'OVERDUE': return <Badge variant="error" className="text-[9px] px-3 font-bold uppercase tracking-widest">En retard</Badge>;
-    }
-  };
-
-  // Extraction des catégories uniques
-  const categoriesList = ['Tous', ...Array.from(new Set(payments.map(p => p.categoryName).filter(Boolean)))];
-
-  // Filtrage
-  const filteredPaiements = payments.filter(p => {
-    const matchesSearch = p.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         p.reference?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'Tous' || p.categoryName === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Création d'un paiement
-  const handleCreatePayment = async () => {
-    try {
-      await apiRequest<PaymentResponse>('/payments', {
-        token,
-        method: 'POST',
-        body: JSON.stringify({
-          ...formData,
-          amount: Number(formData.amount)
-        })
-      });
-      
-      setIsEncaissementModalOpen(false);
-      setSuccessMessage('Encaissement créé avec succès');
-      setIsSuccess(true);
-      setTimeout(() => setIsSuccess(false), 3000);
-      
-      // Reset form
-      setFormData({
-        amount: 0,
-        reference: '',
-        method: 'CASH',
-        studentId: '',
-        categoryId: null
-      });
-      
-      fetchPayments();
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du paiement');
-    }
-  };
-
-  // Marquer comme payé
-  const handleMarkAsPaid = async (id: string) => {
-    try {
-      await apiRequest<PaymentResponse>(`/payments/${id}/pay`, {
-        token,
-        method: 'PATCH'
-      });
-      setSuccessMessage('Paiement marqué comme payé');
-      setIsSuccess(true);
-      setTimeout(() => setIsSuccess(false), 3000);
-      fetchPayments();
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la mise à jour');
-    }
-  };
-
-  // Suppression avec window.confirm
-  const handleDelete = async (id: string) => {
-    // eslint-disable-next-line no-restricted-globals
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) return;
-    
-    try {
-      await apiRequest<void>(`/payments/${id}`, {
-        token,
-        method: 'DELETE'
-      });
-      setSuccessMessage('Paiement supprimé');
-      setIsSuccess(true);
-      setTimeout(() => setIsSuccess(false), 3000);
-      fetchPayments();
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la suppression');
+      case 'CASH':         return 'Espèces';
+      case 'BANK_TRANSFER':return 'Virement';
+      case 'CHECK':        return 'Chèque';
+      default:             return method;
     }
   };
 
   const getStatusLabel = (status: PaymentStatus) => {
     switch (status) {
-      case 'PAID': return 'Payé';
+      case 'PAID':    return 'Payé';
       case 'PARTIAL': return 'Partiel';
       case 'PENDING': return 'En attente';
       case 'OVERDUE': return 'En retard';
     }
   };
 
-  // Handlers pour les Select corrigés
-  const handleStudentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFormData({...formData, studentId: e.target.value});
+  const getStatusBadge = (status: PaymentStatus) => {
+    const cls = 'text-[9px] px-3 font-bold uppercase tracking-widest';
+    switch (status) {
+      case 'PAID':    return <Badge variant="success" className={cls}>Payé</Badge>;
+      case 'PARTIAL': return <Badge variant="warning" className={cls}>Partiel</Badge>;
+      case 'PENDING': return <Badge variant="default" className={cls}>En attente</Badge>;
+      case 'OVERDUE': return <Badge variant="error"   className={cls}>En retard</Badge>;
+    }
   };
 
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setFormData({...formData, categoryId: val ? Number(val) : null});
+  // ── Actions backend ───────────────────────────────────────────────────────
+
+  // POST /payments → ApiResponse<PaymentResponse>
+  const handleCreatePayment = async () => {
+    if (isSubmitting) return;
+    try {
+      setIsSubmitting(true);
+      await apiRequest<PaymentResponse>('/payments', {
+        method: 'POST',
+        body: JSON.stringify({ ...formData, amount: Number(formData.amount) })
+      });
+      setIsEncaissementModalOpen(false);
+      showSuccess('Encaissement créé avec succès');
+      setFormData({ amount: 0, reference: '', method: 'CASH', studentId: '', categoryId: null });
+      fetchPayments();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la création du paiement');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleMethodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFormData({...formData, method: e.target.value as PaymentMethod});
+  // PATCH /payments/{id}/pay → ApiResponse<PaymentResponse>
+  const handleMarkAsPaid = async (id: string) => {
+    try {
+      await apiRequest<PaymentResponse>(`/payments/${id}/pay`, { method: 'PATCH' });
+      showSuccess('Paiement marqué comme payé');
+      fetchPayments();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la mise à jour');
+    }
   };
+
+  // DELETE /payments/{id} → 204 No Content
+  // Note : apiRequest lance une ApiError si !response.ok.
+  // Pour le 204, parseJsonSafely retourne null et "data" n'existe pas →
+  // on adapte en catchant et en vérifiant le statut 204.
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) return;
+    try {
+      // Le backend retourne 204 sans body ; on fait la requête manuellement
+      // pour éviter l'erreur "Reponse API invalide" de apiRequest sur body vide + 204.
+      const raw = window.localStorage.getItem('auth-storage');
+      const token = raw ? (JSON.parse(raw)?.state?.token ?? null) : null;
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/payments/${id}`, {
+        method: 'DELETE',
+        headers: token
+          ? { 'enfantsfuture-auth-token': `enfantsfuture ${token}` }
+          : {}
+      });
+      if (!res.ok && res.status !== 204) {
+        throw new Error(`Erreur HTTP ${res.status}`);
+      }
+      showSuccess('Paiement supprimé');
+      fetchPayments();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la suppression');
+    }
+  };
+
+  // ── Impression du reçu ────────────────────────────────────────────────────
+
+  const openReceiptModal = (payment: PaymentResponse) => {
+    setSelectedPayment(payment);
+    setIsReceiptModalOpen(true);
+    setOpenMenuRowId(null);
+  };
+
+  const printReceipt = (payment: PaymentResponse) => {
+    const printContent = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Reçu de paiement – ${payment.reference}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #fff;
+            color: #1a1a2e;
+            padding: 40px;
+          }
+          .receipt {
+            max-width: 520px;
+            margin: 0 auto;
+            border: 2px solid #1a1a2e;
+            border-radius: 16px;
+            overflow: hidden;
+          }
+          .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 32px 28px 24px;
+            text-align: center;
+          }
+          .header .school-name {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+          }
+          .header .subtitle {
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #c9a227;
+            margin-top: 4px;
+          }
+          .header .receipt-title {
+            margin-top: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            background: rgba(201,162,39,0.15);
+            border: 1px solid rgba(201,162,39,0.4);
+            border-radius: 8px;
+            display: inline-block;
+            padding: 6px 18px;
+            color: #c9a227;
+          }
+          .body { padding: 28px; }
+          .ref-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f7f7fa;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+          }
+          .ref-label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.15em; }
+          .ref-value { font-size: 12px; font-weight: 800; font-family: monospace; color: #1a1a2e; }
+          .amount-block {
+            text-align: center;
+            background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%);
+            border: 2px solid #2ecc71;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 24px;
+          }
+          .amount-label { font-size: 9px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.2em; }
+          .amount-value { font-size: 30px; font-weight: 900; color: #1a1a2e; margin-top: 4px; }
+          .amount-status { font-size: 10px; font-weight: 700; color: #2ecc71; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 4px; }
+          .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 24px;
+          }
+          .detail-item { background: #fafafa; border-radius: 10px; padding: 12px 14px; }
+          .detail-label { font-size: 9px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.15em; }
+          .detail-value { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-top: 3px; }
+          .footer {
+            border-top: 1px dashed #ddd;
+            padding: 18px 28px;
+            text-align: center;
+          }
+          .footer p { font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.7; }
+          .signature-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 28px;
+            padding-top: 24px;
+            border-top: 1px solid #eee;
+          }
+          .signature-box { text-align: center; }
+          .signature-line { width: 140px; height: 1px; background: #1a1a2e; margin: 32px auto 6px; }
+          .signature-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
+          @media print {
+            body { padding: 0; }
+            .receipt { border: none; border-radius: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="header">
+            <div class="school-name">École EIEF</div>
+            <div class="subtitle">Institut d'Enseignement Islamique et Francophone</div>
+            <div class="receipt-title">Reçu de Paiement</div>
+          </div>
+
+          <div class="body">
+            <div class="ref-row">
+              <div>
+                <div class="ref-label">Référence</div>
+                <div class="ref-value">${payment.reference}</div>
+              </div>
+              <div style="text-align:right">
+                <div class="ref-label">Date</div>
+                <div class="ref-value" style="font-family:inherit;font-size:12px">
+                  ${payment.paidAt
+                    ? new Date(payment.paidAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+                    : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="amount-block">
+              <div class="amount-label">Montant payé</div>
+              <div class="amount-value">${new Intl.NumberFormat('fr-GN').format(Number(payment.amount))} FGN</div>
+              <div class="amount-status">${getStatusLabel(payment.status)}</div>
+            </div>
+
+            <div class="details-grid">
+              <div class="detail-item">
+                <div class="detail-label">Élève</div>
+                <div class="detail-value">${payment.studentName}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Service</div>
+                <div class="detail-value">${payment.categoryName || 'Non catégorisé'}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Mode de paiement</div>
+                <div class="detail-value">${getMethodLabel(payment.method)}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Statut</div>
+                <div class="detail-value">${getStatusLabel(payment.status)}</div>
+              </div>
+            </div>
+
+            <div class="signature-row">
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Signature du Payeur</div>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Cachet de l'École</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Ce reçu est un document officiel délivré par l'École EIEF.</p>
+            <p>Conservez-le précieusement — il fait foi de votre paiement.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const win = window.open('', '_blank', 'width=640,height=820');
+    if (!win) return;
+    win.document.write(printContent);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
+  };
+
+  // ── Filtrage ──────────────────────────────────────────────────────────────
+
+  const categoriesList = [
+    'Tous',
+    ...Array.from(new Set(payments.map(p => p.categoryName).filter(Boolean)))
+  ];
+
+  const filteredPaiements = payments.filter(p => {
+    const matchesSearch =
+      p.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.reference?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = filterCategory === 'Tous' || p.categoryName === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // ── Colonnes ──────────────────────────────────────────────────────────────
 
   const columns = [
     {
@@ -315,13 +495,13 @@ const AdminAccounting: React.FC = () => {
           <div className="font-bold text-gray-900 dark:text-white text-sm">{formatCurrency(Number(val))}</div>
           {row.status === 'PAID' ? (
             <div className="flex items-center gap-1.5 mt-1">
-               <span className="w-1 h-3 bg-vert-500 rounded-full" />
-               <span className="text-[10px] text-vert-500 font-bold uppercase tracking-wider">Soldé</span>
+              <span className="w-1 h-3 bg-vert-500 rounded-full" />
+              <span className="text-[10px] text-vert-500 font-bold uppercase tracking-wider">Soldé</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 mt-1">
-               <span className="w-1 h-3 bg-rouge-500 rounded-full" />
-               <span className="text-[10px] text-rouge-500 font-bold uppercase tracking-wider">{getStatusLabel(row.status)}</span>
+              <span className="w-1 h-3 bg-rouge-500 rounded-full" />
+              <span className="text-[10px] text-rouge-500 font-bold uppercase tracking-wider">{getStatusLabel(row.status)}</span>
             </div>
           )}
         </div>
@@ -332,9 +512,7 @@ const AdminAccounting: React.FC = () => {
       label: 'Mode de Paiement',
       render: (val: PaymentMethod) => (
         <div className="flex items-center gap-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
-          <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-            {getMethodIcon(val)}
-          </div>
+          <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">{getMethodIcon(val)}</div>
           {getMethodLabel(val)}
         </div>
       )
@@ -350,9 +528,7 @@ const AdminAccounting: React.FC = () => {
       sortable: true,
       render: (val: string | null, row: PaymentResponse) => (
         <div className="text-left">
-          <p className="text-xs font-bold text-gray-700 dark:text-gray-300">
-            {val ? new Date(val).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
-          </p>
+          <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatDate(val)}</p>
           <p className="text-[9px] font-mono text-gray-400 uppercase tracking-tighter">{row.reference}</p>
         </div>
       )
@@ -362,11 +538,11 @@ const AdminAccounting: React.FC = () => {
       label: '',
       render: (_: any, row: PaymentResponse) => (
         <div className="relative group flex justify-end pr-2" onClick={(e) => e.stopPropagation()}>
-          <Popover 
-            isOpen={openMenuRowId === row.id} 
+          <Popover
+            isOpen={openMenuRowId === row.id}
             onClose={() => setOpenMenuRowId(null)}
             trigger={
-              <button 
+              <button
                 onClick={() => setOpenMenuRowId(openMenuRowId === row.id ? null : row.id)}
                 className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 dark:bg-white/5 text-gray-400 hover:text-bleu-600 dark:hover:text-or-400 hover:bg-bleu-50 dark:hover:bg-or-900/20 transition-all border border-gray-100 dark:border-white/5"
               >
@@ -374,23 +550,38 @@ const AdminAccounting: React.FC = () => {
               </button>
             }
           >
-             <div className="w-56 p-2 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 space-y-1">
-              <button className="w-full flex items-center gap-3 p-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 hover:text-bleu-600 rounded-xl transition-all">
+            <div className="w-56 p-2 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 space-y-1">
+              {/* Voir les détails / Imprimer reçu */}
+              <button
+                onClick={() => openReceiptModal(row)}
+                className="w-full flex items-center gap-3 p-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 hover:text-bleu-600 rounded-xl transition-all"
+              >
                 <Eye size={16} /> Voir les détails
               </button>
+
+              <button
+                onClick={() => { printReceipt(row); setOpenMenuRowId(null); }}
+                className="w-full flex items-center gap-3 p-3 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
+              >
+                <Printer size={16} /> Imprimer le reçu
+              </button>
+
               {row.status !== 'PAID' && (
-                <button 
+                <button
                   onClick={() => { handleMarkAsPaid(row.id); setOpenMenuRowId(null); }}
                   className="w-full flex items-center gap-3 p-3 text-xs font-bold text-vert-600 hover:bg-vert-50 dark:hover:bg-vert-900/20 rounded-xl transition-all"
                 >
                   <CheckCircle2 size={16} /> Marquer payé
                 </button>
               )}
+
               <button className="w-full flex items-center gap-3 p-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 hover:text-bleu-600 rounded-xl transition-all">
                 <Edit2 size={16} /> Modifier
               </button>
+
               <div className="h-px bg-gray-50 dark:bg-white/5 my-1" />
-              <button 
+
+              <button
                 onClick={() => { handleDelete(row.id); setOpenMenuRowId(null); }}
                 className="w-full flex items-center gap-3 p-3 text-xs font-bold text-rouge-500 hover:bg-rouge-50 dark:hover:bg-rouge-900/20 rounded-xl transition-all"
               >
@@ -402,6 +593,8 @@ const AdminAccounting: React.FC = () => {
       )
     }
   ];
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────
 
   return (
     <motion.div
@@ -415,9 +608,7 @@ const AdminAccounting: React.FC = () => {
         <div className="bg-rouge-50 border border-rouge-200 text-rouge-700 px-4 py-3 rounded-xl flex items-center gap-3">
           <AlertCircle size={20} />
           <span className="text-sm font-medium">{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto">
-            <X size={16} />
-          </button>
+          <button onClick={() => setError(null)} className="ml-auto"><X size={16} /></button>
         </div>
       )}
 
@@ -431,14 +622,14 @@ const AdminAccounting: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">Suivi stratégique des encaissements et du recouvrement de l'EIEF</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setIsRapportsModalOpen(true)}
             className="flex gap-2 dark:border-white/10 dark:text-white h-11 px-5 text-[10px] uppercase tracking-widest font-bold"
           >
             <Download size={18} /> Rapports
           </Button>
-          <Button 
+          <Button
             onClick={() => setIsEncaissementModalOpen(true)}
             className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 shadow-blue border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-bleu-600/20"
           >
@@ -476,18 +667,18 @@ const AdminAccounting: React.FC = () => {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dernière Clôture</p>
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">24 Mars 2024</h3>
           <div className="flex items-center gap-2 mt-3">
-             <div className="w-8 h-8 rounded-xl bg-vert-50 dark:bg-vert-900/20 flex items-center justify-center text-vert-500">
-                <CheckCircle2 size={16} />
-             </div>
-             <div>
-               <p className="text-[10px] text-gray-800 dark:text-gray-200 font-bold uppercase tracking-wide">Caisse équilibrée</p>
-               <p className="text-[9px] text-gray-400 font-medium leading-none">Journal validé par l'Admin</p>
-             </div>
+            <div className="w-8 h-8 rounded-xl bg-vert-50 dark:bg-vert-900/20 flex items-center justify-center text-vert-500">
+              <CheckCircle2 size={16} />
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-800 dark:text-gray-200 font-bold uppercase tracking-wide">Caisse équilibrée</p>
+              <p className="text-[9px] text-gray-400 font-medium leading-none">Journal validé par l'Admin</p>
+            </div>
           </div>
         </Card>
       </div>
 
-      {/* FILTER & TABLE SECTION */}
+      {/* FILTER & TABLE */}
       <div className="space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
@@ -497,8 +688,8 @@ const AdminAccounting: React.FC = () => {
                 onClick={() => setFilterCategory(cat)}
                 className={`
                   px-4 py-2 rounded-xl text-[10px] font-semibold whitespace-nowrap transition-all
-                  ${filterCategory === cat 
-                    ? 'bg-gray-900 dark:bg-or-500 text-white shadow-lg' 
+                  ${filterCategory === cat
+                    ? 'bg-gray-900 dark:bg-or-500 text-white shadow-lg'
                     : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5'
                   }
                 `}
@@ -507,7 +698,6 @@ const AdminAccounting: React.FC = () => {
               </button>
             ))}
           </div>
-          
           <div className="relative w-full lg:w-96">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
             <input
@@ -526,17 +716,14 @@ const AdminAccounting: React.FC = () => {
               <Loader2 className="animate-spin text-bleu-600" size={32} />
             </div>
           ) : (
-            <Table 
-              data={filteredPaiements} 
-              columns={columns as any}
-            />
+            <Table data={filteredPaiements} columns={columns as any} />
           )}
         </Card>
       </div>
 
-      {/* MODALE: NOUVEL ENCAISSEMENT */}
-      <Modal 
-        isOpen={isEncaissementModalOpen} 
+      {/* ── MODALE: NOUVEL ENCAISSEMENT ──────────────────────────────────────── */}
+      <Modal
+        isOpen={isEncaissementModalOpen}
         onClose={() => setIsEncaissementModalOpen(false)}
         title={
           <div className="flex items-center gap-3 font-bold">
@@ -549,30 +736,32 @@ const AdminAccounting: React.FC = () => {
         size="lg"
       >
         <div className="space-y-8 text-left py-2 font-bold uppercase tracking-widest">
-           <div>
+          <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
               <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Identification & Service
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Élève concerné</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Élève concerné *</label>
                 <select
                   value={formData.studentId}
-                  onChange={handleStudentChange}
+                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
                   className="w-full p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-bleu-500"
                 >
                   <option value="">Sélectionner un élève</option>
-                  {students.map(e => (
-                    <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
                   ))}
                 </select>
               </div>
-              
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type de Service</label>
                 <select
                   value={formData.categoryId?.toString() || ''}
-                  onChange={handleCategoryChange}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, categoryId: val ? Number(val) : null });
+                  }}
                   className="w-full p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-bleu-500"
                 >
                   <option value="">Sélectionner un service</option>
@@ -589,24 +778,24 @@ const AdminAccounting: React.FC = () => {
               <span className="w-1.5 h-4 bg-or-500 rounded-full" /> Détails de la Transaction
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input 
-                label="Montant à payer (FGN)" 
-                placeholder="ex: 2500000" 
+              <Input
+                label="Montant à payer (FGN) *"
+                placeholder="ex: 2500000"
                 type="number"
                 value={formData.amount.toString()}
-                onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})}
+                onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
               />
               <Input
-                label="Référence"
+                label="Référence *"
                 placeholder="ex: PAY-2024-001"
                 value={formData.reference}
-                onChange={(e) => setFormData({...formData, reference: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
               />
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Mode de Paiement</label>
                 <select
                   value={formData.method}
-                  onChange={handleMethodChange}
+                  onChange={(e) => setFormData({ ...formData, method: e.target.value as PaymentMethod })}
                   className="w-full p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-bleu-500"
                 >
                   <option value="CASH">Espèces</option>
@@ -619,21 +808,133 @@ const AdminAccounting: React.FC = () => {
           </div>
 
           <div className="flex gap-5 pt-8 border-t border-gray-100 dark:border-white/5 uppercase">
-            <Button variant="outline" onClick={() => setIsEncaissementModalOpen(false)} className="flex-1 h-12 text-[10px] tracking-wider font-bold">Annuler</Button>
-            <Button 
+            <Button
+              variant="outline"
+              onClick={() => setIsEncaissementModalOpen(false)}
+              className="flex-1 h-12 text-[10px] tracking-wider font-bold"
+            >
+              Annuler
+            </Button>
+            <Button
               onClick={handleCreatePayment}
-              disabled={!formData.studentId || !formData.amount || !formData.reference}
+              disabled={!formData.studentId || !formData.amount || !formData.reference || isSubmitting}
               className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold text-[10px] tracking-wider"
             >
-              Confirmer l'encaissement
+              {isSubmitting ? (
+                <span className="flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Traitement...</span>
+              ) : (
+                "Confirmer l'encaissement"
+              )}
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* MODALE: RAPPORTS FINANCIERS */}
-      <Modal 
-        isOpen={isRapportsModalOpen} 
+      {/* ── MODALE: APERÇU & IMPRESSION DU REÇU ─────────────────────────────── */}
+      <Modal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        title={
+          <div className="flex items-center gap-3 font-bold">
+            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600 shadow-inner">
+              <Printer size={22} />
+            </div>
+            <span className="tracking-tight gradient-bleu-or-text text-xl">Reçu de Paiement</span>
+          </div>
+        }
+        size="md"
+      >
+        {selectedPayment && (
+          <div className="py-2 space-y-6">
+            {/* Aperçu du reçu */}
+            <div className="border-2 border-gray-100 dark:border-white/10 rounded-2xl overflow-hidden">
+              {/* En-tête reçu */}
+              <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white p-6 text-center">
+                <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-yellow-400">École EIEF</p>
+                <p className="text-[8px] text-gray-400 tracking-widest uppercase mt-1">Institut d'Enseignement Islamique et Francophone</p>
+                <div className="mt-3 inline-block bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-4 py-1.5">
+                  <p className="text-[9px] font-bold tracking-[0.2em] uppercase text-yellow-400">Reçu de Paiement</p>
+                </div>
+              </div>
+
+              {/* Corps du reçu */}
+              <div className="p-5 space-y-4 bg-white dark:bg-gray-900">
+                {/* Référence + date */}
+                <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 rounded-xl p-3">
+                  <div>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Référence</p>
+                    <p className="text-xs font-mono font-bold text-gray-900 dark:text-white">{selectedPayment.reference}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Date</p>
+                    <p className="text-xs font-bold text-gray-900 dark:text-white">{formatDate(selectedPayment.paidAt)}</p>
+                  </div>
+                </div>
+
+                {/* Montant */}
+                <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800/40 rounded-xl p-4 text-center">
+                  <p className="text-[8px] font-bold text-green-600 uppercase tracking-widest">Montant payé</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{formatCurrency(Number(selectedPayment.amount))}</p>
+                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest mt-1">{getStatusLabel(selectedPayment.status)}</p>
+                </div>
+
+                {/* Détails */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Élève', value: selectedPayment.studentName },
+                    { label: 'Service', value: selectedPayment.categoryName || 'Non catégorisé' },
+                    { label: 'Mode de paiement', value: getMethodLabel(selectedPayment.method) },
+                    { label: 'Statut', value: getStatusLabel(selectedPayment.status) },
+                  ].map(item => (
+                    <div key={item.label} className="bg-gray-50 dark:bg-white/5 rounded-xl p-3">
+                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">{item.label}</p>
+                      <p className="text-xs font-bold text-gray-900 dark:text-white mt-0.5">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Signatures */}
+                <div className="flex justify-between pt-4 border-t border-gray-100 dark:border-white/5">
+                  <div className="text-center">
+                    <div className="w-24 h-8 border-b border-gray-300 dark:border-gray-600 mb-1" />
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Signature du Payeur</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-24 h-8 border-b border-gray-300 dark:border-gray-600 mb-1" />
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Cachet de l'École</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pied */}
+              <div className="bg-gray-50 dark:bg-white/5 px-5 py-3 text-center border-t border-gray-100 dark:border-white/10">
+                <p className="text-[8px] text-gray-400 uppercase tracking-widest">Ce reçu est un document officiel délivré par l'École EIEF.</p>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsReceiptModalOpen(false)}
+                className="flex-1 h-11 text-[10px] tracking-wider font-bold"
+              >
+                Fermer
+              </Button>
+              <Button
+                onClick={() => printReceipt(selectedPayment)}
+                className="flex-1 h-11 font-bold text-[10px] tracking-wider flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 border-none shadow-lg shadow-indigo-600/20"
+              >
+                <Printer size={16} /> Imprimer le reçu
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODALE: RAPPORTS FINANCIERS ──────────────────────────────────────── */}
+      <Modal
+        isOpen={isRapportsModalOpen}
         onClose={() => setIsRapportsModalOpen(false)}
         title={
           <div className="flex items-center gap-3 font-bold">
@@ -646,38 +947,56 @@ const AdminAccounting: React.FC = () => {
         size="md"
       >
         <div className="space-y-6 text-left py-2 font-bold uppercase tracking-widest">
-           <div className="space-y-3">
-              {[
-                { name: 'Journal de Caisse (Aujourd\'hui)', desc: 'Toutes les opérations du jour', type: 'PDF', action: () => window.open(`${process.env.REACT_APP_API_BASE_URL}/payments/report/daily`, '_blank') },
-                { name: 'Relevé Mensuel des Recettes', desc: 'Analyse détaillée des encaissements', type: 'EXCEL', action: () => window.open(`${process.env.REACT_APP_API_BASE_URL}/payments/report/monthly`, '_blank') },
-                { name: 'Liste des Impayés', desc: 'Rapport stratégique de recouvrement', type: 'PDF', action: () => window.open(`${process.env.REACT_APP_API_BASE_URL}/payments/overdue`, '_blank') }
-              ].map((rep, i) => (
-                <button 
-                  key={i} 
-                  onClick={rep.action}
-                  className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl group hover:border-bleu-500/50 transition-all font-bold tracking-widest uppercase"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white dark:bg-white/5 rounded-xl flex items-center justify-center text-gray-500 group-hover:text-bleu-600 transition-colors shadow-sm">
-                      <FileText size={20} />
-                    </div>
-                    <div className="text-left font-bold tracking-widest uppercase">
-                      <p className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-widest leading-none mb-1">{rep.name}</p>
-                      <p className="text-[9px] text-gray-400 font-medium uppercase tracking-widest leading-none">{rep.desc}</p>
-                    </div>
+          <div className="space-y-3">
+            {[
+              {
+                name: "Journal de Caisse (Aujourd'hui)",
+                desc: 'Toutes les opérations du jour',
+                type: 'PDF',
+                action: () => window.open(`${getApiBaseUrl()}/payments/report/daily`, '_blank')
+              },
+              {
+                name: 'Relevé Mensuel des Recettes',
+                desc: 'Analyse détaillée des encaissements',
+                type: 'EXCEL',
+                action: () => window.open(`${getApiBaseUrl()}/payments/report/monthly`, '_blank')
+              },
+              {
+                name: 'Liste des Impayés',
+                desc: 'Rapport stratégique de recouvrement',
+                type: 'PDF',
+                // GET /payments/overdue → retourne ApiResponse<List<PaymentResponse>>
+                action: () => window.open(`${getApiBaseUrl()}/payments/overdue`, '_blank')
+              }
+            ].map((rep, i) => (
+              <button
+                key={i}
+                onClick={rep.action}
+                className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl group hover:border-bleu-500/50 transition-all font-bold tracking-widest uppercase"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white dark:bg-white/5 rounded-xl flex items-center justify-center text-gray-500 group-hover:text-bleu-600 transition-colors shadow-sm">
+                    <FileText size={20} />
                   </div>
-                  <Badge variant={rep.type === 'PDF' ? 'error' : 'success'} className="text-[8px] px-2">{rep.type}</Badge>
-                </button>
-              ))}
-           </div>
-           <Button variant="outline" onClick={() => setIsRapportsModalOpen(false)} className="w-full h-12 font-bold uppercase text-[10px] tracking-wider">Fermer</Button>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-widest leading-none mb-1">{rep.name}</p>
+                    <p className="text-[9px] text-gray-400 font-medium uppercase tracking-widest leading-none">{rep.desc}</p>
+                  </div>
+                </div>
+                <Badge variant={rep.type === 'PDF' ? 'error' : 'success'} className="text-[8px] px-2">{rep.type}</Badge>
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" onClick={() => setIsRapportsModalOpen(false)} className="w-full h-12 font-bold uppercase text-[10px] tracking-wider">
+            Fermer
+          </Button>
         </div>
       </Modal>
 
-      {/* SUCCESS TOAST */}
+      {/* ── SUCCESS TOAST ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {isSuccess && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -687,7 +1006,7 @@ const AdminAccounting: React.FC = () => {
               <CheckCircle2 size={24} />
             </div>
             <div className="text-left flex-1 font-bold uppercase tracking-widest">
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-none mb-1 uppercase tracking-widest font-bold">Succès</p>
+              <p className="text-sm font-bold text-gray-900 dark:text-white leading-none mb-1 uppercase tracking-widest">Succès</p>
               <p className="text-[10px] text-gray-500 font-semibold leading-none uppercase tracking-widest">{successMessage}</p>
             </div>
             <button onClick={() => setIsSuccess(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400">
