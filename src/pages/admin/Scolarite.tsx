@@ -61,6 +61,9 @@ interface SubjectResponse {
 interface ScheduleResponse {
   id: string;
   classSubjectId: string;
+  classId: string;
+  subjectId: string;
+  teacherId: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
@@ -98,6 +101,20 @@ interface StudentResponse {
   isActive: boolean;
 }
 
+interface TeacherResponse {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+interface AcademicYearResponse {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 // ClassSubject est l'association classe↔matière côté backend (CourseRequest attend un classSubjectId).
 // On les reconstruit depuis les schedules existants ou on les crée manuellement.
 
@@ -112,11 +129,25 @@ interface Notif { kind: NotifKind; message: string }
 
 const empty = {
   schedule: () => ({
-    classSubjectId: '',
+    classId: '',
+    subjectId: '',
+    teacherId: '',
     dayOfWeek: '1',
     startTime: '',
     endTime: '',
     room: '',
+  }),
+  class: () => ({
+    name: '',
+    level: '',
+    academicYearId: '',
+    mainTeacherId: '',
+    maxStudents: 40,
+  }),
+  subject: () => ({
+    name: '',
+    code: '',
+    coefficient: 1,
   }),
 };
 
@@ -144,6 +175,8 @@ const AdminScolarite: React.FC = () => {
   const [subjects,  setSubjects]  = useState<SubjectResponse[]>([]);
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [students,  setStudents]  = useState<StudentResponse[]>([]);
+  const [teachers,  setTeachers]  = useState<TeacherResponse[]>([]);
+  const [years,     setYears]     = useState<AcademicYearResponse[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
 
@@ -158,6 +191,9 @@ const AdminScolarite: React.FC = () => {
   const [classSchLoading,  setClassSchLoading]  = useState(false);
   const [searchQuery,      setSearchQuery]      = useState('');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isClassModalOpen,    setIsClassModalOpen]    = useState(false);
+  const [isSubjectModalOpen,  setIsSubjectModalOpen]  = useState(false);
+  const [isAcademicYearModalOpen, setIsAcademicYearModalOpen] = useState(false);
   const [isDetailModalOpen,   setIsDetailModalOpen]   = useState(false);
   const [isGradesModalOpen,   setIsGradesModalOpen]   = useState(false);
   const [submitting,       setSubmitting]       = useState(false);
@@ -165,6 +201,9 @@ const AdminScolarite: React.FC = () => {
   const [deleteTarget,     setDeleteTarget]     = useState<{ id: string; label: string } | null>(null);
   const [notif,            setNotif]            = useState<Notif | null>(null);
   const [scheduleForm,     setScheduleForm]     = useState(empty.schedule());
+  const [classForm,        setClassForm]        = useState(empty.class());
+  const [subjectForm,      setSubjectForm]      = useState(empty.subject());
+  const [academicYearForm, setAcademicYearForm] = useState({ name: '', startDate: '', endDate: '', isCurrent: false });
   const [openMenuId,       setOpenMenuId]       = useState<string | null>(null);
 
   // ── Notification ──────────────────────────────────────────────────────────
@@ -181,16 +220,20 @@ const AdminScolarite: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [cls, subj, sch, stu] = await Promise.all([
+      const [cls, subj, sch, stu, tea, yr] = await Promise.all([
         apiFetch<ClassResponse[]>('/courses/classes'),
         apiFetch<SubjectResponse[]>('/courses/subjects'),
         apiFetch<ScheduleResponse[]>('/schedules'),
         apiFetch<StudentResponse[]>('/users/students'),
+        apiFetch<TeacherResponse[]>('/users/teachers'),
+        apiFetch<AcademicYearResponse[]>('/courses/academic-years'),
       ]);
       setClasses(cls);
       setSubjects(subj);
       setSchedules(sch);
       setStudents(stu);
+      setTeachers(tea);
+      setYears(yr);
     } catch (e: any) {
       setError(e?.message ?? 'Erreur de chargement.');
     } finally {
@@ -231,12 +274,11 @@ const AdminScolarite: React.FC = () => {
   // ── Ouvrir modal ajout/édition d'horaire ──────────────────────────────────
   const openAddSchedule = (cls?: ClassResponse) => {
     setEditingScheduleId(null);
-    // On pré-sélectionne le premier classSubjectId lié à cette classe si possible
-    // (les schedules existants en sont une bonne source)
-    const existing = cls
-      ? schedules.find(s => s.className === cls.name)?.classSubjectId ?? ''
-      : '';
-    setScheduleForm({ ...empty.schedule(), classSubjectId: existing });
+    setScheduleForm({
+      ...empty.schedule(),
+      classId: cls?.id || '',
+      subjectId: subjects.length > 0 ? subjects[0].id : '',
+    });
     if (cls) setSelectedClass(cls);
     setIsScheduleModalOpen(true);
   };
@@ -244,7 +286,9 @@ const AdminScolarite: React.FC = () => {
   const openEditSchedule = (s: ScheduleResponse) => {
     setEditingScheduleId(s.id);
     setScheduleForm({
-      classSubjectId: s.classSubjectId,
+      classId: s.classId,
+      subjectId: s.subjectId,
+      teacherId: s.teacherId || '',
       dayOfWeek: String(s.dayOfWeek),
       startTime: s.startTime,
       endTime: s.endTime,
@@ -256,8 +300,8 @@ const AdminScolarite: React.FC = () => {
 
   // ── Soumettre horaire ─────────────────────────────────────────────────────
   const handleSubmitSchedule = async () => {
-    if (!scheduleForm.classSubjectId) {
-      showNotif('error', 'Veuillez sélectionner une classe/matière.');
+    if (!scheduleForm.classId || !scheduleForm.subjectId) {
+      showNotif('error', 'Veuillez sélectionner une classe et une matière.');
       return;
     }
     if (!scheduleForm.startTime || !scheduleForm.endTime) {
@@ -271,7 +315,9 @@ const AdminScolarite: React.FC = () => {
     setSubmitting(true);
     try {
       const body = JSON.stringify({
-        classSubjectId: scheduleForm.classSubjectId,
+        classId: scheduleForm.classId,
+        subjectId: scheduleForm.subjectId,
+        teacherId: scheduleForm.teacherId || null,
         dayOfWeek: Number(scheduleForm.dayOfWeek),
         startTime: scheduleForm.startTime,
         endTime: scheduleForm.endTime,
@@ -310,6 +356,81 @@ const AdminScolarite: React.FC = () => {
     }
   };
 
+  // ── Soumettre année académique ────────────────────────────────────────────
+  const handleSubmitAcademicYear = async () => {
+    if (!academicYearForm.name || !academicYearForm.startDate || !academicYearForm.endDate) {
+      showNotif('error', 'Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await apiFetch<AcademicYearResponse>('/courses/academic-years', {
+        method: 'POST',
+        body: JSON.stringify(academicYearForm),
+      });
+      showNotif('success', 'Année académique créée.');
+      setIsAcademicYearModalOpen(false);
+      setAcademicYearForm({ name: '', startDate: '', endDate: '', isCurrent: false });
+      
+      // Mettre à jour la liste et auto-sélectionner la nouvelle année
+      await fetchAll();
+      setClassForm(f => ({ ...f, academicYearId: res.id }));
+    } catch (e: any) {
+      showNotif('error', e?.message ?? 'Erreur création année.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Soumettre classe ──────────────────────────────────────────────────────
+  const handleSubmitClass = async () => {
+    if (!classForm.name || !classForm.academicYearId) {
+      showNotif('error', 'Nom et Année Académique requis.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiFetch('/courses/classes', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...classForm,
+          mainTeacherId: classForm.mainTeacherId || null,
+        }),
+      });
+      showNotif('success', 'Classe créée avec succès.');
+      setIsClassModalOpen(false);
+      setClassForm(empty.class());
+      await fetchAll();
+    } catch (e: any) {
+      showNotif('error', e?.message ?? 'Erreur création classe.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Soumettre matière ─────────────────────────────────────────────────────
+  const handleSubmitSubject = async () => {
+    if (!subjectForm.name || !subjectForm.code) {
+      showNotif('error', 'Nom et Code requis.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiFetch('/courses/subjects', {
+        method: 'POST',
+        body: JSON.stringify(subjectForm),
+      });
+      showNotif('success', 'Matière créée avec succès.');
+      setIsSubjectModalOpen(false);
+      setSubjectForm(empty.subject());
+      await fetchAll();
+    } catch (e: any) {
+      showNotif('error', e?.message ?? 'Erreur création matière.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // ── Ouvrir relevé ─────────────────────────────────────────────────────────
   const openGrades = (student: StudentResponse) => {
     setSelectedStudent(student);
@@ -328,27 +449,6 @@ const AdminScolarite: React.FC = () => {
     s.registrationNumber.toLowerCase().includes(q) ||
     s.className.toLowerCase().includes(q)
   );
-
-  // ── classSubject options pour le formulaire d'horaire ─────────────────────
-  // Le backend attend un UUID de classSubjectId. On les récupère depuis les
-  // schedules existants (chaque schedule a son classSubjectId) ou depuis
-  // les courses (GET /courses). Pour simplifier, on utilise ce qui est
-  // déjà chargé dans schedules et on dé-duplique.
-  const classSubjectOptions = (() => {
-    const seen = new Map<string, { value: string; label: string }>();
-    schedules.forEach(s => {
-      if (!seen.has(s.classSubjectId)) {
-        seen.set(s.classSubjectId, {
-          value: s.classSubjectId,
-          label: `${s.className} — ${s.subjectName}`,
-        });
-      }
-    });
-    return [
-      { value: '', label: 'Sélectionner une classe/matière...' },
-      ...Array.from(seen.values()),
-    ];
-  })();
 
   // ── Calcul résumé relevé ──────────────────────────────────────────────────
   const gradesBySubject = studentGrades.reduce<Record<string, GradeResponse[]>>((acc, g) => {
@@ -490,12 +590,35 @@ const AdminScolarite: React.FC = () => {
             {classes.length} classes • {students.length} élèves • {schedules.length} créneaux
           </p>
         </div>
-        <Button
-          onClick={() => openAddSchedule()}
-          className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
-        >
-          <Plus size={18} /> Nouveau Créneau
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={() => {
+              setSubjectForm(empty.subject());
+              setIsSubjectModalOpen(true);
+            }}
+            variant="outline"
+            className="flex gap-2 border-or-500 text-or-600 hover:bg-or-50 font-semibold text-[10px] h-11 px-6 rounded-2xl"
+          >
+            <BookOpen size={18} /> Nouvelle Matière
+          </Button>
+          <Button
+            onClick={() => {
+              const currentYear = years.find(y => y.isActive)?.id || years[0]?.id || '';
+              setClassForm({ ...empty.class(), academicYearId: currentYear });
+              setIsClassModalOpen(true);
+            }}
+            variant="outline"
+            className="flex gap-2 border-bleu-500 text-bleu-600 hover:bg-bleu-50 font-semibold text-[10px] h-11 px-6 rounded-2xl"
+          >
+            <Building2 size={18} /> Nouvelle Classe
+          </Button>
+          <Button
+            onClick={() => openAddSchedule()}
+            className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20 rounded-2xl"
+          >
+            <Plus size={18} /> Nouveau Créneau
+          </Button>
+        </div>
       </div>
 
       {/* STATS */}
@@ -770,19 +893,33 @@ const AdminScolarite: React.FC = () => {
               <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Configuration
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
-                <Select
-                  label="Classe / Matière"
-                  options={classSubjectOptions}
-                  value={scheduleForm.classSubjectId}
-                  onChange={e => setScheduleForm(f => ({ ...f, classSubjectId: e.target.value }))}
-                />
-                {classSubjectOptions.length <= 1 && (
-                  <p className="text-[10px] text-amber-600 mt-1">
-                    ⚠ Aucune association classe/matière trouvée. Créez d'abord un cours via l'administration académique.
-                  </p>
-                )}
-              </div>
+              <Select
+                label="Classe"
+                options={[
+                  { value: '', label: 'Sélectionner une classe...' },
+                  ...classes.map(c => ({ value: c.id, label: c.name }))
+                ]}
+                value={scheduleForm.classId}
+                onChange={e => setScheduleForm(f => ({ ...f, classId: e.target.value }))}
+              />
+              <Select
+                label="Matière"
+                options={[
+                  { value: '', label: 'Sélectionner une matière...' },
+                  ...subjects.map(s => ({ value: s.id, label: s.name }))
+                ]}
+                value={scheduleForm.subjectId}
+                onChange={e => setScheduleForm(f => ({ ...f, subjectId: e.target.value }))}
+              />
+              <Select
+                label="Enseignant (Optionnel)"
+                options={[
+                  { value: '', label: 'Aucun (Sélection automatique / Non défini)' },
+                  ...teachers.map(t => ({ value: t.userId, label: `${t.firstName} ${t.lastName}` }))
+                ]}
+                value={scheduleForm.teacherId}
+                onChange={e => setScheduleForm(f => ({ ...f, teacherId: e.target.value }))}
+              />
               <Select
                 label="Jour de la semaine"
                 options={DAY_OPTIONS}
@@ -993,6 +1130,127 @@ const AdminScolarite: React.FC = () => {
         </div>
       </Modal>
 
+      {/* ── MODALE: AJOUTER UNE CLASSE ────────────────────────────────────────── */}
+      <Modal
+        isOpen={isClassModalOpen}
+        onClose={() => setIsClassModalOpen(false)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600"><Building2 size={22} /></div>
+            <span className="font-bold gradient-bleu-or-text">Nouvelle Classe</span>
+          </div>
+        }
+        size="lg"
+      >
+        <div className="space-y-6 text-left py-2" onClick={e => e.stopPropagation()}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Input
+              label="Nom de la classe"
+              placeholder="ex: 10ème Année A"
+              value={classForm.name}
+              onChange={e => setClassForm(f => ({ ...f, name: e.target.value }))}
+            />
+            <Input
+              label="Niveau"
+              placeholder="ex: Collège / Lycée"
+              value={classForm.level}
+              onChange={e => setClassForm(f => ({ ...f, level: e.target.value }))}
+            />
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Select
+                  label="Année Académique"
+                  options={years.map(y => ({ value: y.id, label: y.name }))}
+                  value={classForm.academicYearId}
+                  onChange={e => setClassForm(f => ({ ...f, academicYearId: e.target.value }))}
+                />
+              </div>
+              <Button
+                variant="outline"
+                className="h-[46px] px-3 border-gray-200 dark:border-white/10"
+                onClick={() => setIsAcademicYearModalOpen(true)}
+                title="Ajouter une année académique"
+              >
+                <Plus size={18} />
+              </Button>
+            </div>
+            <Select
+              label="Professeur Principal"
+              options={[
+                { value: '', label: 'Aucun (Optionnel)' },
+                ...teachers.map(t => ({ value: t.userId, label: `${t.firstName} ${t.lastName}` }))
+              ]}
+              value={classForm.mainTeacherId}
+              onChange={e => setClassForm(f => ({ ...f, mainTeacherId: e.target.value }))}
+            />
+            <Input
+              type="number"
+              label="Nombre max d'élèves"
+              value={classForm.maxStudents}
+              onChange={e => setClassForm(f => ({ ...f, maxStudents: Number(e.target.value) }))}
+            />
+          </div>
+          <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
+            <Button variant="outline" onClick={() => setIsClassModalOpen(false)} className="flex-1 h-12">Annuler</Button>
+            <Button
+              onClick={handleSubmitClass}
+              disabled={submitting}
+              className="flex-1 h-12 bg-bleu-600 border-none text-white shadow-lg"
+            >
+              {submitting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
+              Créer la Classe
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODALE: AJOUTER UNE MATIÈRE ───────────────────────────────────────── */}
+      <Modal
+        isOpen={isSubjectModalOpen}
+        onClose={() => setIsSubjectModalOpen(false)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600"><BookOpen size={22} /></div>
+            <span className="font-bold gradient-bleu-or-text">Nouvelle Matière</span>
+          </div>
+        }
+        size="md"
+      >
+        <div className="space-y-6 text-left py-2" onClick={e => e.stopPropagation()}>
+          <Input
+            label="Nom de la matière"
+            placeholder="ex: Mathématiques"
+            value={subjectForm.name}
+            onChange={e => setSubjectForm(f => ({ ...f, name: e.target.value }))}
+          />
+          <div className="grid grid-cols-2 gap-5">
+            <Input
+              label="Code"
+              placeholder="ex: MATH"
+              value={subjectForm.code}
+              onChange={e => setSubjectForm(f => ({ ...f, code: e.target.value }))}
+            />
+            <Input
+              type="number"
+              label="Coefficient"
+              value={subjectForm.coefficient}
+              onChange={e => setSubjectForm(f => ({ ...f, coefficient: Number(e.target.value) }))}
+            />
+          </div>
+          <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
+            <Button variant="outline" onClick={() => setIsSubjectModalOpen(false)} className="flex-1 h-12">Annuler</Button>
+            <Button
+              onClick={handleSubmitSubject}
+              disabled={submitting}
+              className="flex-1 h-12 bg-or-500 border-none text-white shadow-lg"
+            >
+              {submitting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
+              Créer la Matière
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* ── MODALE: CONFIRMER SUPPRESSION ───────────────────────────────────── */}
       <Modal
         isOpen={!!deleteTarget}
@@ -1054,6 +1312,64 @@ const AdminScolarite: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── MODALE: AJOUTER UNE ANNÉE ACADÉMIQUE ───────────────────────────── */}
+      <Modal
+        isOpen={isAcademicYearModalOpen}
+        onClose={() => setIsAcademicYearModalOpen(false)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600"><CalendarDays size={22} /></div>
+            <span className="font-bold gradient-bleu-or-text">Nouvelle Année</span>
+          </div>
+        }
+        size="md"
+      >
+        <div className="space-y-6 text-left py-2" onClick={e => e.stopPropagation()}>
+          <Input
+            label="Nom de l'année"
+            placeholder="ex: 2025-2026"
+            value={academicYearForm.name}
+            onChange={e => setAcademicYearForm(f => ({ ...f, name: e.target.value }))}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              type="date"
+              label="Date de début"
+              value={academicYearForm.startDate}
+              onChange={e => setAcademicYearForm(f => ({ ...f, startDate: e.target.value }))}
+            />
+            <Input
+              type="date"
+              label="Date de fin"
+              value={academicYearForm.endDate}
+              onChange={e => setAcademicYearForm(f => ({ ...f, endDate: e.target.value }))}
+            />
+          </div>
+          <label className="flex items-center gap-3 p-3 border border-gray-100 dark:border-white/5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+            <input
+              type="checkbox"
+              checked={academicYearForm.isCurrent}
+              onChange={e => setAcademicYearForm(f => ({ ...f, isCurrent: e.target.checked }))}
+              className="w-5 h-5 rounded border-gray-300 text-bleu-600 focus:ring-bleu-500"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Définir comme année courante</p>
+              <p className="text-[10px] text-gray-500 leading-tight">Ceci remplacera l'année actuellement active dans le système.</p>
+            </div>
+          </label>
+
+          <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
+            <Button variant="outline" onClick={() => setIsAcademicYearModalOpen(false)} className="flex-1 h-12">
+              Annuler
+            </Button>
+            <Button onClick={handleSubmitAcademicYear} disabled={submitting} className="flex-1 h-12 shadow-lg shadow-bleu-600/20">
+              {submitting ? 'Création...' : 'Créer l\'année'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
     </motion.div>
   );
 };
