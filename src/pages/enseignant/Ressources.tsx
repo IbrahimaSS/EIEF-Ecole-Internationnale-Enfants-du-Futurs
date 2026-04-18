@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { 
   FileText, 
   Upload, 
@@ -12,11 +12,12 @@ import {
   MoreVertical,
   Download,
   Edit,
-  X,
-  Type,
   FileEdit
 } from 'lucide-react';
 import { Card, Input, Button, Badge, Select, Modal } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
+import { useLibrary } from '../../hooks/useLibrary';
+import { getApiBaseUrl } from '../../services/api';
 
 const EnseignantRessources: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tous' | 'exercices' | 'tp' | 'evaluations'>('tous');
@@ -24,23 +25,39 @@ const EnseignantRessources: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [creationMode, setCreationMode] = useState<'upload' | 'write'>('upload');
+   const [title, setTitle] = useState('');
+   const [resourceType, setResourceType] = useState('Exercice');
+   const [classId, setClassId] = useState('');
+   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+   const [submitError, setSubmitError] = useState<string | null>(null);
+   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const ressources = [
-    { id: 1, title: 'Exercices Fonctions Logarithmes', type: 'Exercice', class: 'Terminale S1', date: '02 Avril 2026', format: 'PDF', size: '1.2 MB' },
-    { id: 2, title: 'TP Titrage Acide-Base', type: 'TP', class: '1ère S2', date: '30 Mars 2026', format: 'PDF', size: '0.8 MB' },
-    { id: 3, title: 'Devoir Surveillé 2 - Sujet A', type: 'Évaluation', class: 'Terminale S2', date: '28 Mars 2026', format: 'DOCX', size: '2.1 MB' },
-    { id: 4, title: 'Composition Premier Semestre', type: 'Évaluation', class: '3ème A', date: '15 Janvier 2026', format: 'PDF', size: '3.5 MB' },
-    { id: 5, title: 'Série d\'exercices Mécanique', type: 'Exercice', class: '1ère S2', date: '25 Mars 2026', format: 'PDF', size: '1.5 MB' },
-  ];
+   const user = useAuthStore((state) => state.user);
+   const {
+      resources,
+      loading,
+      error,
+      fetchResourcesByTeacher,
+      createResourceWithFile,
+   } = useLibrary();
 
-  const filteredRessources = ressources.filter(r => {
-    const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) || r.class.toLowerCase().includes(searchQuery.toLowerCase());
+   useEffect(() => {
+      if (user?.id) {
+         fetchResourcesByTeacher(user.id);
+      }
+   }, [fetchResourcesByTeacher, user?.id]);
+
+   const filteredRessources = useMemo(() => resources.filter((r) => {
+      const className = r.className ?? '';
+      const matchesSearch =
+         r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+         className.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab = activeTab === 'tous' || 
                       (activeTab === 'exercices' && r.type === 'Exercice') ||
                       (activeTab === 'tp' && r.type === 'TP') ||
                       (activeTab === 'evaluations' && r.type === 'Évaluation');
     return matchesSearch && matchesTab;
-  });
+   }), [activeTab, resources, searchQuery]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -62,8 +79,100 @@ const EnseignantRessources: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    // Logique d'upload futur
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+         setSelectedFile(e.dataTransfer.files[0]);
+      }
   };
+
+   const resetForm = () => {
+      setTitle('');
+      setResourceType('Exercice');
+      setClassId('');
+      setSelectedFile(null);
+      setCreationMode('upload');
+      setSubmitError(null);
+   };
+
+   const handleSubmit = async () => {
+      if (!user?.id) {
+         setSubmitError('Utilisateur non authentifie');
+         return;
+      }
+
+      if (!title.trim()) {
+         setSubmitError('Le titre est requis');
+         return;
+      }
+
+      if (creationMode === 'upload' && !selectedFile) {
+         setSubmitError('Veuillez choisir un fichier a televerser');
+         return;
+      }
+
+      if (creationMode !== 'upload') {
+         setSubmitError('Le mode redaction en ligne sera active prochainement');
+         return;
+      }
+
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      try {
+         await createResourceWithFile(
+            {
+               title: title.trim(),
+               type: resourceType,
+               classId: classId || undefined,
+               file: selectedFile as File,
+            },
+            user.id
+         );
+         setIsAddModalOpen(false);
+         resetForm();
+      } catch (e) {
+         setSubmitError(e instanceof Error ? e.message : 'Erreur lors du televersement');
+      } finally {
+         setIsSubmitting(false);
+      }
+   };
+
+   const getFileFormat = (fileUrl: string | null): string => {
+      if (!fileUrl) {
+         return 'N/A';
+      }
+      const parts = fileUrl.split('.');
+      if (parts.length < 2) {
+         return 'N/A';
+      }
+      return parts[parts.length - 1].toUpperCase();
+   };
+
+   const formatDate = (value: string): string => {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+         return value;
+      }
+      return new Intl.DateTimeFormat('fr-FR', {
+         day: '2-digit',
+         month: 'long',
+         year: 'numeric',
+      }).format(date);
+   };
+
+   const resolveDownloadUrl = (fileUrl: string | null): string | null => {
+      if (!fileUrl) {
+         return null;
+      }
+
+      if (/^https?:\/\//i.test(fileUrl)) {
+         return fileUrl;
+      }
+
+      const apiBase = getApiBaseUrl().replace(/\/$/, '');
+      const normalizedPath = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
+
+      return `${apiBase}${normalizedPath}`;
+   };
 
   return (
     <motion.div 
@@ -103,7 +212,7 @@ const EnseignantRessources: React.FC = () => {
             <div className={`p-3 rounded-xl ${activeTab === 'tous' ? 'bg-white/10' : 'bg-white dark:bg-gray-800 shadow-sm'}`}>
               <FileBox size={20} className={activeTab === 'tous' ? 'text-or-400' : 'text-bleu-500'} />
             </div>
-            <span className="text-2xl font-black">{ressources.length}</span>
+            <span className="text-2xl font-black">{resources.length}</span>
           </div>
           <h3 className="mt-3 font-bold text-sm">Tous les fichiers</h3>
         </Card>
@@ -116,7 +225,7 @@ const EnseignantRessources: React.FC = () => {
             <div className={`p-3 rounded-xl ${activeTab === 'exercices' ? 'bg-white dark:bg-gray-800/50' : 'bg-white dark:bg-gray-800 shadow-sm'}`}>
               <BookOpen size={20} className="text-bleu-500" />
             </div>
-            <span className="text-2xl font-black">{ressources.filter(r => r.type === 'Exercice').length}</span>
+            <span className="text-2xl font-black">{resources.filter(r => r.type === 'Exercice').length}</span>
           </div>
           <h3 className="mt-3 font-bold text-sm">Exercices</h3>
         </Card>
@@ -129,7 +238,7 @@ const EnseignantRessources: React.FC = () => {
             <div className={`p-3 rounded-xl ${activeTab === 'tp' ? 'bg-white dark:bg-gray-800/50' : 'bg-white dark:bg-gray-800 shadow-sm'}`}>
               <Beaker size={20} className="text-vert-500" />
             </div>
-            <span className="text-2xl font-black">{ressources.filter(r => r.type === 'TP').length}</span>
+            <span className="text-2xl font-black">{resources.filter(r => r.type === 'TP').length}</span>
           </div>
           <h3 className="mt-3 font-bold text-sm">Travaux Pratiques</h3>
         </Card>
@@ -142,7 +251,7 @@ const EnseignantRessources: React.FC = () => {
             <div className={`p-3 rounded-xl ${activeTab === 'evaluations' ? 'bg-white dark:bg-gray-800/50' : 'bg-white dark:bg-gray-800 shadow-sm'}`}>
               <ClipboardCheck size={20} className="text-rouge-500" />
             </div>
-            <span className="text-2xl font-black">{ressources.filter(r => r.type === 'Évaluation').length}</span>
+            <span className="text-2xl font-black">{resources.filter(r => r.type === 'Évaluation').length}</span>
           </div>
           <h3 className="mt-3 font-bold text-sm">Évaluations & Sujets</h3>
         </Card>
@@ -181,20 +290,29 @@ const EnseignantRessources: React.FC = () => {
                   <h3 className="font-bold text-sm text-gray-900 dark:text-white mb-2 leading-tight">{doc.title}</h3>
                   
                   <div className="flex items-center gap-2 mb-4">
-                     <Badge className="bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300 font-bold border-none text-[9px]">{doc.class}</Badge>
-                     <Badge className="bg-gray-50 text-gray-500 border border-gray-200 dark:bg-transparent dark:border-white/10 font-bold text-[9px]">{doc.date}</Badge>
+                     <Badge className="bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300 font-bold border-none text-[9px]">{doc.className || 'Classe non precisee'}</Badge>
+                     <Badge className="bg-gray-50 text-gray-500 border border-gray-200 dark:bg-transparent dark:border-white/10 font-bold text-[9px]">{formatDate(doc.createdAt)}</Badge>
                   </div>
                </div>
 
                <div className="pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-gray-400">
-                     {doc.format} • {doc.size}
+                     {getFileFormat(doc.fileUrl)}
                   </span>
                   <div className="flex gap-2">
                      <button className="p-2 bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-bleu-600 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-lg transition-colors">
                         <Edit size={14} />
                      </button>
-                     <button className="p-2 bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-bleu-600 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-lg transition-colors">
+                     <button
+                        onClick={() => {
+                                       const downloadUrl = resolveDownloadUrl(doc.fileUrl);
+                                       if (downloadUrl) {
+                                          window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                        disabled={!doc.fileUrl}
+                        className="p-2 bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-bleu-600 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-lg transition-colors disabled:opacity-50"
+                     >
                         <Download size={14} />
                      </button>
                   </div>
@@ -202,6 +320,13 @@ const EnseignantRessources: React.FC = () => {
             </Card>
          ))}
       </div>
+
+      {(loading || error) && (
+         <div className="mt-2 text-xs font-semibold">
+            {loading && <p className="text-gray-500">Chargement des ressources...</p>}
+            {error && <p className="text-rouge-600">{error}</p>}
+         </div>
+      )}
 
       {filteredRessources.length === 0 && (
          <div className="flex flex-col items-center justify-center py-20 opacity-60">
@@ -234,18 +359,25 @@ const EnseignantRessources: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div>
                   <label className="text-[11px] font-bold text-gray-500 block mb-1 ml-1">Titre du document</label>
-                  <Input placeholder="Ex: Devoir de thermodynamique" className="w-full h-11 font-semibold text-sm rounded-xl" />
+                           <Input
+                              value={title}
+                              onChange={(e) => setTitle(e.target.value)}
+                              placeholder="Ex: Devoir de thermodynamique"
+                              className="w-full h-11 font-semibold text-sm rounded-xl"
+                           />
                </div>
                <div>
                   <label className="text-[11px] font-bold text-gray-500 block mb-1 ml-1">Type de ressource</label>
                   <Select 
+                              value={resourceType}
+                              onChange={(e) => setResourceType(e.target.value)}
                     className="w-full h-11 bg-white font-semibold text-sm rounded-xl"
                     options={[
-                      { value: 'exercice', label: 'Série d\'exercices' },
-                      { value: 'tp', label: 'Travaux Pratiques (TP)' },
-                      { value: 'evaluation', label: 'Sujet d\'évaluation / Devoir' },
-                      { value: 'composition', label: 'Composition' },
-                      { value: 'cours', label: 'Support de cours' }
+                                 { value: 'Exercice', label: 'Série d\'exercices' },
+                                 { value: 'TP', label: 'Travaux Pratiques (TP)' },
+                                 { value: 'Évaluation', label: 'Sujet d\'évaluation / Devoir' },
+                                 { value: 'Composition', label: 'Composition' },
+                                 { value: 'Cours', label: 'Support de cours' }
                     ]}
                   />
                </div>
@@ -254,12 +386,11 @@ const EnseignantRessources: React.FC = () => {
             <div>
                <label className="text-[11px] font-bold text-gray-500 block mb-1 ml-1">Classe / Groupe cible</label>
                <Select 
+                         value={classId}
+                         onChange={(e) => setClassId(e.target.value)}
                  className="w-full h-11 bg-white font-semibold text-sm rounded-xl"
                  options={[
-                   { value: 'tous', label: 'Toutes mes classes' },
-                   { value: 'term_s1', label: 'Terminale S1' },
-                   { value: '1ere_s2', label: '1ère S2' },
-                   { value: 'class_4', label: '3ème A' }
+                            { value: '', label: 'Toutes mes classes' }
                  ]}
                />
             </div>
@@ -298,9 +429,24 @@ const EnseignantRessources: React.FC = () => {
                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Glissez-déposez votre fichier ici</p>
                        <p className="text-[11px] font-semibold text-gray-400 mt-1">ou cliquez pour parcourir vos dossiers</p>
                     </div>
-                    <Button variant="outline" className="border-gray-200 bg-white font-bold text-[11px] h-9 px-6 mt-2 rounded-lg pointer-events-none">
-                       Parcourir
-                    </Button>
+                              <label className="inline-flex">
+                                 <input
+                                    type="file"
+                                    onChange={(e) => {
+                                       const file = e.target.files?.[0] ?? null;
+                                       setSelectedFile(file);
+                                    }}
+                                    className="hidden"
+                                 />
+                                 <span className="border border-gray-200 bg-white font-bold text-[11px] h-9 px-6 mt-2 rounded-lg inline-flex items-center cursor-pointer">
+                                    Parcourir
+                                 </span>
+                              </label>
+                              {selectedFile && (
+                                 <p className="text-[11px] font-semibold text-bleu-700 dark:text-bleu-300">
+                                    Fichier selectionne: {selectedFile.name}
+                                 </p>
+                              )}
                  </div>
               </div>
             ) : (
@@ -316,18 +462,23 @@ const EnseignantRessources: React.FC = () => {
             <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/10 mt-4">
                <Button 
                   variant="outline" 
-                  onClick={() => setIsAddModalOpen(false)}
+                     onClick={() => {
+                       setIsAddModalOpen(false);
+                       resetForm();
+                     }}
                   className="flex-1 h-11 text-[12px] font-bold rounded-xl border-gray-200"
                >
                   Annuler
                </Button>
                <Button 
-                  onClick={() => setIsAddModalOpen(false)}
+                     onClick={handleSubmit}
+                     disabled={isSubmitting}
                   className="flex-1 h-11 bg-bleu-600 text-white shadow-lg shadow-bleu-500/20 text-[12px] font-bold rounded-xl border-none hover:scale-[1.02]"
                >
-                  Enregistrer
+                     {isSubmitting ? 'Envoi...' : 'Enregistrer'}
                </Button>
             </div>
+               {submitError && <p className="text-xs text-rouge-600 font-semibold">{submitError}</p>}
          </div>
       </Modal>
 

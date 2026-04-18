@@ -45,8 +45,10 @@ const getStoredToken = (): string | null => {
 const buildHeaders = (options: ApiRequestOptions): Headers => {
   const headers = new Headers(options.headers);
   const token = options.token ?? getStoredToken();
+  const isFormDataBody =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !isFormDataBody) {
     headers.set("Content-Type", "application/json");
   }
 

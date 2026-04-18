@@ -1,22 +1,15 @@
 import { apiRequest } from "./api";
-import { 
-  Resource, 
-  ResourceRequest, 
-  Book, 
-  BookRequest, 
-  BookLoan,
-  ResourceFilters 
-} from "../types/library";
+import { Resource, ResourceRequest, ResourceFilters } from "../types/library";
 
 const BASE_PATH = "/resources";
 
 export const libraryService = {
   // ===== RESOURCES =====
-  
+
   // Créer une ressource - POST /resources?uploadedById={uuid}
   createResource: async (
-    data: ResourceRequest, 
-    uploadedById: string
+    data: ResourceRequest,
+    uploadedById: string,
   ): Promise<Resource> => {
     return apiRequest<Resource>(`${BASE_PATH}?uploadedById=${uploadedById}`, {
       method: "POST",
@@ -24,17 +17,42 @@ export const libraryService = {
     });
   },
 
+  // Upload de document - POST /resources/upload (multipart/form-data)
+  uploadResource: async (
+    payload: {
+      title: string;
+      type: string;
+      classId?: string;
+      file: File;
+    },
+    uploadedById: string,
+  ): Promise<Resource> => {
+    const formData = new FormData();
+    formData.append("title", payload.title);
+    formData.append("type", payload.type);
+    if (payload.classId) {
+      formData.append("classId", payload.classId);
+    }
+    formData.append("file", payload.file);
+    formData.append("uploadedById", uploadedById);
+
+    return apiRequest<Resource>(`${BASE_PATH}/upload`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
   // Récupérer toutes les ressources avec filtres - GET /resources?type=&classId=&search=
   getAllResources: async (filters?: ResourceFilters): Promise<Resource[]> => {
     const params = new URLSearchParams();
-    
+
     if (filters?.type) params.append("type", filters.type);
     if (filters?.classId) params.append("classId", filters.classId);
     if (filters?.search) params.append("search", filters.search);
-    
+
     const queryString = params.toString();
     const path = queryString ? `${BASE_PATH}?${queryString}` : BASE_PATH;
-    
+
     return apiRequest<Resource[]>(path, {
       method: "GET",
     });
@@ -56,8 +74,8 @@ export const libraryService = {
 
   // Modifier une ressource - PUT /resources/{id}
   updateResource: async (
-    id: string, 
-    data: ResourceRequest
+    id: string,
+    data: ResourceRequest,
   ): Promise<Resource> => {
     return apiRequest<Resource>(`${BASE_PATH}/${id}`, {
       method: "PUT",
@@ -73,7 +91,7 @@ export const libraryService = {
   },
 
   // ===== BOOKS (à implémenter côté backend si nécessaire) =====
-  
+
   // Note: Votre backend montre des DTOs Book mais pas de contrôleur exposé
   // Si vous avez un BookController, ajoutez les méthodes similaires ici
 };
