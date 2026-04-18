@@ -438,6 +438,248 @@ const AdminScolarite: React.FC = () => {
     fetchStudentGrades(student.id);
     setIsGradesModalOpen(true);
   };
+  // ── Impression emploi du temps ────────────────────────────────────────────────
+const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
+  const slotsByDay = DAYS.map((day, i) =>
+    slots.filter(s => s.dayOfWeek === i + 1)
+  );
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Emploi du temps — ${cls.name}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', Arial, sans-serif;
+          color: #1a1a2e;
+          background: #fff;
+          padding: 32px;
+        }
+
+        /* ── En-tête ── */
+        .header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          padding-bottom: 20px;
+          border-bottom: 3px solid #1e40af;
+          margin-bottom: 24px;
+        }
+        .school-name {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: #6b7280;
+          margin-bottom: 4px;
+        }
+        .doc-title {
+          font-size: 24px;
+          font-weight: 800;
+          color: #1e40af;
+          line-height: 1.1;
+        }
+        .class-name {
+          font-size: 16px;
+          font-weight: 600;
+          color: #374151;
+          margin-top: 2px;
+        }
+        .meta-block {
+          text-align: right;
+          font-size: 10px;
+          color: #9ca3af;
+          line-height: 1.8;
+        }
+        .meta-block strong { color: #374151; }
+
+        /* ── Infos classe ── */
+        .info-row {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        .info-chip {
+          flex: 1;
+          padding: 10px 16px;
+          background: #f0f4ff;
+          border-radius: 10px;
+          border-left: 4px solid #1e40af;
+        }
+        .info-chip label {
+          display: block;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          color: #9ca3af;
+          margin-bottom: 2px;
+        }
+        .info-chip span {
+          font-size: 13px;
+          font-weight: 700;
+          color: #1e40af;
+        }
+
+        /* ── Grille ── */
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 8px;
+          margin-bottom: 32px;
+        }
+        .day-col { display: flex; flex-direction: column; gap: 6px; }
+        .day-header {
+          background: #1e40af;
+          color: #fff;
+          text-align: center;
+          padding: 8px 4px;
+          border-radius: 8px;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+        }
+        .slot {
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-left: 4px solid #1e40af;
+          border-radius: 8px;
+          padding: 8px 8px 8px 10px;
+          min-height: 64px;
+        }
+        .slot-time {
+          font-size: 9px;
+          font-weight: 700;
+          color: #1e40af;
+          margin-bottom: 3px;
+        }
+        .slot-subject {
+          font-size: 11px;
+          font-weight: 700;
+          color: #111827;
+          margin-bottom: 2px;
+          line-height: 1.2;
+        }
+        .slot-teacher {
+          font-size: 9px;
+          color: #6b7280;
+        }
+        .slot-room {
+          font-size: 8px;
+          color: #9ca3af;
+          margin-top: 2px;
+          font-style: italic;
+        }
+        .empty-day {
+          background: #f9fafb;
+          border: 1px dashed #e5e7eb;
+          border-radius: 8px;
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 9px;
+          color: #d1d5db;
+        }
+
+        /* ── Légende / pied ── */
+        .footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-top: 16px;
+          border-top: 1px solid #e5e7eb;
+          font-size: 9px;
+          color: #9ca3af;
+        }
+        .footer strong { color: #374151; }
+
+        @media print {
+          body { padding: 16px; }
+          @page { margin: 12mm; size: A4 landscape; }
+        }
+      </style>
+    </head>
+    <body>
+
+      <div class="header">
+        <div>
+          <div class="school-name">Institut Enfants Future</div>
+          <div class="doc-title">Emploi du temps</div>
+          <div class="class-name">${cls.name}${cls.level ? ` — ${cls.level}` : ''}</div>
+        </div>
+        <div class="meta-block">
+          <div><strong>Année académique :</strong> ${cls.academicYearName || '—'}</div>
+          <div><strong>Prof. principal :</strong> ${cls.mainTeacherName || 'Non défini'}</div>
+          <div><strong>Effectif :</strong> ${cls.studentCount} / ${cls.maxStudents} élèves</div>
+          <div><strong>Imprimé le :</strong> ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          <div><strong>Créneaux :</strong> ${slots.length} au total</div>
+        </div>
+      </div>
+
+      <div class="info-row">
+        <div class="info-chip">
+          <label>Classe</label>
+          <span>${cls.name}</span>
+        </div>
+        <div class="info-chip">
+          <label>Niveau</label>
+          <span>${cls.level || '—'}</span>
+        </div>
+        <div class="info-chip">
+          <label>Créneaux / semaine</label>
+          <span>${slots.length}</span>
+        </div>
+        <div class="info-chip">
+          <label>Matières</label>
+          <span>${new Set(slots.map(s => s.subjectName)).size}</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        ${DAYS.map((day, i) => {
+          const daySlots = slotsByDay[i];
+          return `
+            <div class="day-col">
+              <div class="day-header">${day}</div>
+              ${daySlots.length === 0
+                ? `<div class="empty-day">—</div>`
+                : daySlots
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                    .map(s => `
+                      <div class="slot">
+                        <div class="slot-time">${s.startTime} – ${s.endTime}</div>
+                        <div class="slot-subject">${s.subjectName}</div>
+                        ${s.teacherName ? `<div class="slot-teacher">${s.teacherName}</div>` : ''}
+                        ${s.room ? `<div class="slot-room">📍 ${s.room}</div>` : ''}
+                      </div>
+                    `).join('')
+              }
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="footer">
+        <span>Document généré automatiquement — Institut Enfants Future</span>
+        <span><strong>${cls.name}</strong> • Année ${cls.academicYearName || '—'}</span>
+      </div>
+
+    </body>
+    </html>
+  `;
+
+  const win = window.open('', '_blank', 'width=1100,height=700');
+  if (!win) { showNotif('error', 'Veuillez autoriser les popups pour imprimer.'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 400);
+};
 
   // ── Filtres recherche ──────────────────────────────────────────────────────
   const q = searchQuery.toLowerCase();
@@ -732,20 +974,39 @@ const AdminScolarite: React.FC = () => {
                             <Clock size={13} /> {count} créneau{count !== 1 ? 'x' : ''}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => openClassDetail(cls)}
-                            className="px-3 py-1.5 text-[9px] font-bold bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600 dark:text-bleu-300 rounded-lg hover:bg-bleu-100 transition-all flex items-center gap-1"
-                          >
-                            <Eye size={11} /> Voir
-                          </button>
-                          <button
-                            onClick={() => openAddSchedule(cls)}
-                            className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"
-                          >
-                            <Plus size={11} /> Ajouter
-                          </button>
-                        </div>
+
+<div className="flex flex-col gap-2">
+  <button
+    onClick={() => openClassDetail(cls)}
+    className="px-3 py-1.5 text-[9px] font-bold bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600 dark:text-bleu-300 rounded-lg hover:bg-bleu-100 transition-all flex items-center gap-1"
+  >
+    <Eye size={11} /> Voir
+  </button>
+  <button
+    onClick={() => openAddSchedule(cls)}
+    className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"
+  >
+    <Plus size={11} /> Ajouter
+  </button>
+  <button
+    onClick={async e => {
+      e.stopPropagation();
+      // Récupérer les créneaux frais de la classe avant d'imprimer
+      try {
+        const slots = await apiFetch<ScheduleResponse[]>(`/schedules/class/${cls.id}`);
+        printSchedule(cls, slots);
+      } catch {
+        // Fallback : utiliser les créneaux déjà en mémoire
+        const slots = schedules.filter(s => s.classId === cls.id);
+        printSchedule(cls, slots);
+      }
+    }}
+    className="px-3 py-1.5 text-[9px] font-bold bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded-lg hover:bg-purple-100 transition-all flex items-center gap-1"
+  >
+    <Printer size={11} /> Imprimer
+  </button>
+</div>
+                        
                       </div>
                     </Card>
                   );
@@ -866,10 +1127,24 @@ const AdminScolarite: React.FC = () => {
           )}
 
           <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
-            <Button variant="outline" onClick={() => { setIsDetailModalOpen(false); setSelectedClass(null); }} className="flex-1 h-11">
-              Fermer
-            </Button>
-          </div>
+  <Button
+    variant="outline"
+    onClick={() => {
+      if (selectedClass) printSchedule(selectedClass, classSchedules);
+    }}
+    disabled={classSchedules.length === 0}
+    className="flex-1 h-11 flex items-center justify-center gap-2"
+  >
+    <Printer size={15} /> Imprimer l'emploi du temps
+  </Button>
+  <Button
+    variant="outline"
+    onClick={() => { setIsDetailModalOpen(false); setSelectedClass(null); }}
+    className="flex-1 h-11"
+  >
+    Fermer
+  </Button>
+</div>
         </div>
       </Modal>
 

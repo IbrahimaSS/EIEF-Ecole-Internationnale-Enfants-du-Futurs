@@ -55,17 +55,22 @@ const AdminSettings: React.FC = () => {
   // Initialise les champs depuis le backend dès que les settings sont chargés
   // On utilise une ref pour éviter d'écraser les modifications utilisateur
   const [initialized, setInitialized] = useState(false);
-  React.useEffect(() => {
-    if (!settingsLoading && !initialized) {
-      setFields({
-        [SETTING_KEYS.NOM_ETABLISSEMENT]: getValue(SETTING_KEYS.NOM_ETABLISSEMENT, 'Écoles Internationales Enfants du Futur'),
-        [SETTING_KEYS.SLOGAN]: getValue(SETTING_KEYS.SLOGAN, 'Faisons Plus !'),
-        [SETTING_KEYS.EMAIL]: getValue(SETTING_KEYS.EMAIL, 'admin@eief.edu.gn'),
-        [SETTING_KEYS.TELEPHONE]: getValue(SETTING_KEYS.TELEPHONE, '+224 622 00 00 00'),
-      });
-      setInitialized(true);
-    }
-  }, [settingsLoading, initialized, getValue]);
+  // Dans AdminSettings.tsx, les imports restent identiques.
+// La seule modification : s'assurer que useEffect utilise bien load() et pas
+// une initialisation directe. Remplacer le useEffect d'initialisation par :
+
+React.useEffect(() => {
+  if (!settingsLoading && !initialized) {
+    setFields({
+      [SETTING_KEYS.NOM_ETABLISSEMENT]: getValue(SETTING_KEYS.NOM_ETABLISSEMENT, 'Écoles Internationales Enfants du Futur'),
+      [SETTING_KEYS.SLOGAN]:            getValue(SETTING_KEYS.SLOGAN,            'Faisons Plus !'),
+      [SETTING_KEYS.EMAIL]:             getValue(SETTING_KEYS.EMAIL,             'admin@eief.edu.gn'),
+      [SETTING_KEYS.TELEPHONE]:         getValue(SETTING_KEYS.TELEPHONE,         '+224 622 00 00 00'),
+    });
+    setInitialized(true);
+  }
+  // Réinitialiser le flag si on recharge (ex: bouton Réinitialiser)
+}, [settingsLoading, initialized, getValue]);
 
   const handleField = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setFields(prev => ({ ...prev, [key]: e.target.value }));

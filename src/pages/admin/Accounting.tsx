@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Wallet, 
-  TrendingUp, 
-  AlertCircle, 
-  Download, 
-  Search, 
-  CreditCard, 
+import {
+  Wallet,
+  TrendingUp,
+  AlertCircle,
+  Download,
+  Search,
+  CreditCard,
   Banknote,
   Smartphone,
   Plus,
@@ -19,7 +19,7 @@ import {
   X,
   CreditCard as BankIcon,
   Loader2,
-  Printer
+  Printer,
 } from 'lucide-react';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Select, Popover, Avatar } from '../../components/ui';
 import { apiRequest } from '../../services/api';
@@ -30,29 +30,31 @@ type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
 type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
 
 interface PaymentResponse {
-  id: string;           // UUID → string en TS
-  amount: number;       // BigDecimal → number
+  id: string;
+  amount: number;
   method: PaymentMethod;
   reference: string;
   studentName: string;
   categoryName: string;
   status: PaymentStatus;
-  paidAt: string | null; // LocalDateTime → ISO string ou null
+  paidAt: string | null;
 }
 
-// Aligné sur le record PaymentRequest du backend
 interface PaymentRequest {
-  amount: number;         // BigDecimal @NotNull @Positive
-  reference: string;      // @NotBlank
+  amount: number;
+  reference: string;
   method: PaymentMethod;
-  studentId: string;      // UUID @NotNull
-  categoryId: number | null; // Long (optionnel)
+  studentId: string;
+  categoryId: number | null;
 }
 
+// Enrichi avec registrationNumber et className pour le reçu
 interface Student {
   id: string;
   firstName: string;
   lastName: string;
+  registrationNumber?: string;
+  className?: string;
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -69,6 +71,8 @@ const AdminAccounting: React.FC = () => {
   const [isRapportsModalOpen, setIsRapportsModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentResponse | null>(null);
+  // Élève résolu pour enrichir le reçu (matricule, classe)
+  const [selectedStudentForReceipt, setSelectedStudentForReceipt] = useState<Student | null>(null);
   const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -79,10 +83,10 @@ const AdminAccounting: React.FC = () => {
     reference: '',
     method: 'CASH',
     studentId: '',
-    categoryId: null
+    categoryId: null,
   });
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg);
@@ -93,10 +97,15 @@ const AdminAccounting: React.FC = () => {
   const getApiBaseUrl = () =>
     (process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8080/api/v1');
 
+  const getToken = (): string | null => {
+    try {
+      const raw = window.localStorage.getItem('auth-storage');
+      return raw ? (JSON.parse(raw)?.state?.token ?? null) : null;
+    } catch { return null; }
+  };
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  // GET /payments → ApiResponse<List<PaymentResponse>>
-  // apiRequest extrait déjà payload.data, donc on reçoit directement PaymentResponse[]
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
@@ -110,10 +119,10 @@ const AdminAccounting: React.FC = () => {
     }
   }, []);
 
-  // GET /students → ApiResponse<List<Student>>
+  // ✅ FIX : endpoint corrigé /users/students (et non /students)
   const fetchStudents = useCallback(async () => {
     try {
-      const data = await apiRequest<Student[]>('/students', { method: 'GET' });
+      const data = await apiRequest<Student[]>('/users/students', { method: 'GET' });
       setStudents(data);
     } catch (err: any) {
       console.error('Erreur chargement élèves:', err);
@@ -153,21 +162,21 @@ const AdminAccounting: React.FC = () => {
 
   const getMethodIcon = (method: PaymentMethod) => {
     switch (method) {
-      case 'MOBILE_MONEY': return <Smartphone size={14} className="text-orange-500" />;
-      case 'CASH':         return <Banknote size={14} className="text-green-500" />;
-      case 'BANK_TRANSFER':return <CreditCard size={14} className="text-blue-500" />;
-      case 'CHECK':        return <FileText size={14} className="text-purple-500" />;
-      default:             return null;
+      case 'MOBILE_MONEY':  return <Smartphone size={14} className="text-orange-500" />;
+      case 'CASH':          return <Banknote size={14} className="text-green-500" />;
+      case 'BANK_TRANSFER': return <CreditCard size={14} className="text-blue-500" />;
+      case 'CHECK':         return <FileText size={14} className="text-purple-500" />;
+      default:              return null;
     }
   };
 
   const getMethodLabel = (method: PaymentMethod) => {
     switch (method) {
-      case 'MOBILE_MONEY': return 'Mobile Money';
-      case 'CASH':         return 'Espèces';
-      case 'BANK_TRANSFER':return 'Virement';
-      case 'CHECK':        return 'Chèque';
-      default:             return method;
+      case 'MOBILE_MONEY':  return 'Mobile Money';
+      case 'CASH':          return 'Espèces';
+      case 'BANK_TRANSFER': return 'Virement';
+      case 'CHECK':         return 'Chèque';
+      default:              return method;
     }
   };
 
@@ -190,17 +199,23 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
+  // Résoudre l'élève depuis la liste par correspondance de nom
+  const resolveStudentByName = (name: string): Student | null =>
+    students.find(s => `${s.firstName} ${s.lastName}` === name) ?? null;
+
   // ── Actions backend ───────────────────────────────────────────────────────
 
-  // POST /payments → ApiResponse<PaymentResponse>
   const handleCreatePayment = async () => {
     if (isSubmitting) return;
     try {
       setIsSubmitting(true);
       await apiRequest<PaymentResponse>('/payments', {
         method: 'POST',
-        body: JSON.stringify({ ...formData, amount: Number(formData.amount) })
+        body: JSON.stringify({ ...formData, amount: Number(formData.amount) }),
       });
+      // ✅ Conserver l'élève sélectionné pour enrichir le reçu
+      const student = students.find(s => s.id === formData.studentId) ?? null;
+      setSelectedStudentForReceipt(student);
       setIsEncaissementModalOpen(false);
       showSuccess('Encaissement créé avec succès');
       setFormData({ amount: 0, reference: '', method: 'CASH', studentId: '', categoryId: null });
@@ -212,7 +227,6 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
-  // PATCH /payments/{id}/pay → ApiResponse<PaymentResponse>
   const handleMarkAsPaid = async (id: string) => {
     try {
       await apiRequest<PaymentResponse>(`/payments/${id}/pay`, { method: 'PATCH' });
@@ -223,27 +237,16 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
-  // DELETE /payments/{id} → 204 No Content
-  // Note : apiRequest lance une ApiError si !response.ok.
-  // Pour le 204, parseJsonSafely retourne null et "data" n'existe pas →
-  // on adapte en catchant et en vérifiant le statut 204.
   const handleDelete = async (id: string) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) return;
     try {
-      // Le backend retourne 204 sans body ; on fait la requête manuellement
-      // pour éviter l'erreur "Reponse API invalide" de apiRequest sur body vide + 204.
-      const raw = window.localStorage.getItem('auth-storage');
-      const token = raw ? (JSON.parse(raw)?.state?.token ?? null) : null;
+      const token = getToken();
       const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/payments/${id}`, {
         method: 'DELETE',
-        headers: token
-          ? { 'enfantsfuture-auth-token': `enfantsfuture ${token}` }
-          : {}
+        headers: token ? { 'enfantsfuture-auth-token': `enfantsfuture ${token}` } : {},
       });
-      if (!res.ok && res.status !== 204) {
-        throw new Error(`Erreur HTTP ${res.status}`);
-      }
+      if (!res.ok && res.status !== 204) throw new Error(`Erreur HTTP ${res.status}`);
       showSuccess('Paiement supprimé');
       fetchPayments();
     } catch (err: any) {
@@ -251,21 +254,31 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
-  // ── Impression du reçu ────────────────────────────────────────────────────
+  // ── Reçu ─────────────────────────────────────────────────────────────────
 
+  // ✅ Ouvrir le reçu en résolvant l'élève depuis la liste
   const openReceiptModal = (payment: PaymentResponse) => {
     setSelectedPayment(payment);
+    setSelectedStudentForReceipt(resolveStudentByName(payment.studentName));
     setIsReceiptModalOpen(true);
     setOpenMenuRowId(null);
   };
 
-  const printReceipt = (payment: PaymentResponse) => {
-    const printContent = `
+  // ✅ printReceipt accepte un student optionnel pour enrichir le reçu
+  const printReceipt = (payment: PaymentResponse, student?: Student | null) => {
+    const resolvedStudent = student !== undefined ? student : selectedStudentForReceipt;
+
+    const metaLine = [
+      resolvedStudent?.registrationNumber ? `Matricule : ${resolvedStudent.registrationNumber}` : '',
+      resolvedStudent?.className ? `Classe : ${resolvedStudent.className}` : '',
+    ].filter(Boolean).join(' &nbsp;•&nbsp; ');
+
+    const html = `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
         <meta charset="UTF-8" />
-        <title>Reçu de paiement – ${payment.reference}</title>
+        <title>Reçu – ${payment.reference}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
@@ -287,83 +300,56 @@ const AdminAccounting: React.FC = () => {
             padding: 32px 28px 24px;
             text-align: center;
           }
-          .header .school-name {
-            font-size: 20px;
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-          }
-          .header .subtitle {
-            font-size: 10px;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: #c9a227;
-            margin-top: 4px;
-          }
-          .header .receipt-title {
-            margin-top: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            background: rgba(201,162,39,0.15);
-            border: 1px solid rgba(201,162,39,0.4);
-            border-radius: 8px;
-            display: inline-block;
-            padding: 6px 18px;
-            color: #c9a227;
+          .school-name { font-size: 20px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+          .subtitle { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #c9a227; margin-top: 4px; }
+          .receipt-title {
+            margin-top: 20px; font-size: 13px; font-weight: 600; letter-spacing: 0.25em;
+            text-transform: uppercase; background: rgba(201,162,39,0.15);
+            border: 1px solid rgba(201,162,39,0.4); border-radius: 8px;
+            display: inline-block; padding: 6px 18px; color: #c9a227;
           }
           .body { padding: 28px; }
           .ref-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f7f7fa;
-            border-radius: 10px;
-            padding: 12px 16px;
-            margin-bottom: 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: #f7f7fa; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;
           }
           .ref-label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.15em; }
           .ref-value { font-size: 12px; font-weight: 800; font-family: monospace; color: #1a1a2e; }
           .amount-block {
             text-align: center;
             background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%);
-            border: 2px solid #2ecc71;
-            border-radius: 14px;
-            padding: 20px;
-            margin-bottom: 24px;
+            border: 2px solid #2ecc71; border-radius: 14px; padding: 20px; margin-bottom: 20px;
           }
           .amount-label { font-size: 9px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.2em; }
           .amount-value { font-size: 30px; font-weight: 900; color: #1a1a2e; margin-top: 4px; }
           .amount-status { font-size: 10px; font-weight: 700; color: #2ecc71; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 4px; }
-          .details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin-bottom: 24px;
+          /* ✅ Bloc élève enrichi */
+          .student-block {
+            background: #f0f4ff; border-left: 4px solid #1e40af;
+            border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;
           }
+          .student-label { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 5px; }
+          .student-name { font-size: 16px; font-weight: 800; color: #1a1a2e; }
+          .student-meta { font-size: 10px; color: #6b7280; margin-top: 4px; }
+          .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
           .detail-item { background: #fafafa; border-radius: 10px; padding: 12px 14px; }
           .detail-label { font-size: 9px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.15em; }
           .detail-value { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-top: 3px; }
-          .footer {
-            border-top: 1px dashed #ddd;
-            padding: 18px 28px;
-            text-align: center;
-          }
-          .footer p { font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.7; }
           .signature-row {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 28px;
-            padding-top: 24px;
-            border-top: 1px solid #eee;
+            display: flex; justify-content: space-between;
+            margin-top: 28px; padding-top: 24px; border-top: 1px solid #eee;
           }
           .signature-box { text-align: center; }
           .signature-line { width: 140px; height: 1px; background: #1a1a2e; margin: 32px auto 6px; }
           .signature-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
+          .footer {
+            border-top: 1px dashed #ddd; padding: 18px 28px; text-align: center;
+          }
+          .footer p { font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.7; }
           @media print {
             body { padding: 0; }
             .receipt { border: none; border-radius: 0; }
+            @page { size: A5; margin: 10mm; }
           }
         </style>
       </head>
@@ -398,11 +384,13 @@ const AdminAccounting: React.FC = () => {
               <div class="amount-status">${getStatusLabel(payment.status)}</div>
             </div>
 
+            <div class="student-block">
+              <div class="student-label">Élève</div>
+              <div class="student-name">${payment.studentName}</div>
+              ${metaLine ? `<div class="student-meta">${metaLine}</div>` : ''}
+            </div>
+
             <div class="details-grid">
-              <div class="detail-item">
-                <div class="detail-label">Élève</div>
-                <div class="detail-value">${payment.studentName}</div>
-              </div>
               <div class="detail-item">
                 <div class="detail-label">Service</div>
                 <div class="detail-value">${payment.categoryName || 'Non catégorisé'}</div>
@@ -414,6 +402,10 @@ const AdminAccounting: React.FC = () => {
               <div class="detail-item">
                 <div class="detail-label">Statut</div>
                 <div class="detail-value">${getStatusLabel(payment.status)}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Généré le</div>
+                <div class="detail-value">${new Date().toLocaleDateString('fr-FR')}</div>
               </div>
             </div>
 
@@ -439,8 +431,8 @@ const AdminAccounting: React.FC = () => {
     `;
 
     const win = window.open('', '_blank', 'width=640,height=820');
-    if (!win) return;
-    win.document.write(printContent);
+    if (!win) { setError('Veuillez autoriser les popups pour imprimer.'); return; }
+    win.document.write(html);
     win.document.close();
     win.focus();
     setTimeout(() => { win.print(); }, 400);
@@ -450,7 +442,7 @@ const AdminAccounting: React.FC = () => {
 
   const categoriesList = [
     'Tous',
-    ...Array.from(new Set(payments.map(p => p.categoryName).filter(Boolean)))
+    ...Array.from(new Set(payments.map(p => p.categoryName).filter(Boolean))),
   ];
 
   const filteredPaiements = payments.filter(p => {
@@ -476,7 +468,7 @@ const AdminAccounting: React.FC = () => {
             <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Élève EIEF</span>
           </div>
         </div>
-      )
+      ),
     },
     {
       key: 'categoryName',
@@ -485,7 +477,7 @@ const AdminAccounting: React.FC = () => {
         <span className="px-3 py-1 bg-bleu-50 dark:bg-bleu-900/30 rounded-xl text-[10px] font-bold text-bleu-600 dark:text-or-400 border border-bleu-100 dark:border-bleu-800/30 uppercase tracking-widest leading-none">
           {val || 'Non catégorisé'}
         </span>
-      )
+      ),
     },
     {
       key: 'amount',
@@ -505,7 +497,7 @@ const AdminAccounting: React.FC = () => {
             </div>
           )}
         </div>
-      )
+      ),
     },
     {
       key: 'method',
@@ -515,12 +507,12 @@ const AdminAccounting: React.FC = () => {
           <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">{getMethodIcon(val)}</div>
           {getMethodLabel(val)}
         </div>
-      )
+      ),
     },
     {
       key: 'status',
       label: 'Statut',
-      render: (val: PaymentStatus) => getStatusBadge(val)
+      render: (val: PaymentStatus) => getStatusBadge(val),
     },
     {
       key: 'paidAt',
@@ -531,13 +523,13 @@ const AdminAccounting: React.FC = () => {
           <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatDate(val)}</p>
           <p className="text-[9px] font-mono text-gray-400 uppercase tracking-tighter">{row.reference}</p>
         </div>
-      )
+      ),
     },
     {
       key: 'actions',
       label: '',
       render: (_: any, row: PaymentResponse) => (
-        <div className="relative group flex justify-end pr-2" onClick={(e) => e.stopPropagation()}>
+        <div className="relative group flex justify-end pr-2" onClick={e => e.stopPropagation()}>
           <Popover
             isOpen={openMenuRowId === row.id}
             onClose={() => setOpenMenuRowId(null)}
@@ -551,7 +543,6 @@ const AdminAccounting: React.FC = () => {
             }
           >
             <div className="w-56 p-2 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 space-y-1">
-              {/* Voir les détails / Imprimer reçu */}
               <button
                 onClick={() => openReceiptModal(row)}
                 className="w-full flex items-center gap-3 p-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 hover:text-bleu-600 rounded-xl transition-all"
@@ -559,8 +550,12 @@ const AdminAccounting: React.FC = () => {
                 <Eye size={16} /> Voir les détails
               </button>
 
+              {/* ✅ Passer l'élève résolu directement à printReceipt */}
               <button
-                onClick={() => { printReceipt(row); setOpenMenuRowId(null); }}
+                onClick={() => {
+                  printReceipt(row, resolveStudentByName(row.studentName));
+                  setOpenMenuRowId(null);
+                }}
                 className="w-full flex items-center gap-3 p-3 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
               >
                 <Printer size={16} /> Imprimer le reçu
@@ -590,8 +585,8 @@ const AdminAccounting: React.FC = () => {
             </div>
           </Popover>
         </div>
-      )
-    }
+      ),
+    },
   ];
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
@@ -619,7 +614,9 @@ const AdminAccounting: React.FC = () => {
             <Wallet className="text-bleu-600 dark:text-bleu-400" size={28} />
             <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight">Comptabilité & Finances</h1>
           </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">Suivi stratégique des encaissements et du recouvrement de l'EIEF</p>
+          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">
+            Suivi stratégique des encaissements et du recouvrement de l'EIEF
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -646,7 +643,7 @@ const AdminAccounting: React.FC = () => {
           subtitle="Cumul annuel"
           icon={<Wallet />}
           color="bleu"
-          trend={{ value: "+8.2%", direction: "up" }}
+          trend={{ value: '+8.2%', direction: 'up' }}
         />
         <StatCard
           title="Impayés Globaux"
@@ -661,7 +658,7 @@ const AdminAccounting: React.FC = () => {
           subtitle="Objectif: 95%"
           icon={<TrendingUp />}
           color="or"
-          trend={{ value: "+2% vs fév.", direction: "up" }}
+          trend={{ value: '+2% vs fév.', direction: 'up' }}
         />
         <Card className="flex flex-col justify-center border-none shadow-soft p-6 dark:bg-gray-900/50 dark:backdrop-blur-md text-left">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dernière Clôture</p>
@@ -704,7 +701,7 @@ const AdminAccounting: React.FC = () => {
               type="text"
               placeholder="Rechercher une transaction..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
             />
           </div>
@@ -715,13 +712,18 @@ const AdminAccounting: React.FC = () => {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="animate-spin text-bleu-600" size={32} />
             </div>
+          ) : filteredPaiements.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+              <Wallet size={40} className="opacity-20" />
+              <span className="text-sm font-medium">Aucune transaction trouvée</span>
+            </div>
           ) : (
             <Table data={filteredPaiements} columns={columns as any} />
           )}
         </Card>
       </div>
 
-      {/* ── MODALE: NOUVEL ENCAISSEMENT ──────────────────────────────────────── */}
+      {/* ── MODALE: NOUVEL ENCAISSEMENT ────────────────────────────────────── */}
       <Modal
         isOpen={isEncaissementModalOpen}
         onClose={() => setIsEncaissementModalOpen(false)}
@@ -741,24 +743,36 @@ const AdminAccounting: React.FC = () => {
               <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Identification & Service
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* ✅ Select élèves avec données réelles depuis /users/students */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Élève concerné *</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  Élève concerné *
+                </label>
                 <select
                   value={formData.studentId}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                  onChange={e => setFormData({ ...formData, studentId: e.target.value })}
                   className="w-full p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-bleu-500"
                 >
-                  <option value="">Sélectionner un élève</option>
+                  <option value="">
+                    {students.length === 0 ? 'Chargement des élèves...' : 'Sélectionner un élève'}
+                  </option>
                   {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.firstName} {s.lastName}
+                      {s.className ? ` — ${s.className}` : ''}
+                      {s.registrationNumber ? ` (${s.registrationNumber})` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
+
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type de Service</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  Type de Service
+                </label>
                 <select
                   value={formData.categoryId?.toString() || ''}
-                  onChange={(e) => {
+                  onChange={e => {
                     const val = e.target.value;
                     setFormData({ ...formData, categoryId: val ? Number(val) : null });
                   }}
@@ -783,19 +797,21 @@ const AdminAccounting: React.FC = () => {
                 placeholder="ex: 2500000"
                 type="number"
                 value={formData.amount.toString()}
-                onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+                onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
               />
               <Input
                 label="Référence *"
                 placeholder="ex: PAY-2024-001"
                 value={formData.reference}
-                onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                onChange={e => setFormData({ ...formData, reference: e.target.value })}
               />
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Mode de Paiement</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  Mode de Paiement
+                </label>
                 <select
                   value={formData.method}
-                  onChange={(e) => setFormData({ ...formData, method: e.target.value as PaymentMethod })}
+                  onChange={e => setFormData({ ...formData, method: e.target.value as PaymentMethod })}
                   className="w-full p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-bleu-500"
                 >
                   <option value="CASH">Espèces</option>
@@ -821,7 +837,9 @@ const AdminAccounting: React.FC = () => {
               className="flex-1 h-12 shadow-lg shadow-bleu-600/20 font-bold text-[10px] tracking-wider"
             >
               {isSubmitting ? (
-                <span className="flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Traitement...</span>
+                <span className="flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin" /> Traitement...
+                </span>
               ) : (
                 "Confirmer l'encaissement"
               )}
@@ -830,10 +848,10 @@ const AdminAccounting: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODALE: APERÇU & IMPRESSION DU REÇU ─────────────────────────────── */}
+      {/* ── MODALE: APERÇU & IMPRESSION DU REÇU ──────────────────────────── */}
       <Modal
         isOpen={isReceiptModalOpen}
-        onClose={() => setIsReceiptModalOpen(false)}
+        onClose={() => { setIsReceiptModalOpen(false); setSelectedStudentForReceipt(null); }}
         title={
           <div className="flex items-center gap-3 font-bold">
             <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600 shadow-inner">
@@ -846,18 +864,19 @@ const AdminAccounting: React.FC = () => {
       >
         {selectedPayment && (
           <div className="py-2 space-y-6">
-            {/* Aperçu du reçu */}
             <div className="border-2 border-gray-100 dark:border-white/10 rounded-2xl overflow-hidden">
               {/* En-tête reçu */}
               <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white p-6 text-center">
                 <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-yellow-400">École EIEF</p>
-                <p className="text-[8px] text-gray-400 tracking-widest uppercase mt-1">Institut d'Enseignement Islamique et Francophone</p>
+                <p className="text-[8px] text-gray-400 tracking-widest uppercase mt-1">
+                  Institut d'Enseignement Islamique et Francophone
+                </p>
                 <div className="mt-3 inline-block bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-4 py-1.5">
                   <p className="text-[9px] font-bold tracking-[0.2em] uppercase text-yellow-400">Reçu de Paiement</p>
                 </div>
               </div>
 
-              {/* Corps du reçu */}
+              {/* Corps */}
               <div className="p-5 space-y-4 bg-white dark:bg-gray-900">
                 {/* Référence + date */}
                 <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 rounded-xl p-3">
@@ -874,17 +893,39 @@ const AdminAccounting: React.FC = () => {
                 {/* Montant */}
                 <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800/40 rounded-xl p-4 text-center">
                   <p className="text-[8px] font-bold text-green-600 uppercase tracking-widest">Montant payé</p>
-                  <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{formatCurrency(Number(selectedPayment.amount))}</p>
-                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest mt-1">{getStatusLabel(selectedPayment.status)}</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">
+                    {formatCurrency(Number(selectedPayment.amount))}
+                  </p>
+                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest mt-1">
+                    {getStatusLabel(selectedPayment.status)}
+                  </p>
+                </div>
+
+                {/* ✅ Bloc élève enrichi avec matricule et classe */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-bleu-600 rounded-xl p-3">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Élève</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">{selectedPayment.studentName}</p>
+                  {(selectedStudentForReceipt?.registrationNumber || selectedStudentForReceipt?.className) && (
+                    <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
+                      {[
+                        selectedStudentForReceipt.registrationNumber
+                          ? `Matricule : ${selectedStudentForReceipt.registrationNumber}`
+                          : '',
+                        selectedStudentForReceipt.className
+                          ? `Classe : ${selectedStudentForReceipt.className}`
+                          : '',
+                      ].filter(Boolean).join(' • ')}
+                    </p>
+                  )}
                 </div>
 
                 {/* Détails */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'Élève', value: selectedPayment.studentName },
-                    { label: 'Service', value: selectedPayment.categoryName || 'Non catégorisé' },
+                    { label: 'Service',          value: selectedPayment.categoryName || 'Non catégorisé' },
                     { label: 'Mode de paiement', value: getMethodLabel(selectedPayment.method) },
-                    { label: 'Statut', value: getStatusLabel(selectedPayment.status) },
+                    { label: 'Statut',           value: getStatusLabel(selectedPayment.status) },
+                    { label: 'Généré le',        value: new Date().toLocaleDateString('fr-FR') },
                   ].map(item => (
                     <div key={item.label} className="bg-gray-50 dark:bg-white/5 rounded-xl p-3">
                       <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">{item.label}</p>
@@ -908,7 +949,9 @@ const AdminAccounting: React.FC = () => {
 
               {/* Pied */}
               <div className="bg-gray-50 dark:bg-white/5 px-5 py-3 text-center border-t border-gray-100 dark:border-white/10">
-                <p className="text-[8px] text-gray-400 uppercase tracking-widest">Ce reçu est un document officiel délivré par l'École EIEF.</p>
+                <p className="text-[8px] text-gray-400 uppercase tracking-widest">
+                  Ce reçu est un document officiel délivré par l'École EIEF.
+                </p>
               </div>
             </div>
 
@@ -916,13 +959,13 @@ const AdminAccounting: React.FC = () => {
             <div className="flex gap-4">
               <Button
                 variant="outline"
-                onClick={() => setIsReceiptModalOpen(false)}
+                onClick={() => { setIsReceiptModalOpen(false); setSelectedStudentForReceipt(null); }}
                 className="flex-1 h-11 text-[10px] tracking-wider font-bold"
               >
                 Fermer
               </Button>
               <Button
-                onClick={() => printReceipt(selectedPayment)}
+                onClick={() => printReceipt(selectedPayment, selectedStudentForReceipt)}
                 className="flex-1 h-11 font-bold text-[10px] tracking-wider flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 border-none shadow-lg shadow-indigo-600/20"
               >
                 <Printer size={16} /> Imprimer le reçu
@@ -932,7 +975,7 @@ const AdminAccounting: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODALE: RAPPORTS FINANCIERS ──────────────────────────────────────── */}
+      {/* ── MODALE: RAPPORTS FINANCIERS ───────────────────────────────────── */}
       <Modal
         isOpen={isRapportsModalOpen}
         onClose={() => setIsRapportsModalOpen(false)}
@@ -953,21 +996,20 @@ const AdminAccounting: React.FC = () => {
                 name: "Journal de Caisse (Aujourd'hui)",
                 desc: 'Toutes les opérations du jour',
                 type: 'PDF',
-                action: () => window.open(`${getApiBaseUrl()}/payments/report/daily`, '_blank')
+                action: () => window.open(`${getApiBaseUrl()}/payments/report/daily`, '_blank'),
               },
               {
                 name: 'Relevé Mensuel des Recettes',
                 desc: 'Analyse détaillée des encaissements',
                 type: 'EXCEL',
-                action: () => window.open(`${getApiBaseUrl()}/payments/report/monthly`, '_blank')
+                action: () => window.open(`${getApiBaseUrl()}/payments/report/monthly`, '_blank'),
               },
               {
                 name: 'Liste des Impayés',
                 desc: 'Rapport stratégique de recouvrement',
                 type: 'PDF',
-                // GET /payments/overdue → retourne ApiResponse<List<PaymentResponse>>
-                action: () => window.open(`${getApiBaseUrl()}/payments/overdue`, '_blank')
-              }
+                action: () => window.open(`${getApiBaseUrl()}/payments/overdue`, '_blank'),
+              },
             ].map((rep, i) => (
               <button
                 key={i}
@@ -987,7 +1029,11 @@ const AdminAccounting: React.FC = () => {
               </button>
             ))}
           </div>
-          <Button variant="outline" onClick={() => setIsRapportsModalOpen(false)} className="w-full h-12 font-bold uppercase text-[10px] tracking-wider">
+          <Button
+            variant="outline"
+            onClick={() => setIsRapportsModalOpen(false)}
+            className="w-full h-12 font-bold uppercase text-[10px] tracking-wider"
+          >
             Fermer
           </Button>
         </div>
