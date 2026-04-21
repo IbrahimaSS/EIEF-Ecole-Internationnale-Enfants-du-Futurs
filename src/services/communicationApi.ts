@@ -5,12 +5,12 @@
 
 import { apiRequest } from "./api"; // adapte le chemin si nécessaire
 
-// ─── Types ────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AnnouncementRequest {
   title: string;
   content: string;
-  targetRole?: string; // "PARENT" | "TEACHER" | "STUDENT" | null = tous
+  targetRole?: string; // "PARENT" | "TEACHER" | "STUDENT" | undefined = tous
 }
 
 export interface AnnouncementResponse {
@@ -18,8 +18,8 @@ export interface AnnouncementResponse {
   authorName: string;
   title: string;
   content: string;
-  targetRole?: string;
-  publishedAt: string; // ISO 8601
+  targetRole: string | null; // null quand l'annonce cible tout le monde
+  publishedAt: string;       // ISO 8601
 }
 
 export interface MessageRequest {
@@ -32,8 +32,8 @@ export interface MessageResponse {
   senderName: string;
   recipientName: string;
   content: string;
-  sentAt: string;   // ISO 8601
-  readAt?: string;  // null si non lu
+  sentAt: string;        // ISO 8601
+  readAt: string | null; // null si non lu
 }
 
 export interface ForumPostRequest {
@@ -46,15 +46,26 @@ export interface ForumPostResponse {
   authorName: string;
   subject: string;
   body: string;
-  postedAt: string; // ISO 8601
+  postedAt: string;          // ISO 8601
   replies: ForumPostResponse[];
 }
 
-// ─── Announcements ────────────────────────────────────────────
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+/**
+ * Récupérer toutes les annonces, avec filtre optionnel sur le rôle cible.
+ * GET /messages/announcements?targetRole=PARENT
+ */
+export const getAnnouncements = (
+  targetRole?: string
+): Promise<AnnouncementResponse[]> => {
+  const qs = targetRole ? `?targetRole=${encodeURIComponent(targetRole)}` : "";
+  return apiRequest<AnnouncementResponse[]>(`/messages/announcements${qs}`);
+};
 
 /**
  * Créer une annonce (ADMIN / STAFF uniquement côté serveur).
- * @param authorId UUID de l'auteur (admin connecté)
+ * POST /messages/announcements?authorId={authorId}
  */
 export const createAnnouncement = (
   authorId: string,
@@ -62,25 +73,12 @@ export const createAnnouncement = (
 ): Promise<AnnouncementResponse> =>
   apiRequest<AnnouncementResponse>(
     `/messages/announcements?authorId=${authorId}`,
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    }
+    { method: "POST", body: JSON.stringify(data) }
   );
 
 /**
- * Récupérer toutes les annonces, avec filtre optionnel sur le rôle cible.
- * @param targetRole "PARENT" | "TEACHER" | "STUDENT" | undefined
- */
-export const getAnnouncements = (
-  targetRole?: string
-): Promise<AnnouncementResponse[]> => {
-  const qs = targetRole ? `?targetRole=${targetRole}` : "";
-  return apiRequest<AnnouncementResponse[]>(`/messages/announcements${qs}`);
-};
-
-/**
  * Mettre à jour une annonce existante.
+ * PUT /messages/announcements/{id}
  */
 export const updateAnnouncement = (
   id: string,
@@ -93,15 +91,16 @@ export const updateAnnouncement = (
 
 /**
  * Supprimer une annonce (ADMIN uniquement côté serveur).
+ * DELETE /messages/announcements/{id}
  */
 export const deleteAnnouncement = (id: string): Promise<void> =>
   apiRequest<void>(`/messages/announcements/${id}`, { method: "DELETE" });
 
-// ─── Messages privés ──────────────────────────────────────────
+// ─── Messages privés ──────────────────────────────────────────────────────────
 
 /**
  * Envoyer un message privé via REST.
- * (Pour la messagerie temps réel, utiliser le canal WebSocket /app/chat.send)
+ * POST /messages/send?senderId={senderId}
  */
 export const sendMessage = (
   senderId: string,
@@ -112,31 +111,53 @@ export const sendMessage = (
     body: JSON.stringify(data),
   });
 
-/** Boîte de réception de l'utilisateur connecté. */
+/**
+ * Boîte de réception de l'utilisateur connecté.
+ * GET /messages/inbox?userId={userId}
+ */
 export const getInbox = (userId: string): Promise<MessageResponse[]> =>
   apiRequest<MessageResponse[]>(`/messages/inbox?userId=${userId}`);
 
-/** Messages envoyés par l'utilisateur connecté. */
+/**
+ * Messages envoyés par l'utilisateur connecté.
+ * GET /messages/sent?userId={userId}
+ */
 export const getSentMessages = (userId: string): Promise<MessageResponse[]> =>
   apiRequest<MessageResponse[]>(`/messages/sent?userId=${userId}`);
 
-/** Messages non lus de l'utilisateur connecté. */
+/**
+ * Messages non lus de l'utilisateur connecté.
+ * GET /messages/unread?userId={userId}
+ */
 export const getUnreadMessages = (userId: string): Promise<MessageResponse[]> =>
   apiRequest<MessageResponse[]>(`/messages/unread?userId=${userId}`);
 
-/** Marquer un message comme lu. */
+/**
+ * Marquer un message comme lu.
+ * PATCH /messages/{id}/read
+ */
 export const markMessageAsRead = (id: string): Promise<MessageResponse> =>
   apiRequest<MessageResponse>(`/messages/${id}/read`, { method: "PATCH" });
 
-/** Supprimer un message (ADMIN / STAFF côté serveur). */
+/**
+ * Supprimer un message (ADMIN / STAFF côté serveur).
+ * DELETE /messages/{id}
+ */
 export const deleteMessage = (id: string): Promise<void> =>
   apiRequest<void>(`/messages/${id}`, { method: "DELETE" });
 
-// ─── Forum ────────────────────────────────────────────────────
+// ─── Forum ────────────────────────────────────────────────────────────────────
+
+/**
+ * Récupérer tous les sujets du forum avec leurs réponses imbriquées.
+ * GET /messages/forum/topics
+ */
+export const getForumTopics = (): Promise<ForumPostResponse[]> =>
+  apiRequest<ForumPostResponse[]>("/messages/forum/topics");
 
 /**
  * Créer un nouveau sujet de forum.
- * @param authorId UUID de l'utilisateur connecté
+ * POST /messages/forum/topics?authorId={authorId}
  */
 export const createForumTopic = (
   authorId: string,
@@ -144,20 +165,12 @@ export const createForumTopic = (
 ): Promise<ForumPostResponse> =>
   apiRequest<ForumPostResponse>(
     `/messages/forum/topics?authorId=${authorId}`,
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    }
+    { method: "POST", body: JSON.stringify(data) }
   );
-
-/** Récupérer tous les sujets du forum. */
-export const getForumTopics = (): Promise<ForumPostResponse[]> =>
-  apiRequest<ForumPostResponse[]>("/messages/forum/topics");
 
 /**
  * Ajouter une réponse à un sujet existant.
- * @param topicId UUID du sujet parent
- * @param authorId UUID de l'utilisateur connecté
+ * POST /messages/forum/topics/{topicId}/replies?authorId={authorId}
  */
 export const addForumReply = (
   topicId: string,
@@ -166,47 +179,39 @@ export const addForumReply = (
 ): Promise<ForumPostResponse> =>
   apiRequest<ForumPostResponse>(
     `/messages/forum/topics/${topicId}/replies?authorId=${authorId}`,
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    }
+    { method: "POST", body: JSON.stringify(data) }
   );
 
-/** Supprimer un sujet (ADMIN / STAFF côté serveur). */
+/**
+ * Supprimer un sujet (ADMIN / STAFF côté serveur).
+ * DELETE /messages/forum/topics/{id}
+ */
 export const deleteForumTopic = (id: string): Promise<void> =>
   apiRequest<void>(`/messages/forum/topics/${id}`, { method: "DELETE" });
 
-// ─── WebSocket (temps réel) ───────────────────────────────────
+// ─── WebSocket (temps réel) ───────────────────────────────────────────────────
 
 /**
- * Utilitaires pour la connexion STOMP/SockJS.
- *
- * Installation : npm install @stomp/stompjs sockjs-client
- * (ou yarn add @stomp/stompjs sockjs-client)
- *
- * Usage dans le composant React :
- *
- *   import { createStompClient } from './communicationApi';
- *   import { getStoredToken } from './apiClient'; // expose le token si nécessaire
- *
- *   const client = createStompClient(token, (message) => {
- *     console.log('Nouveau message :', message);
- *   });
- *   client.activate();
- *   // cleanup : client.deactivate();
+ * URL du broker WebSocket.
+ * Définis REACT_APP_WS_URL dans ton .env si besoin.
  */
 export const STOMP_BROKER_URL =
   process.env.REACT_APP_WS_URL || "http://127.0.0.1:8080/ws";
 
 /**
  * Fabrique un client STOMP prêt à l'emploi.
- * Le token JWT est passé dans les headers STOMP CONNECT.
+ *
+ * Installation : npm install @stomp/stompjs sockjs-client
+ *
+ * Usage :
+ *   const client = createStompClient(token, (msg) => console.log(msg));
+ *   client.activate();
+ *   // nettoyage : client.deactivate();
  */
 export const createStompClient = (
   token: string,
   onMessage: (msg: MessageResponse) => void
 ) => {
-  // Import dynamique pour éviter une dépendance dure si WebSocket non utilisé
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Client } = require("@stomp/stompjs");
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -218,7 +223,6 @@ export const createStompClient = (
       "enfantsfuture-auth-token": `enfantsfuture ${token}`,
     },
     onConnect: () => {
-      // S'abonner à la file personnelle de l'utilisateur connecté
       client.subscribe("/user/queue/messages", (frame: any) => {
         try {
           onMessage(JSON.parse(frame.body) as MessageResponse);
@@ -236,9 +240,8 @@ export const createStompClient = (
 };
 
 /**
- * Envoyer un message via WebSocket (nécessite que le client soit connecté).
- * @param stompClient Instance retournée par createStompClient
- * @param request     { recipientId, content }
+ * Envoyer un message via WebSocket (client doit être connecté).
+ * Le backend reçoit sur : /app/chat.send
  */
 export const sendMessageWs = (
   stompClient: any,

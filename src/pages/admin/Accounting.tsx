@@ -21,10 +21,10 @@ import {
   Loader2,
   Printer,
 } from 'lucide-react';
-import { Table, Badge, StatCard, Card, Button, Modal, Input, Select, Popover, Avatar } from '../../components/ui';
+import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
 import { apiRequest } from '../../services/api';
 
-// ─── Types alignés avec le backend ───────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
 type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
@@ -40,21 +40,29 @@ interface PaymentResponse {
   paidAt: string | null;
 }
 
-interface PaymentRequest {
-  amount: number;
-  reference: string;
+// Correspond exactement à PaymentRequest.java
+interface PaymentPayload {
+  amount: number;        // BigDecimal → number JS
+  reference: string;     // @NotBlank
   method: PaymentMethod;
-  studentId: string;
-  categoryId: number | null;
+  studentId: string;     // UUID → string
+  categoryId: number | null; // Long nullable
 }
 
-// Enrichi avec registrationNumber et className pour le reçu
+// Correspond à l'objet retourné par /users/students
 interface Student {
-  id: string;
+  id: string;            // UUID de l'entité Student (clé primaire)
+  userId: string;        // UUID du compte User associé
   firstName: string;
   lastName: string;
   registrationNumber?: string;
   className?: string;
+  email?: string;
+  phone?: string;
+  gender?: string;
+  isActive?: boolean;
+  parentName?: string;
+  birthDate?: string;
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -71,14 +79,13 @@ const AdminAccounting: React.FC = () => {
   const [isRapportsModalOpen, setIsRapportsModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentResponse | null>(null);
-  // Élève résolu pour enrichir le reçu (matricule, classe)
   const [selectedStudentForReceipt, setSelectedStudentForReceipt] = useState<Student | null>(null);
   const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState<PaymentRequest>({
+  const [formData, setFormData] = useState<PaymentPayload>({
     amount: 0,
     reference: '',
     method: 'CASH',
@@ -119,7 +126,6 @@ const AdminAccounting: React.FC = () => {
     }
   }, []);
 
-  // ✅ FIX : endpoint corrigé /users/students (et non /students)
   const fetchStudents = useCallback(async () => {
     try {
       const data = await apiRequest<Student[]>('/users/students', { method: 'GET' });
@@ -199,22 +205,32 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
-  // Résoudre l'élève depuis la liste par correspondance de nom
   const resolveStudentByName = (name: string): Student | null =>
     students.find(s => `${s.firstName} ${s.lastName}` === name) ?? null;
 
-  // ── Actions backend ───────────────────────────────────────────────────────
+  // ── Création paiement ─────────────────────────────────────────────────────
 
   const handleCreatePayment = async () => {
     if (isSubmitting) return;
+
+    // Construire le payload exactement comme PaymentRequest.java l'attend
+    const payload: PaymentPayload = {
+      amount: Number(formData.amount),       // BigDecimal
+      reference: formData.reference.trim(),  // @NotBlank
+      method: formData.method,               // enum
+      studentId: formData.studentId,         // UUID de Student.id
+      categoryId: formData.categoryId,       // Long nullable
+    };
+
     try {
       setIsSubmitting(true);
       await apiRequest<PaymentResponse>('/payments', {
         method: 'POST',
-        body: JSON.stringify({ ...formData, amount: Number(formData.amount) }),
+        body: JSON.stringify(payload),
       });
-      // ✅ Conserver l'élève sélectionné pour enrichir le reçu
-      const student = students.find(s => s.id === formData.studentId) ?? null;
+
+      // Résoudre l'élève pour le reçu (par Student.id)
+      const student = students.find(s => s.id === payload.studentId) ?? null;
       setSelectedStudentForReceipt(student);
       setIsEncaissementModalOpen(false);
       showSuccess('Encaissement créé avec succès');
@@ -256,7 +272,6 @@ const AdminAccounting: React.FC = () => {
 
   // ── Reçu ─────────────────────────────────────────────────────────────────
 
-  // ✅ Ouvrir le reçu en résolvant l'élève depuis la liste
   const openReceiptModal = (payment: PaymentResponse) => {
     setSelectedPayment(payment);
     setSelectedStudentForReceipt(resolveStudentByName(payment.studentName));
@@ -264,7 +279,6 @@ const AdminAccounting: React.FC = () => {
     setOpenMenuRowId(null);
   };
 
-  // ✅ printReceipt accepte un student optionnel pour enrichir le reçu
   const printReceipt = (payment: PaymentResponse, student?: Student | null) => {
     const resolvedStudent = student !== undefined ? student : selectedStudentForReceipt;
 
@@ -281,53 +295,21 @@ const AdminAccounting: React.FC = () => {
         <title>Reçu – ${payment.reference}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: #fff;
-            color: #1a1a2e;
-            padding: 40px;
-          }
-          .receipt {
-            max-width: 520px;
-            margin: 0 auto;
-            border: 2px solid #1a1a2e;
-            border-radius: 16px;
-            overflow: hidden;
-          }
-          .header {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #fff;
-            padding: 32px 28px 24px;
-            text-align: center;
-          }
+          body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1a1a2e; padding: 40px; }
+          .receipt { max-width: 520px; margin: 0 auto; border: 2px solid #1a1a2e; border-radius: 16px; overflow: hidden; }
+          .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 32px 28px 24px; text-align: center; }
           .school-name { font-size: 20px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
           .subtitle { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #c9a227; margin-top: 4px; }
-          .receipt-title {
-            margin-top: 20px; font-size: 13px; font-weight: 600; letter-spacing: 0.25em;
-            text-transform: uppercase; background: rgba(201,162,39,0.15);
-            border: 1px solid rgba(201,162,39,0.4); border-radius: 8px;
-            display: inline-block; padding: 6px 18px; color: #c9a227;
-          }
+          .receipt-title { margin-top: 20px; font-size: 13px; font-weight: 600; letter-spacing: 0.25em; text-transform: uppercase; background: rgba(201,162,39,0.15); border: 1px solid rgba(201,162,39,0.4); border-radius: 8px; display: inline-block; padding: 6px 18px; color: #c9a227; }
           .body { padding: 28px; }
-          .ref-row {
-            display: flex; justify-content: space-between; align-items: center;
-            background: #f7f7fa; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;
-          }
+          .ref-row { display: flex; justify-content: space-between; align-items: center; background: #f7f7fa; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
           .ref-label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.15em; }
           .ref-value { font-size: 12px; font-weight: 800; font-family: monospace; color: #1a1a2e; }
-          .amount-block {
-            text-align: center;
-            background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%);
-            border: 2px solid #2ecc71; border-radius: 14px; padding: 20px; margin-bottom: 20px;
-          }
+          .amount-block { text-align: center; background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%); border: 2px solid #2ecc71; border-radius: 14px; padding: 20px; margin-bottom: 20px; }
           .amount-label { font-size: 9px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.2em; }
           .amount-value { font-size: 30px; font-weight: 900; color: #1a1a2e; margin-top: 4px; }
           .amount-status { font-size: 10px; font-weight: 700; color: #2ecc71; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 4px; }
-          /* ✅ Bloc élève enrichi */
-          .student-block {
-            background: #f0f4ff; border-left: 4px solid #1e40af;
-            border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;
-          }
+          .student-block { background: #f0f4ff; border-left: 4px solid #1e40af; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
           .student-label { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 5px; }
           .student-name { font-size: 16px; font-weight: 800; color: #1a1a2e; }
           .student-meta { font-size: 10px; color: #6b7280; margin-top: 4px; }
@@ -335,22 +317,13 @@ const AdminAccounting: React.FC = () => {
           .detail-item { background: #fafafa; border-radius: 10px; padding: 12px 14px; }
           .detail-label { font-size: 9px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.15em; }
           .detail-value { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-top: 3px; }
-          .signature-row {
-            display: flex; justify-content: space-between;
-            margin-top: 28px; padding-top: 24px; border-top: 1px solid #eee;
-          }
+          .signature-row { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 24px; border-top: 1px solid #eee; }
           .signature-box { text-align: center; }
           .signature-line { width: 140px; height: 1px; background: #1a1a2e; margin: 32px auto 6px; }
           .signature-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
-          .footer {
-            border-top: 1px dashed #ddd; padding: 18px 28px; text-align: center;
-          }
+          .footer { border-top: 1px dashed #ddd; padding: 18px 28px; text-align: center; }
           .footer p { font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.7; }
-          @media print {
-            body { padding: 0; }
-            .receipt { border: none; border-radius: 0; }
-            @page { size: A5; margin: 10mm; }
-          }
+          @media print { body { padding: 0; } .receipt { border: none; border-radius: 0; } @page { size: A5; margin: 10mm; } }
         </style>
       </head>
       <body>
@@ -360,7 +333,6 @@ const AdminAccounting: React.FC = () => {
             <div class="subtitle">Institut d'Enseignement Islamique et Francophone</div>
             <div class="receipt-title">Reçu de Paiement</div>
           </div>
-
           <div class="body">
             <div class="ref-row">
               <div>
@@ -377,50 +349,27 @@ const AdminAccounting: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div class="amount-block">
               <div class="amount-label">Montant payé</div>
               <div class="amount-value">${new Intl.NumberFormat('fr-GN').format(Number(payment.amount))} FGN</div>
               <div class="amount-status">${getStatusLabel(payment.status)}</div>
             </div>
-
             <div class="student-block">
               <div class="student-label">Élève</div>
               <div class="student-name">${payment.studentName}</div>
               ${metaLine ? `<div class="student-meta">${metaLine}</div>` : ''}
             </div>
-
             <div class="details-grid">
-              <div class="detail-item">
-                <div class="detail-label">Service</div>
-                <div class="detail-value">${payment.categoryName || 'Non catégorisé'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Mode de paiement</div>
-                <div class="detail-value">${getMethodLabel(payment.method)}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Statut</div>
-                <div class="detail-value">${getStatusLabel(payment.status)}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Généré le</div>
-                <div class="detail-value">${new Date().toLocaleDateString('fr-FR')}</div>
-              </div>
+              <div class="detail-item"><div class="detail-label">Service</div><div class="detail-value">${payment.categoryName || 'Non catégorisé'}</div></div>
+              <div class="detail-item"><div class="detail-label">Mode de paiement</div><div class="detail-value">${getMethodLabel(payment.method)}</div></div>
+              <div class="detail-item"><div class="detail-label">Statut</div><div class="detail-value">${getStatusLabel(payment.status)}</div></div>
+              <div class="detail-item"><div class="detail-label">Généré le</div><div class="detail-value">${new Date().toLocaleDateString('fr-FR')}</div></div>
             </div>
-
             <div class="signature-row">
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Signature du Payeur</div>
-              </div>
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Cachet de l'École</div>
-              </div>
+              <div class="signature-box"><div class="signature-line"></div><div class="signature-label">Signature du Payeur</div></div>
+              <div class="signature-box"><div class="signature-line"></div><div class="signature-label">Cachet de l'École</div></div>
             </div>
           </div>
-
           <div class="footer">
             <p>Ce reçu est un document officiel délivré par l'École EIEF.</p>
             <p>Conservez-le précieusement — il fait foi de votre paiement.</p>
@@ -453,7 +402,7 @@ const AdminAccounting: React.FC = () => {
     return matchesSearch && matchesCategory;
   });
 
-  // ── Colonnes ──────────────────────────────────────────────────────────────
+  // ── Colonnes table ────────────────────────────────────────────────────────
 
   const columns = [
     {
@@ -549,8 +498,6 @@ const AdminAccounting: React.FC = () => {
               >
                 <Eye size={16} /> Voir les détails
               </button>
-
-              {/* ✅ Passer l'élève résolu directement à printReceipt */}
               <button
                 onClick={() => {
                   printReceipt(row, resolveStudentByName(row.studentName));
@@ -560,7 +507,6 @@ const AdminAccounting: React.FC = () => {
               >
                 <Printer size={16} /> Imprimer le reçu
               </button>
-
               {row.status !== 'PAID' && (
                 <button
                   onClick={() => { handleMarkAsPaid(row.id); setOpenMenuRowId(null); }}
@@ -569,13 +515,10 @@ const AdminAccounting: React.FC = () => {
                   <CheckCircle2 size={16} /> Marquer payé
                 </button>
               )}
-
               <button className="w-full flex items-center gap-3 p-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 hover:text-bleu-600 rounded-xl transition-all">
                 <Edit2 size={16} /> Modifier
               </button>
-
               <div className="h-px bg-gray-50 dark:bg-white/5 my-1" />
-
               <button
                 onClick={() => { handleDelete(row.id); setOpenMenuRowId(null); }}
                 className="w-full flex items-center gap-3 p-3 text-xs font-bold text-rouge-500 hover:bg-rouge-50 dark:hover:bg-rouge-900/20 rounded-xl transition-all"
@@ -723,7 +666,7 @@ const AdminAccounting: React.FC = () => {
         </Card>
       </div>
 
-      {/* ── MODALE: NOUVEL ENCAISSEMENT ────────────────────────────────────── */}
+      {/* ── MODALE: NOUVEL ENCAISSEMENT ───────────────────────────────────── */}
       <Modal
         isOpen={isEncaissementModalOpen}
         onClose={() => setIsEncaissementModalOpen(false)}
@@ -743,7 +686,8 @@ const AdminAccounting: React.FC = () => {
               <span className="w-1.5 h-4 bg-bleu-500 rounded-full" /> Identification & Service
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* ✅ Select élèves avec données réelles depuis /users/students */}
+
+              {/* Select élève — value = Student.id (clé primaire de l'entité Student) */}
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                   Élève concerné *
@@ -757,15 +701,16 @@ const AdminAccounting: React.FC = () => {
                     {students.length === 0 ? 'Chargement des élèves...' : 'Sélectionner un élève'}
                   </option>
                   {students.map(s => (
+                    // ⚠️ value = s.id (UUID de l'entité Student, attendu par PaymentRequest.studentId)
                     <option key={s.id} value={s.id}>
                       {s.firstName} {s.lastName}
-                      {s.className ? ` — ${s.className}` : ''}
                       {s.registrationNumber ? ` (${s.registrationNumber})` : ''}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* Select catégorie — categoryId est nullable côté backend */}
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                   Type de Service
@@ -778,7 +723,7 @@ const AdminAccounting: React.FC = () => {
                   }}
                   className="w-full p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-bleu-500"
                 >
-                  <option value="">Sélectionner un service</option>
+                  <option value="">Sans catégorie (optionnel)</option>
                   <option value="1">Frais de scolarité</option>
                   <option value="2">Cantine</option>
                   <option value="3">Transport</option>
@@ -796,7 +741,7 @@ const AdminAccounting: React.FC = () => {
                 label="Montant à payer (FGN) *"
                 placeholder="ex: 2500000"
                 type="number"
-                value={formData.amount.toString()}
+                value={formData.amount === 0 ? '' : formData.amount.toString()}
                 onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
               />
               <Input
@@ -848,7 +793,7 @@ const AdminAccounting: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODALE: APERÇU & IMPRESSION DU REÇU ──────────────────────────── */}
+      {/* ── MODALE: REÇU ─────────────────────────────────────────────────── */}
       <Modal
         isOpen={isReceiptModalOpen}
         onClose={() => { setIsReceiptModalOpen(false); setSelectedStudentForReceipt(null); }}
@@ -865,20 +810,14 @@ const AdminAccounting: React.FC = () => {
         {selectedPayment && (
           <div className="py-2 space-y-6">
             <div className="border-2 border-gray-100 dark:border-white/10 rounded-2xl overflow-hidden">
-              {/* En-tête reçu */}
               <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white p-6 text-center">
                 <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-yellow-400">École EIEF</p>
-                <p className="text-[8px] text-gray-400 tracking-widest uppercase mt-1">
-                  Institut d'Enseignement Islamique et Francophone
-                </p>
+                <p className="text-[8px] text-gray-400 tracking-widest uppercase mt-1">Institut d'Enseignement Islamique et Francophone</p>
                 <div className="mt-3 inline-block bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-4 py-1.5">
                   <p className="text-[9px] font-bold tracking-[0.2em] uppercase text-yellow-400">Reçu de Paiement</p>
                 </div>
               </div>
-
-              {/* Corps */}
               <div className="p-5 space-y-4 bg-white dark:bg-gray-900">
-                {/* Référence + date */}
                 <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 rounded-xl p-3">
                   <div>
                     <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Référence</p>
@@ -889,37 +828,23 @@ const AdminAccounting: React.FC = () => {
                     <p className="text-xs font-bold text-gray-900 dark:text-white">{formatDate(selectedPayment.paidAt)}</p>
                   </div>
                 </div>
-
-                {/* Montant */}
                 <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800/40 rounded-xl p-4 text-center">
                   <p className="text-[8px] font-bold text-green-600 uppercase tracking-widest">Montant payé</p>
-                  <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">
-                    {formatCurrency(Number(selectedPayment.amount))}
-                  </p>
-                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest mt-1">
-                    {getStatusLabel(selectedPayment.status)}
-                  </p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{formatCurrency(Number(selectedPayment.amount))}</p>
+                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest mt-1">{getStatusLabel(selectedPayment.status)}</p>
                 </div>
-
-                {/* ✅ Bloc élève enrichi avec matricule et classe */}
                 <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-bleu-600 rounded-xl p-3">
                   <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Élève</p>
                   <p className="text-sm font-bold text-gray-900 dark:text-white">{selectedPayment.studentName}</p>
                   {(selectedStudentForReceipt?.registrationNumber || selectedStudentForReceipt?.className) && (
                     <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
                       {[
-                        selectedStudentForReceipt.registrationNumber
-                          ? `Matricule : ${selectedStudentForReceipt.registrationNumber}`
-                          : '',
-                        selectedStudentForReceipt.className
-                          ? `Classe : ${selectedStudentForReceipt.className}`
-                          : '',
+                        selectedStudentForReceipt.registrationNumber ? `Matricule : ${selectedStudentForReceipt.registrationNumber}` : '',
+                        selectedStudentForReceipt.className ? `Classe : ${selectedStudentForReceipt.className}` : '',
                       ].filter(Boolean).join(' • ')}
                     </p>
                   )}
                 </div>
-
-                {/* Détails */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { label: 'Service',          value: selectedPayment.categoryName || 'Non catégorisé' },
@@ -933,8 +858,6 @@ const AdminAccounting: React.FC = () => {
                     </div>
                   ))}
                 </div>
-
-                {/* Signatures */}
                 <div className="flex justify-between pt-4 border-t border-gray-100 dark:border-white/5">
                   <div className="text-center">
                     <div className="w-24 h-8 border-b border-gray-300 dark:border-gray-600 mb-1" />
@@ -946,16 +869,10 @@ const AdminAccounting: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Pied */}
               <div className="bg-gray-50 dark:bg-white/5 px-5 py-3 text-center border-t border-gray-100 dark:border-white/10">
-                <p className="text-[8px] text-gray-400 uppercase tracking-widest">
-                  Ce reçu est un document officiel délivré par l'École EIEF.
-                </p>
+                <p className="text-[8px] text-gray-400 uppercase tracking-widest">Ce reçu est un document officiel délivré par l'École EIEF.</p>
               </div>
             </div>
-
-            {/* Boutons */}
             <div className="flex gap-4">
               <Button
                 variant="outline"
@@ -975,7 +892,7 @@ const AdminAccounting: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODALE: RAPPORTS FINANCIERS ───────────────────────────────────── */}
+      {/* ── MODALE: RAPPORTS ─────────────────────────────────────────────── */}
       <Modal
         isOpen={isRapportsModalOpen}
         onClose={() => setIsRapportsModalOpen(false)}
@@ -992,24 +909,9 @@ const AdminAccounting: React.FC = () => {
         <div className="space-y-6 text-left py-2 font-bold uppercase tracking-widest">
           <div className="space-y-3">
             {[
-              {
-                name: "Journal de Caisse (Aujourd'hui)",
-                desc: 'Toutes les opérations du jour',
-                type: 'PDF',
-                action: () => window.open(`${getApiBaseUrl()}/payments/report/daily`, '_blank'),
-              },
-              {
-                name: 'Relevé Mensuel des Recettes',
-                desc: 'Analyse détaillée des encaissements',
-                type: 'EXCEL',
-                action: () => window.open(`${getApiBaseUrl()}/payments/report/monthly`, '_blank'),
-              },
-              {
-                name: 'Liste des Impayés',
-                desc: 'Rapport stratégique de recouvrement',
-                type: 'PDF',
-                action: () => window.open(`${getApiBaseUrl()}/payments/overdue`, '_blank'),
-              },
+              { name: "Journal de Caisse (Aujourd'hui)", desc: 'Toutes les opérations du jour',        type: 'PDF',   action: () => window.open(`${getApiBaseUrl()}/payments/report/daily`, '_blank') },
+              { name: 'Relevé Mensuel des Recettes',     desc: 'Analyse détaillée des encaissements', type: 'EXCEL', action: () => window.open(`${getApiBaseUrl()}/payments/report/monthly`, '_blank') },
+              { name: 'Liste des Impayés',               desc: 'Rapport stratégique de recouvrement', type: 'PDF',   action: () => window.open(`${getApiBaseUrl()}/payments/overdue`, '_blank') },
             ].map((rep, i) => (
               <button
                 key={i}
@@ -1029,17 +931,13 @@ const AdminAccounting: React.FC = () => {
               </button>
             ))}
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setIsRapportsModalOpen(false)}
-            className="w-full h-12 font-bold uppercase text-[10px] tracking-wider"
-          >
+          <Button variant="outline" onClick={() => setIsRapportsModalOpen(false)} className="w-full h-12 font-bold uppercase text-[10px] tracking-wider">
             Fermer
           </Button>
         </div>
       </Modal>
 
-      {/* ── SUCCESS TOAST ──────────────────────────────────────────────────── */}
+      {/* ── SUCCESS TOAST ────────────────────────────────────────────────── */}
       <AnimatePresence>
         {isSuccess && (
           <motion.div

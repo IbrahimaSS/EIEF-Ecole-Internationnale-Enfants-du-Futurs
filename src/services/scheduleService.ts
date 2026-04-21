@@ -1,49 +1,46 @@
-import { apiRequest } from "./api";
-import { ScheduleRequest, ScheduleResponse } from "../types/academic";
+import { apiRequest } from './api';
+import { ScheduleRequest, ScheduleResponse } from '../types/schedule';
 
-const BASE_PATH = "/schedules";
+// ── /schedules — CRUD général ─────────────────────────────────────────────────
 
 export const scheduleService = {
-  // Créer un emploi du temps
-  create: (request: ScheduleRequest): Promise<ScheduleResponse> =>
-    apiRequest<ScheduleResponse>(BASE_PATH, {
-      method: "POST",
-      body: JSON.stringify(request),
+  create: (data: ScheduleRequest): Promise<ScheduleResponse> =>
+    apiRequest<ScheduleResponse>('/schedules', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 
-  // Récupérer tous les emplois du temps
   getAll: (): Promise<ScheduleResponse[]> =>
-    apiRequest<ScheduleResponse[]>(BASE_PATH),
+    apiRequest<ScheduleResponse[]>('/schedules'),
 
-  // Récupérer un emploi du temps par ID
   getById: (id: string): Promise<ScheduleResponse> =>
-    apiRequest<ScheduleResponse>(`${BASE_PATH}/${id}`),
+    apiRequest<ScheduleResponse>(`/schedules/${id}`),
 
-  // Récupérer les emplois du temps d'un professeur
   getByTeacher: (teacherId: string): Promise<ScheduleResponse[]> =>
-    apiRequest<ScheduleResponse[]>(`${BASE_PATH}/teacher/${teacherId}`),
+    apiRequest<ScheduleResponse[]>(`/schedules/teacher/${teacherId}`),
 
-  // Récupérer les emplois du temps d'un professeur pour un jour spécifique
-  getByTeacherAndDay: (
-    teacherId: string,
-    day: number
-  ): Promise<ScheduleResponse[]> =>
-    apiRequest<ScheduleResponse[]>(`${BASE_PATH}/teacher/${teacherId}/day/${day}`),
+  getByTeacherAndDay: (teacherId: string, day: number): Promise<ScheduleResponse[]> =>
+    apiRequest<ScheduleResponse[]>(`/schedules/teacher/${teacherId}/day/${day}`),
 
-  // Récupérer les emplois du temps d'une classe
   getByClass: (classId: string): Promise<ScheduleResponse[]> =>
-    apiRequest<ScheduleResponse[]>(`${BASE_PATH}/class/${classId}`),
+    apiRequest<ScheduleResponse[]>(`/schedules/class/${classId}`),
 
-  // Mettre à jour un emploi du temps
-  update: (id: string, request: ScheduleRequest): Promise<ScheduleResponse> =>
-    apiRequest<ScheduleResponse>(`${BASE_PATH}/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(request),
+  update: (id: string, data: ScheduleRequest): Promise<ScheduleResponse> =>
+    apiRequest<ScheduleResponse>(`/schedules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
-  // Supprimer un emploi du temps
   delete: (id: string): Promise<void> =>
-    apiRequest<void>(`${BASE_PATH}/${id}`, {
-      method: "DELETE",
-    }),
+    apiRequest<void>(`/schedules/${id}`, { method: 'DELETE' }),
+};
+
+// ── /student — Emploi du temps élève ─────────────────────────────────────────
+
+export const studentScheduleService = {
+  getSchedule: (studentId: string): Promise<ScheduleResponse[]> =>
+    apiRequest<ScheduleResponse[]>(`/student/${studentId}/schedule`),
+
+  getTodaySchedule: (studentId: string): Promise<ScheduleResponse[]> =>
+    apiRequest<ScheduleResponse[]>(`/student/${studentId}/schedule/today`),
 };

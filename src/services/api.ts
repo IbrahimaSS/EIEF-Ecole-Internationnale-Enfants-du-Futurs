@@ -7,6 +7,7 @@ const API_BASE_URL =
 export const AUTH_HEADER_NAME = "enfantsfuture-auth-token";
 export const AUTH_HEADER_PREFIX = "enfantsfuture";
 
+
 export class ApiError extends Error {
   status: number;
   details?: ApiErrorResponse;
@@ -97,5 +98,6 @@ export const apiRequest = async <T>(
 
   return payload.data;
 };
+
 
 export const getApiBaseUrl = (): string => API_BASE_URL;

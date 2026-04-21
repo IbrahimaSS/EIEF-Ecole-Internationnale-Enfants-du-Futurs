@@ -1,14 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { scheduleService } from "../services/scheduleService";
-import { ScheduleRequest } from "../types/academic";
+import { scheduleService, studentScheduleService } from "../services/scheduleService";
+import { ScheduleRequest } from "../types/schedule";
 import { toast } from "sonner";
+
+// ── Clés de cache centralisées ────────────────────────────────────────────────
 
 const QUERY_KEYS = {
   schedules: "schedules",
   schedule: "schedule",
   teacherSchedules: "teacherSchedules",
   classSchedules: "classSchedules",
+  studentSchedule: "studentSchedule",
+  studentTodaySchedule: "studentTodaySchedule",
 };
+
+// ── Queries ───────────────────────────────────────────────────────────────────
 
 export const useSchedules = () => {
   return useQuery({
@@ -48,6 +54,26 @@ export const useClassSchedules = (classId: string) => {
     enabled: !!classId,
   });
 };
+
+// ── Hooks student (emploi du temps élève) ─────────────────────────────────────
+
+export const useStudentSchedule = (studentId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.studentSchedule, studentId],
+    queryFn: () => studentScheduleService.getSchedule(studentId),
+    enabled: !!studentId,
+  });
+};
+
+export const useStudentTodaySchedule = (studentId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.studentTodaySchedule, studentId],
+    queryFn: () => studentScheduleService.getTodaySchedule(studentId),
+    enabled: !!studentId,
+  });
+};
+
+// ── Mutations ─────────────────────────────────────────────────────────────────
 
 export const useScheduleMutations = () => {
   const queryClient = useQueryClient();
