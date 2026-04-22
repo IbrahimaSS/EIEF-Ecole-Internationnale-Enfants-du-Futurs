@@ -14,7 +14,7 @@ import {
   Clock,
   Minus,
 } from 'lucide-react';
-import { Card, Badge, Button } from '../../components/ui';
+import { Card } from '../../components/ui';
 import { cn } from '../../utils/cn';
 import { useAuthStore } from '../../store/authStore';
 import {

@@ -2,13 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  ArrowRight, 
   CheckCircle2, 
   Menu, 
   X, 
   Sun,
   Moon,
-  ChevronRight,
   FileText,
   Calendar,
   Users,
@@ -20,7 +18,7 @@ import {
   Phone,
   BookOpen
 } from 'lucide-react';
-import { Button, Badge, Card } from '../components/ui';
+import { Button, Badge } from '../components/ui';
 import { cn } from '../utils/cn';
 
 const Admission: React.FC = () => {

@@ -1,66 +1,167 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BookOpen, 
-  Search, 
-  FileText, 
-  FileCode, 
-  Video, 
-  Download, 
+import {
+  BookOpen,
+  Search,
+  FileText,
+  FileCode,
+  Video,
+  Download,
   ExternalLink,
-  ChevronRight,
   Filter,
-  CheckCircle2,
   Clock,
   LayoutGrid,
-  List
+  List,
+  Star,
 } from 'lucide-react';
 import { Card, Badge, Button, Input } from '../../components/ui';
 import { cn } from '../../utils/cn';
+import { Resource } from '../../types/library';
+import { useAuthStore } from '../../store/authStore';
+import { getApiBaseUrl } from '../../services/api';
+import { studentService } from '../../services/studentService';
 
-type ResourceType = 'pdf' | 'video' | 'link' | 'exercise';
-
-interface Resource {
-  id: number;
-  title: string;
-  subject: string;
-  type: ResourceType;
-  teacher: string;
-  date: string;
-  size?: string;
-  downloads: number;
-  isNew?: boolean;
-}
+const FAVORITES_KEY = 'student-favorite-resources';
 
 const EleveRessources: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'recent' | 'favorites'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedClass, setSelectedClass] = useState('Toutes');
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock resources data
-  const resources: Resource[] = [
-    { id: 1, title: 'Cours: Équations Linéaires', subject: 'Mathématiques', type: 'pdf', teacher: 'Pr. Diallo', date: 'il y a 2h', size: '2.4 MB', downloads: 24, isNew: true },
-    { id: 2, title: 'TP: Synthèse de l\'aspirine', subject: 'Physique-Chimie', type: 'pdf', teacher: 'Dr. Condé', date: 'Hier', size: '1.2 MB', downloads: 12 },
-    { id: 3, title: 'Vidéo: La conjugaison au présent', subject: 'Français', type: 'video', teacher: 'Mme Camara', date: '02 Avr', size: '15:20', downloads: 54 },
-    { id: 4, title: 'Série d\'exercices N°4', subject: 'Mathématiques', type: 'exercise', teacher: 'Pr. Diallo', date: '01 Avr', size: '0.8 MB', downloads: 89, isNew: true },
-    { id: 5, title: 'Résumé: Seconde Guerre Mondiale', subject: 'Histoire-Géo', type: 'pdf', teacher: 'M. Sylla', date: '30 Mars', size: '5.1 MB', downloads: 35 },
-    { id: 6, title: 'Dictionnaire Anglais-Français Online', subject: 'Anglais', type: 'link', teacher: 'Mme Smith', date: '28 Mars', downloads: 120 },
-  ];
+  const user = useAuthStore((state) => state.user);
 
-  const getTypeIcon = (type: ResourceType) => {
-    switch (type) {
-      case 'pdf': return <FileText size={20} className="text-rouge-500" />;
-      case 'video': return <Video size={20} className="text-bleu-500" />;
-      case 'link': return <ExternalLink size={20} className="text-indigo-500" />;
-      case 'exercise': return <FileCode size={20} className="text-vert-500" />;
-      default: return <BookOpen size={20} className="text-gray-500" />;
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[];
+        setFavorites(Array.isArray(parsed) ? parsed : []);
+      }
+    } catch {
+      setFavorites([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+  }, [favorites]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setResources([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    studentService.getResources(user.id)
+      .then((data) => setResources(data))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Erreur lors du chargement des ressources');
+      })
+      .finally(() => setLoading(false));
+  }, [user?.id]);
+
+  const classes = useMemo(() => {
+    const unique = new Set(resources.map((r) => r.className).filter(Boolean) as string[]);
+    return ['Toutes', ...Array.from(unique).sort((a, b) => a.localeCompare(b, 'fr'))];
+  }, [resources]);
+
+  const getResourceKind = (type: string): 'video' | 'link' | 'exercise' | 'document' => {
+    const normalized = type.toLowerCase();
+
+    if (normalized.includes('video')) {
+      return 'video';
+    }
+    if (normalized.includes('lien') || normalized.includes('link')) {
+      return 'link';
+    }
+    if (normalized.includes('exercice') || normalized.includes('tp') || normalized.includes('evaluation') || normalized.includes('composition')) {
+      return 'exercise';
+    }
+    return 'document';
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (getResourceKind(type)) {
+      case 'video':
+        return <Video size={20} className="text-bleu-500" />;
+      case 'link':
+        return <ExternalLink size={20} className="text-indigo-500" />;
+      case 'exercise':
+        return <FileCode size={20} className="text-vert-500" />;
+      default:
+        return <FileText size={20} className="text-rouge-500" />;
     }
   };
 
-  const filteredResources = resources.filter(r => 
-    r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.subject.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const resolveDownloadUrl = (fileUrl: string | null): string | null => {
+    if (!fileUrl) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(fileUrl)) {
+      return fileUrl;
+    }
+
+    const apiBase = getApiBaseUrl().replace(/\/$/, '');
+    const normalizedPath = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
+    return `${apiBase}${normalizedPath}`;
+  };
+
+  const formatDate = (value: string): string => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(date);
+  };
+
+  const isRecent = (value: string): boolean => {
+    const date = new Date(value).getTime();
+    if (Number.isNaN(date)) {
+      return false;
+    }
+    const diff = Date.now() - date;
+    return diff <= 7 * 24 * 60 * 60 * 1000;
+  };
+
+  const filteredResources = useMemo(() => {
+    return resources.filter((r) => {
+      const matchesSearch =
+        r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.className ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.type.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesClass = selectedClass === 'Toutes' || r.className === selectedClass;
+
+      const matchesTab =
+        activeTab === 'all' ||
+        (activeTab === 'recent' && isRecent(r.createdAt)) ||
+        (activeTab === 'favorites' && favorites.includes(r.id));
+
+      return matchesSearch && matchesClass && matchesTab;
+    });
+  }, [activeTab, favorites, resources, searchTerm, selectedClass]);
+
+  const toggleFavorite = (resourceId: string) => {
+    setFavorites((prev) =>
+      prev.includes(resourceId)
+        ? prev.filter((id) => id !== resourceId)
+        : [...prev, resourceId],
+    );
+  };
 
   return (
     <motion.div 
@@ -104,7 +205,7 @@ const EleveRessources: React.FC = () => {
          <div className="w-full lg:w-64 space-y-6">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input 
+              <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Rechercher..."
@@ -117,10 +218,16 @@ const EleveRessources: React.FC = () => {
                  <Filter size={14} /> Filtrer par matière
                </h3>
                <div className="space-y-2">
-                  {['Toutes', 'Mathématiques', 'Physique-Chimie', 'Français', 'Anglais', 'Histoire-Géo', 'SVT'].map((sub, i) => (
-                    <button key={i} className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all ${i === 0 ? 'bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}>
+                  {classes.map((sub) => (
+                    <button
+                      key={sub}
+                      onClick={() => setSelectedClass(sub)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all ${selectedClass === sub ? 'bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
+                    >
                        <span>{sub}</span>
-                       <Badge className="bg-gray-100 dark:bg-white/5 text-gray-500 border-none text-[8px] h-4">{Math.floor(Math.random() * 5) + 1}</Badge>
+                       <Badge className="bg-gray-100 dark:bg-white/5 text-gray-500 border-none text-[8px] h-4">
+                         {sub === 'Toutes' ? resources.length : resources.filter((r) => r.className === sub).length}
+                       </Badge>
                     </button>
                   ))}
                </div>
@@ -155,7 +262,11 @@ const EleveRessources: React.FC = () => {
                    viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" : "space-y-4"
                  )}
                >
-                  {filteredResources.map((res) => (
+                  {filteredResources.map((res) => {
+                    const isFavorite = favorites.includes(res.id);
+                    const downloadUrl = resolveDownloadUrl(res.fileUrl);
+
+                    return (
                     viewMode === 'grid' ? (
                       <Card key={res.id} className="p-6 border-none shadow-soft group hover:scale-[1.02] transition-transform bg-white dark:bg-gray-900/50 flex flex-col justify-between">
                          <div>
@@ -163,14 +274,34 @@ const EleveRessources: React.FC = () => {
                                <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-2xl group-hover:bg-bleu-50 dark:group-hover:bg-bleu-900/20 transition-colors">
                                   {getTypeIcon(res.type)}
                                </div>
-                               {res.isNew && <Badge className="bg-or-500 text-white border-none font-black text-[8px] h-5 animate-pulse">NOUVEAU</Badge>}
+                               <div className="flex items-center gap-2">
+                                 {isRecent(res.createdAt) && <Badge className="bg-or-500 text-white border-none font-black text-[8px] h-5 animate-pulse">NOUVEAU</Badge>}
+                                 <button
+                                   onClick={() => toggleFavorite(res.id)}
+                                   className={cn(
+                                     'p-1.5 rounded-lg transition-colors',
+                                     isFavorite ? 'text-or-500 bg-or-50 dark:bg-or-900/20' : 'text-gray-400 hover:text-or-500',
+                                   )}
+                                 >
+                                   <Star size={14} fill={isFavorite ? 'currentColor' : 'none'} />
+                                 </button>
+                               </div>
                             </div>
                             <h4 className="text-sm font-black text-gray-900 dark:text-white line-clamp-2 leading-relaxed mb-1">{res.title}</h4>
-                            <p className="text-[10px] font-bold text-gray-400 mb-4">{res.subject} • {res.teacher}</p>
+                            <p className="text-[10px] font-bold text-gray-400 mb-4">{res.className || 'Classe non precisee'} • {res.uploadedByName}</p>
                          </div>
                          <div className="pt-4 border-t border-gray-50 dark:border-white/5 flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1"><Clock size={10} /> {res.date}</span>
-                            <Button variant="ghost" className="h-8 w-8 p-0 rounded-lg hover:bg-bleu-50 dark:hover:bg-bleu-900/20 text-bleu-600">
+                            <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1"><Clock size={10} /> {formatDate(res.createdAt)}</span>
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                if (downloadUrl) {
+                                  window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              disabled={!downloadUrl}
+                              className="h-8 w-8 p-0 rounded-lg hover:bg-bleu-50 dark:hover:bg-bleu-900/20 text-bleu-600 disabled:opacity-50"
+                            >
                                <Download size={16} />
                             </Button>
                          </div>
@@ -182,21 +313,47 @@ const EleveRessources: React.FC = () => {
                          </div>
                          <div className="flex-1 text-left">
                             <h4 className="text-sm font-black text-gray-900 dark:text-white">{res.title}</h4>
-                            <p className="text-[10px] font-bold text-gray-400 mt-0.5">{res.subject} • {res.teacher} • {res.size || 'Lien externe'}</p>
+                            <p className="text-[10px] font-bold text-gray-400 mt-0.5">{res.type} • {res.className || 'Classe non precisee'} • {res.uploadedByName}</p>
                          </div>
                          <div className="text-right hidden sm:block">
-                            <p className="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1 justify-end"><Clock size={10} /> {res.date}</p>
-                            <span className="text-[10px] font-bold text-vert-500 flex items-center gap-1 justify-end"><CheckCircle2 size={10} /> {res.downloads} téléchargements</span>
+                            <p className="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1 justify-end"><Clock size={10} /> {formatDate(res.createdAt)}</p>
+                            {isRecent(res.createdAt) && <span className="text-[10px] font-bold text-vert-500">Nouveau</span>}
                          </div>
-                         <Button variant="ghost" className="h-10 px-4 rounded-xl hover:bg-bleu-50 dark:hover:bg-bleu-900/20 text-bleu-600 group">
+                         <Button
+                           variant="ghost"
+                           onClick={() => {
+                             if (downloadUrl) {
+                               window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+                             }
+                           }}
+                           disabled={!downloadUrl}
+                           className="h-10 px-4 rounded-xl hover:bg-bleu-50 dark:hover:bg-bleu-900/20 text-bleu-600 group disabled:opacity-50"
+                         >
                             <span className="text-xs font-black mr-2">Télécharger</span>
                             <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
                          </Button>
                       </Card>
                     )
-                  ))}
+                    );
+                  })}
                </motion.div>
             </AnimatePresence>
+
+            {(loading || error) && (
+              <div className="mt-2 text-xs font-semibold">
+                {loading && <p className="text-gray-500">Chargement des ressources...</p>}
+                {error && <p className="text-rouge-600">{error}</p>}
+              </div>
+            )}
+
+            {!loading && !error && filteredResources.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 opacity-70">
+                <div className="p-5 bg-gray-50 dark:bg-white/5 rounded-full mb-3">
+                  <BookOpen size={26} className="text-gray-400" />
+                </div>
+                <p className="text-sm font-bold text-gray-500">Aucune ressource trouvée avec ces filtres.</p>
+              </div>
+            )}
          </div>
       </div>
     </motion.div>

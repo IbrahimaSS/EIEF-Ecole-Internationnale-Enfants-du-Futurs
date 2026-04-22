@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  ArrowRight, 
   Menu, 
   X, 
   Sun,
   Moon,
-  ChevronRight,
   Send,
   MapPin,
   PhoneCall,
@@ -22,7 +20,7 @@ import {
   MessageSquare,
   ArrowRightCircle
 } from 'lucide-react';
-import { Button, Badge, Card } from '../components/ui';
+import { Button, Badge } from '../components/ui';
 import { cn } from '../utils/cn';
 
 const Contact: React.FC = () => {

@@ -1,5 +1,12 @@
 import { apiRequest } from "./api";
-import { Resource, ResourceRequest, ResourceFilters } from "../types/library";
+import {
+  Resource,
+  ResourceRequest,
+  ResourceFilters,
+  Book,
+  BookLoan,
+  BookRequest,
+} from "../types/library";
 
 const BASE_PATH = "/resources";
 
@@ -90,8 +97,74 @@ export const libraryService = {
     });
   },
 
-  // ===== BOOKS (à implémenter côté backend si nécessaire) =====
+  // ===== BOOKS =====
 
-  // Note: Votre backend montre des DTOs Book mais pas de contrôleur exposé
-  // Si vous avez un BookController, ajoutez les méthodes similaires ici
+  // Récupérer les livres - GET /books?search=
+  getAllBooks: async (search?: string): Promise<Book[]> => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return apiRequest<Book[]>(`/books${query}`, {
+      method: "GET",
+    });
+  },
+
+  // Ajouter un livre - POST /books
+  createBook: async (payload: BookRequest): Promise<Book> => {
+    return apiRequest<Book>("/books", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Modifier un livre - PUT /books/{id}
+  updateBook: async (id: string, payload: BookRequest): Promise<Book> => {
+    return apiRequest<Book>(`/books/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Supprimer un livre - DELETE /books/{id}
+  deleteBook: async (id: string): Promise<void> => {
+    return apiRequest<void>(`/books/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Enregistrer un emprunt - POST /books/{bookId}/lend?studentId={studentId}
+  lendBook: async (bookId: string, studentId: string): Promise<Book> => {
+    return apiRequest<Book>(
+      `/books/${bookId}/lend?studentId=${encodeURIComponent(studentId)}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  // Récupérer les emprunts actifs - GET /books/loans/active
+  getActiveLoans: async (): Promise<BookLoan[]> => {
+    return apiRequest<BookLoan[]>("/books/loans/active", {
+      method: "GET",
+    });
+  },
+
+  // Récupérer l'historique des prêts d'un livre - GET /books/{bookId}/loans
+  getLoansByBook: async (bookId: string): Promise<BookLoan[]> => {
+    return apiRequest<BookLoan[]>(`/books/${bookId}/loans`, {
+      method: "GET",
+    });
+  },
+
+  // Récupérer les emprunts en retard - GET /books/loans/overdue
+  getOverdueLoans: async (): Promise<BookLoan[]> => {
+    return apiRequest<BookLoan[]>("/books/loans/overdue", {
+      method: "GET",
+    });
+  },
+
+  // Marquer le retour d'un emprunt - POST /books/loans/{loanId}/return
+  returnLoan: async (loanId: string): Promise<Book> => {
+    return apiRequest<Book>(`/books/loans/${loanId}/return`, {
+      method: "POST",
+    });
+  },
 };

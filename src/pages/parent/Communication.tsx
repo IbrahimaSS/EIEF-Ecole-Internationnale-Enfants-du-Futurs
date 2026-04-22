@@ -1,136 +1,306 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  MessageSquare, 
-  Send, 
-  Bell, 
-  Users, 
-  AlertCircle, 
-  CheckCircle2, 
-  Clock, 
+import {
+  MessageSquare,
+  Send,
+  Bell,
+  AlertCircle,
+  Clock,
   Megaphone,
-  CornerDownRight,
   Search,
-  Paperclip,
-  GraduationCap
+  CornerDownRight,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
-import { Card, Badge, Button, Avatar, Input } from '../../components/ui';
+import { Card, Badge, Avatar, Input, Button } from '../../components/ui';
 import { cn } from '../../utils/cn';
+import { useAuthStore } from '../../store/authStore';
+import { userService, TeacherResponse } from '../../services/userService';
+import {
+  getAnnouncements,
+  getInbox,
+  getSentMessages,
+  sendMessage,
+  markMessageAsRead,
+  getForumTopics,
+  addForumReply,
+  AnnouncementResponse,
+  MessageResponse,
+  ForumPostResponse,
+} from '../../services/communicationApi';
+
+interface Conversation {
+  interlocutorId: string;
+  interlocutorName: string;
+  messages: MessageResponse[];
+  hasUnread: boolean;
+}
+
+const formatDate = (iso: string): string => {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
+  if (diffMin < 1) return "A l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `il y a ${diffH}h`;
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+};
+
+const buildConversations = (
+  inbox: MessageResponse[],
+  sent: MessageResponse[],
+): Map<string, Conversation> => {
+  const map = new Map<string, Conversation>();
+
+  const upsert = (msg: MessageResponse, isIncoming: boolean) => {
+    const key = isIncoming ? msg.senderId : msg.recipientId;
+    const interlocutorName = isIncoming ? msg.senderName : msg.recipientName;
+    const existing = map.get(key);
+
+    if (existing) {
+      existing.messages.push(msg);
+      if (isIncoming && !msg.readAt) {
+        existing.hasUnread = true;
+      }
+      return;
+    }
+
+    map.set(key, {
+      interlocutorId: key,
+      interlocutorName,
+      messages: [msg],
+      hasUnread: isIncoming && !msg.readAt,
+    });
+  };
+
+  inbox.forEach((m) => upsert(m, true));
+  sent.forEach((m) => upsert(m, false));
+
+  map.forEach((conv) => {
+    conv.messages.sort(
+      (a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime(),
+    );
+  });
+
+  return map;
+};
 
 const ParentCommunication: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'annonces' | 'messagerie' | 'forum'>('annonces');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [expandedForumId, setExpandedForumId] = useState<number | null>(null);
-  const [selectedConversation, setSelectedConversation] = useState<number | null>(1);
-  const [newMessage, setNewMessage] = useState('');
-  const [replyText, setReplyText] = useState('');
+
+  const [annonces, setAnnonces] = useState<AnnouncementResponse[]>([]);
+  const [annoncesLoading, setAnnoncesLoading] = useState(false);
+  const [annoncesError, setAnnoncesError] = useState<string | null>(null);
+
+  const [inbox, setInbox] = useState<MessageResponse[]>([]);
+  const [sent, setSent] = useState<MessageResponse[]>([]);
+  const [messagerieLoading, setMessagerieLoading] = useState(false);
+  const [messagerieError, setMessagerieError] = useState<string | null>(null);
+  const [selectedInterlocutorId, setSelectedInterlocutorId] = useState<string | null>(null);
   const [searchConversation, setSearchConversation] = useState('');
+  const [recipientId, setRecipientId] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [teacherContacts, setTeacherContacts] = useState<TeacherResponse[]>([]);
 
-  // ANNONCES (lecture seule)
-  const annonces = [
-    { id: 1, titre: 'Réunion Parents-Professeurs', contenu: 'La réunion trimestrielle se tiendra ce samedi de 09h à 12h dans les salles de classe respectives. Votre présence est vivement souhaitée.', date: "Aujourd'hui, 09:00", expediteur: 'Direction', urgent: false },
-    { id: 2, titre: 'Nouveau calendrier d\'examens', contenu: 'Le calendrier des examens du 2nd semestre est disponible. Consultez-le dans l\'onglet Documents.', date: "Hier, 14:30", expediteur: 'Scolarité', urgent: false },
-    { id: 3, titre: 'Alerte météo : Cours suspendus', contenu: 'En raison des fortes pluies annoncées, les cours de demain matin sont suspendus jusqu\'à 10h.', date: "02 Avr, 18:00", expediteur: 'Administration', urgent: true },
-    { id: 4, titre: 'Inscription cantine', contenu: 'Les inscriptions pour la cantine du mois de mai sont ouvertes. Merci de régler avant le 25 avril.', date: "01 Avr, 10:00", expediteur: 'Intendance', urgent: false },
-  ];
+  const [topics, setTopics] = useState<ForumPostResponse[]>([]);
+  const [forumLoading, setForumLoading] = useState(false);
+  const [forumError, setForumError] = useState<string | null>(null);
+  const [expandedForumId, setExpandedForumId] = useState<string | null>(null);
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [sendingReply, setSendingReply] = useState<string | null>(null);
 
-  // MESSAGERIE (conversations avec les profs)
-  const [conversations] = useState([
-    { 
-      id: 1, 
-      enseignant: 'Mme Aïssatou Diallo', 
-      matiere: 'Mathématiques', 
-      enfant: 'Aïssatou', 
-      lastMessage: 'Bonjour M. Bah, je voulais vous informer que les résultats du devoir seront disponibles lundi.', 
-      time: 'il y a 30 min', 
-      unread: true,
-      messages: [
-        { id: 1, sender: 'enseignant', text: 'Bonjour M. Bah, comment allez-vous ?', time: '10:00' },
-        { id: 2, sender: 'parent', text: 'Bonjour Mme Diallo ! Très bien, merci. Je voulais savoir comment Aïssatou se comporte en classe ?', time: '10:05' },
-        { id: 3, sender: 'enseignant', text: 'Aïssatou est une élève très sérieuse. Elle participe activement et ses résultats sont excellents. Elle est dans le top 5 de la classe.', time: '10:15' },
-        { id: 4, sender: 'parent', text: 'Merci beaucoup, ça me rassure ! Et pour le devoir de ce samedi ?', time: '10:20' },
-        { id: 5, sender: 'enseignant', text: 'Bonjour M. Bah, je voulais vous informer que les résultats du devoir seront disponibles lundi.', time: '14:30' },
-      ]
-    },
-    { 
-      id: 2, 
-      enseignant: 'M. Ibrahima Sow', 
-      matiere: 'Français', 
-      enfant: 'Mamadou', 
-      lastMessage: 'Mamadou doit rattraper le devoir qu\'il a manqué la semaine dernière.', 
-      time: 'il y a 2h', 
-      unread: true,
-      messages: [
-        { id: 1, sender: 'enseignant', text: 'Bonjour M. Bah, Mamadou a été absent mardi dernier. Il doit rattraper le devoir de conjugaison.', time: '09:00' },
-        { id: 2, sender: 'enseignant', text: 'Mamadou doit rattraper le devoir qu\'il a manqué la semaine dernière.', time: '12:00' },
-      ]
-    },
-    { 
-      id: 3, 
-      enseignant: 'Mme Fatoumata Camara', 
-      matiere: 'Physique-Chimie', 
-      enfant: 'Aïssatou', 
-      lastMessage: 'Pas de souci, les TP seront reportés à vendredi.', 
-      time: 'Hier', 
-      unread: false,
-      messages: [
-        { id: 1, sender: 'parent', text: 'Bonjour Madame, Aïssatou ne pourra pas être présente au TP de jeudi.', time: '16:00' },
-        { id: 2, sender: 'enseignant', text: 'Pas de souci, les TP seront reportés à vendredi.', time: '16:30' },
-      ]
-    },
-  ]);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('Operation reussie');
 
-  // FORUM (lecture + réponse uniquement)
-  const [forumMessages, setForumMessages] = useState([
-    { id: 1, user: 'Direction', role: 'Admin', content: 'Rappel : Les parents souhaitant participer au comité de l\'école peuvent s\'inscrire avant vendredi auprès de Mme Sylla.', date: 'il y a 3h', replies: 8, repliesList: [
-      { id: 101, user: 'Mme Condé', date: 'il y a 1h', content: 'Je suis intéressée, comment s\'inscrire concrètement ?' },
-      { id: 102, user: 'Admin EIEF', date: 'il y a 30 min', content: 'Passez directement au secrétariat ou envoyez un email.' },
-    ]},
-    { id: 2, user: 'Mme Touré', role: 'Parent', content: 'Bonjour à tous ! Quelqu\'un sait-il si les uniformes doivent être changés pour le 2nd semestre ?', date: 'il y a 5h', replies: 3, repliesList: [
-      { id: 201, user: 'M. Diallo', date: 'il y a 4h', content: 'Non, les mêmes uniformes restent valables jusqu\'à la fin de l\'année.' },
-    ]},
-    { id: 3, user: 'Dr. Keita', role: 'Enseignant', content: 'Les supports de révision pour le bac blanc sont disponibles sur le portail. Pensez à les imprimer pour vos enfants !', date: 'Hier', replies: 15, repliesList: [] },
-  ]);
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
+  const loadAnnonces = useCallback(async () => {
+    setAnnoncesLoading(true);
+    setAnnoncesError(null);
+    try {
+      const data = await getAnnouncements('PARENT');
+      setAnnonces(data);
+    } catch (err: any) {
+      setAnnoncesError(err?.message || 'Impossible de charger les annonces.');
+    } finally {
+      setAnnoncesLoading(false);
+    }
+  }, []);
 
-  const handleReplySubmit = (threadId: number) => {
-    if (!replyText.trim()) return;
-    setForumMessages(prev => prev.map(t => {
-      if (t.id === threadId) {
-        return {
-          ...t,
-          replies: t.replies + 1,
-          repliesList: [...t.repliesList, { id: Date.now(), user: 'Mamadou Bah', date: 'À l\'instant', content: replyText }]
-        };
-      }
-      return t;
-    }));
-    setReplyText('');
+  const loadMessagerie = useCallback(async () => {
+    if (!user?.id) return;
+    setMessagerieLoading(true);
+    setMessagerieError(null);
+    try {
+      const [inboxData, sentData] = await Promise.all([
+        getInbox(user.id),
+        getSentMessages(user.id),
+      ]);
+      setInbox(inboxData);
+      setSent(sentData);
+    } catch (err: any) {
+      setMessagerieError(err?.message || 'Impossible de charger les messages.');
+    } finally {
+      setMessagerieLoading(false);
+    }
+  }, [user?.id]);
+
+  const loadTeacherContacts = useCallback(async () => {
+    if (!user?.id || !token) return;
+    try {
+      const contacts = await userService.getTeachersByParent(token, user.id);
+      setTeacherContacts(contacts);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [token, user?.id]);
+
+  const loadForum = useCallback(async () => {
+    setForumLoading(true);
+    setForumError(null);
+    try {
+      setTopics(await getForumTopics());
+    } catch (err: any) {
+      setForumError(err?.message || 'Impossible de charger le forum.');
+    } finally {
+      setForumLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'annonces') loadAnnonces();
+    if (activeTab === 'messagerie') {
+      loadMessagerie();
+      loadTeacherContacts();
+    }
+    if (activeTab === 'forum') loadForum();
+  }, [activeTab, loadAnnonces, loadMessagerie, loadForum, loadTeacherContacts]);
+
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
     setIsSuccess(true);
     setTimeout(() => setIsSuccess(false), 3000);
   };
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
-    setNewMessage('');
-    setIsSuccess(true);
-    setTimeout(() => setIsSuccess(false), 3000);
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !user?.id || !recipientId.trim()) return;
+
+    const isAllowedRecipient = teacherContacts.some((teacher) => teacher.userId === recipientId.trim());
+    if (!isAllowedRecipient) {
+      setMessagerieError('Destinataire invalide. Choisissez un enseignant autorise.');
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      await sendMessage(user.id, {
+        recipientId: recipientId.trim(),
+        content: newMessage.trim(),
+      });
+      setNewMessage('');
+      setMessagerieError(null);
+      showSuccess('Message envoye');
+      await loadMessagerie();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
-  const selectedConv = conversations.find(c => c.id === selectedConversation);
-  const filteredConversations = conversations.filter(c => 
-    c.enseignant.toLowerCase().includes(searchConversation.toLowerCase()) ||
-    c.matiere.toLowerCase().includes(searchConversation.toLowerCase()) ||
-    c.enfant.toLowerCase().includes(searchConversation.toLowerCase())
+  const handleSelectConversation = async (conversation: Conversation) => {
+    setSelectedInterlocutorId(conversation.interlocutorId);
+
+    const matchedTeacher = teacherContacts.find(
+      (t) => t.userId === conversation.interlocutorId,
+    );
+    if (matchedTeacher?.userId) {
+      setRecipientId(matchedTeacher.userId);
+    } else {
+      setRecipientId('');
+    }
+
+    const unread = inbox.filter((m) => m.senderId === conversation.interlocutorId && !m.readAt);
+    await Promise.all(unread.map((m) => markMessageAsRead(m.id))).catch(console.error);
+    if (unread.length > 0) await loadMessagerie();
+  };
+
+  const contactOptions = useMemo(
+    () =>
+      teacherContacts.map((teacher) => ({
+        value: teacher.userId,
+        label: `${teacher.firstName} ${teacher.lastName}`,
+      })),
+    [teacherContacts],
+  );
+
+  const isRecipientAllowed = useMemo(
+    () => teacherContacts.some((teacher) => teacher.userId === recipientId.trim()),
+    [teacherContacts, recipientId],
+  );
+
+  const handleReplySubmit = async (topicId: string) => {
+    const body = replyTexts[topicId]?.trim();
+    if (!body || !user?.id) return;
+
+    setSendingReply(topicId);
+    try {
+      await addForumReply(topicId, user.id, { subject: '', body });
+      setReplyTexts((prev) => ({ ...prev, [topicId]: '' }));
+      showSuccess('Reponse publiee');
+      await loadForum();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSendingReply(null);
+    }
+  };
+
+  const conversations = useMemo(
+    () => buildConversations(inbox, sent),
+    [inbox, sent],
+  );
+
+  const filteredConversations = useMemo(
+    () =>
+      Array.from(conversations.values()).filter((c) =>
+        c.interlocutorName.toLowerCase().includes(searchConversation.toLowerCase()),
+      ),
+    [conversations, searchConversation],
+  );
+
+  const selectedConv = selectedInterlocutorId
+    ? conversations.get(selectedInterlocutorId) ?? null
+    : null;
+
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center py-16 text-gray-400">
+      <Loader2 size={28} className="animate-spin" />
+    </div>
+  );
+
+  const ErrorBanner = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+      <AlertCircle size={32} className="text-rouge-400" />
+      <p className="text-sm font-bold text-gray-600 dark:text-gray-300">{message}</p>
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-2 text-xs font-black text-bleu-600 bg-bleu-50 px-4 py-2 rounded-xl hover:bg-bleu-100 transition-colors"
+      >
+        <RefreshCw size={12} /> Reessayer
+      </button>
+    </div>
   );
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="space-y-8 pb-8"
     >
-      {/* HEADER SECTION */}
       <div className="flex flex-col gap-6 pb-2 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-bleu-100 dark:bg-bleu-900/30 rounded-2xl shadow-inner text-bleu-600">
@@ -138,21 +308,21 @@ const ParentCommunication: React.FC = () => {
           </div>
           <div className="text-left font-bold">
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Communication</h1>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">Annonces, messagerie enseignants et forum parents</p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">Annonces, echanges et forum parent</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-8">
-          {(['annonces', 'messagerie', 'forum'] as const).map(tab => (
-            <button 
+          {(['annonces', 'messagerie', 'forum'] as const).map((tab) => (
+            <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "text-sm font-bold transition-all relative pb-2 capitalize",
-                activeTab === tab ? "text-bleu-600 dark:text-or-400" : "text-gray-400 hover:text-gray-600"
+                'text-sm font-bold transition-all relative pb-2 capitalize',
+                activeTab === tab ? 'text-bleu-600 dark:text-or-400' : 'text-gray-400 hover:text-gray-600',
               )}
             >
-              {tab === 'annonces' ? 'Annonces' : tab === 'messagerie' ? 'Mes Enseignants' : 'Forum Parents'}
+              {tab === 'annonces' ? 'Annonces' : tab === 'messagerie' ? 'Messagerie' : 'Forum'}
               {activeTab === tab && <motion.div layoutId="parent-comm-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-current rounded-full" />}
             </button>
           ))}
@@ -160,172 +330,176 @@ const ParentCommunication: React.FC = () => {
       </div>
 
       <AnimatePresence mode="wait">
-
-        {/* ========== ANNONCES (LECTURE SEULE) ========== */}
         {activeTab === 'annonces' && (
           <motion.div key="annonces" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-               <Card className="p-5 bg-gradient-to-br from-bleu-900 to-indigo-900 text-white border-none shadow-soft flex items-center gap-4">
-                  <div className="p-3 bg-white/10 rounded-2xl"><Bell size={22} className="text-or-400" /></div>
-                  <div>
-                     <p className="text-[10px] font-bold opacity-80 uppercase tracking-wider">Annonces</p>
-                     <h3 className="text-2xl font-black">{annonces.length}</h3>
-                  </div>
-               </Card>
-               <Card className="p-5 bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-white/5 shadow-soft flex items-center gap-4">
-                  <div className="p-3 bg-rouge-50 dark:bg-rouge-900/10 rounded-2xl text-rouge-500"><AlertCircle size={22} /></div>
-                  <div>
-                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Urgentes</p>
-                     <h3 className="text-2xl font-black text-gray-900 dark:text-white">{annonces.filter(a => a.urgent).length}</h3>
-                  </div>
-               </Card>
-               <Card className="p-5 bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-white/5 shadow-soft flex items-center gap-4">
-                  <div className="p-3 bg-vert-50 dark:bg-vert-900/10 rounded-2xl text-vert-500"><CheckCircle2 size={22} /></div>
-                  <div>
-                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Lues</p>
-                     <h3 className="text-2xl font-black text-gray-900 dark:text-white">{annonces.length - 1}</h3>
-                  </div>
-               </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="p-5 bg-gradient-to-br from-bleu-900 to-indigo-900 text-white border-none shadow-soft flex items-center gap-4">
+                <div className="p-3 bg-white/10 rounded-2xl"><Bell size={22} className="text-or-400" /></div>
+                <div>
+                  <p className="text-[10px] font-bold opacity-80 uppercase tracking-wider">Annonces</p>
+                  <h3 className="text-2xl font-black">{annonces.length}</h3>
+                </div>
+              </Card>
+              <Card className="p-5 bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-white/5 shadow-soft flex items-center gap-4">
+                <div className="p-3 bg-rouge-50 dark:bg-rouge-900/10 rounded-2xl text-rouge-500"><AlertCircle size={22} /></div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Ciblees parent</p>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white">{annonces.filter((a) => a.targetRole === 'PARENT').length}</h3>
+                </div>
+              </Card>
             </div>
 
-            <Card className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50">
-              <div className="divide-y divide-gray-50 dark:divide-white/5">
-                {annonces.map((msg) => (
-                  <div key={msg.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer">
-                    <div className="flex items-center gap-4">
-                       <div className={`p-3 rounded-2xl flex-shrink-0 ${msg.urgent ? 'bg-rouge-50 text-rouge-600 dark:bg-rouge-900/10' : 'bg-bleu-50 text-bleu-600 dark:bg-bleu-900/10'}`}>
-                          {msg.urgent ? <AlertCircle size={20} /> : <MessageSquare size={20} />}
-                       </div>
-                       <div className="text-left font-bold">
-                          <h3 className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                             {msg.titre}
-                             {msg.urgent && <Badge className="bg-rouge-100 text-rouge-600 border-none h-5 text-[9px] px-1.5 font-bold">Urgent</Badge>}
-                          </h3>
-                          <p className="text-[11px] text-gray-500 font-semibold line-clamp-1 mt-1 max-w-lg">{msg.contenu}</p>
-                       </div>
-                    </div>
-                    <div className="flex items-center gap-6 justify-end flex-shrink-0">
-                       <div className="text-right">
-                          <p className="text-[11px] font-bold text-gray-900 dark:text-white">{msg.expediteur}</p>
-                          <p className="text-[10px] text-gray-400 font-semibold flex items-center gap-1 justify-end mt-0.5"><Clock size={10} /> {msg.date}</p>
-                       </div>
-                    </div>
+            {annoncesLoading && <LoadingSpinner />}
+            {annoncesError && <ErrorBanner message={annoncesError} onRetry={loadAnnonces} />}
+
+            {!annoncesLoading && !annoncesError && (
+              <Card className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50">
+                {annonces.length === 0 ? (
+                  <div className="py-16 text-center text-sm font-bold text-gray-400">Aucune annonce pour le moment.</div>
+                ) : (
+                  <div className="divide-y divide-gray-50 dark:divide-white/5">
+                    {annonces.map((msg) => (
+                      <div key={msg.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 rounded-2xl flex-shrink-0 bg-bleu-50 text-bleu-600 dark:bg-bleu-900/10">
+                            <MessageSquare size={20} />
+                          </div>
+                          <div className="text-left font-bold">
+                            <h3 className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                              {msg.title}
+                              {msg.targetRole && (
+                                <Badge className="bg-bleu-100 text-bleu-700 border-none text-[8px] px-1.5 h-5 font-black">
+                                  {msg.targetRole}
+                                </Badge>
+                              )}
+                            </h3>
+                            <p className="text-[11px] text-gray-500 font-semibold line-clamp-1 mt-1 max-w-lg">{msg.content}</p>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[11px] font-bold text-gray-900 dark:text-white">{msg.authorName}</p>
+                          <p className="text-[10px] text-gray-400 font-semibold flex items-center gap-1 justify-end mt-0.5"><Clock size={10} /> {formatDate(msg.publishedAt)}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </Card>
+                )}
+              </Card>
+            )}
           </motion.div>
         )}
 
-        {/* ========== MESSAGERIE ENSEIGNANTS ========== */}
         {activeTab === 'messagerie' && (
           <motion.div key="messagerie" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <Card className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50">
               <div className="flex h-[520px]">
-                
-                {/* LISTE DES CONVERSATIONS */}
                 <div className="w-80 border-r border-gray-100 dark:border-white/5 flex flex-col">
-                  <div className="p-4 border-b border-gray-100 dark:border-white/5">
+                  <div className="p-4 border-b border-gray-100 dark:border-white/5 space-y-3">
                     <div className="relative">
                       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input 
+                      <Input
                         value={searchConversation}
                         onChange={(e) => setSearchConversation(e.target.value)}
-                        placeholder="Rechercher un enseignant..."
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-[12px] font-semibold text-gray-700 dark:text-gray-300 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-bleu-500/30 border border-transparent focus:border-bleu-500 transition-all"
+                        placeholder="Rechercher un contact..."
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-[12px] font-semibold"
                       />
                     </div>
+                    <select
+                      value={recipientId}
+                      onChange={(e) => setRecipientId(e.target.value)}
+                      className="w-full text-[11px] bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl px-3 py-2.5"
+                    >
+                      <option value="">Choisir un enseignant destinataire</option>
+                      {contactOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  
-                  <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-white/5">
-                    {filteredConversations.map(conv => (
-                      <button 
-                        key={conv.id}
-                        onClick={() => setSelectedConversation(conv.id)}
-                        className={cn(
-                          "w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors",
-                          selectedConversation === conv.id && "bg-bleu-50/50 dark:bg-bleu-900/10 border-l-2 border-l-bleu-500"
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Avatar name={conv.enseignant} size="md" className="flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <h4 className="text-[12px] font-bold text-gray-900 dark:text-white truncate">{conv.enseignant}</h4>
-                              {conv.unread && <div className="w-2 h-2 bg-bleu-500 rounded-full flex-shrink-0" />}
+
+                  {messagerieLoading && <LoadingSpinner />}
+                  {messagerieError && <ErrorBanner message={messagerieError} onRetry={loadMessagerie} />}
+
+                  {!messagerieLoading && !messagerieError && (
+                    <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-white/5">
+                      {filteredConversations.map((conv) => {
+                        const last = conv.messages[conv.messages.length - 1];
+                        return (
+                          <button
+                            key={conv.interlocutorName}
+                            onClick={() => handleSelectConversation(conv)}
+                            className={cn(
+                              'w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors',
+                              selectedInterlocutorId === conv.interlocutorId && 'bg-bleu-50/50 dark:bg-bleu-900/10 border-l-2 border-l-bleu-500',
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Avatar name={conv.interlocutorName} size="md" className="flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <h4 className="text-[12px] font-bold text-gray-900 dark:text-white truncate">{conv.interlocutorName}</h4>
+                                  {conv.hasUnread && <div className="w-2 h-2 bg-bleu-500 rounded-full flex-shrink-0" />}
+                                </div>
+                                <p className="text-[11px] text-gray-500 font-semibold truncate leading-relaxed">{last?.content || 'Aucun message'}</p>
+                                <p className="text-[9px] text-gray-400 font-semibold mt-1.5 flex items-center gap-1"><Clock size={9} /> {last ? formatDate(last.sentAt) : '-'}</p>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Badge className="bg-gray-100 dark:bg-white/10 text-gray-500 border-none text-[8px] font-bold h-4 px-1.5">{conv.matiere}</Badge>
-                              <span className="text-[9px] text-gray-400 font-semibold">• {conv.enfant}</span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 font-semibold truncate leading-relaxed">{conv.lastMessage}</p>
-                            <p className="text-[9px] text-gray-400 font-semibold mt-1.5 flex items-center gap-1"><Clock size={9}/> {conv.time}</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* ZONE DE CHAT */}
                 <div className="flex-1 flex flex-col">
                   {selectedConv ? (
                     <>
-                      {/* Chat Header */}
                       <div className="p-4 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02] flex items-center gap-4">
-                        <Avatar name={selectedConv.enseignant} size="md" />
+                        <Avatar name={selectedConv.interlocutorName} size="md" />
                         <div className="flex-1">
-                          <h3 className="text-sm font-bold text-gray-900 dark:text-white">{selectedConv.enseignant}</h3>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <GraduationCap size={12} className="text-bleu-500" />
-                            <span className="text-[10px] font-semibold text-gray-500">{selectedConv.matiere} • {selectedConv.enfant}</span>
-                          </div>
+                          <h3 className="text-sm font-bold text-gray-900 dark:text-white">{selectedConv.interlocutorName}</h3>
                         </div>
                       </div>
 
-                      {/* Messages */}
                       <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                        {selectedConv.messages.map(msg => (
-                          <div key={msg.id} className={cn("flex", msg.sender === 'parent' ? 'justify-end' : 'justify-start')}>
+                        {selectedConv.messages.map((msg) => (
+                          <div key={msg.id} className={cn('flex', msg.senderId === user?.id ? 'justify-end' : 'justify-start')}>
                             <div className={cn(
-                              "max-w-[75%] p-3.5 rounded-2xl text-sm font-semibold shadow-sm",
-                              msg.sender === 'parent' 
-                                ? 'bg-bleu-600 text-white rounded-br-md' 
-                                : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 rounded-bl-md border border-gray-100 dark:border-white/10'
+                              'max-w-[75%] p-3.5 rounded-2xl text-sm font-semibold shadow-sm',
+                              msg.senderId === user?.id
+                                ? 'bg-bleu-600 text-white rounded-br-md'
+                                : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 rounded-bl-md border border-gray-100 dark:border-white/10',
                             )}>
-                              <p className="leading-relaxed">{msg.text}</p>
-                              <p className={cn(
-                                "text-[9px] font-semibold mt-2",
-                                msg.sender === 'parent' ? 'text-bleu-200' : 'text-gray-400'
-                              )}>{msg.time}</p>
+                              <p className="leading-relaxed">{msg.content}</p>
+                              <p className={cn('text-[9px] font-semibold mt-2', msg.senderId === user?.id ? 'text-bleu-200' : 'text-gray-400')}>
+                                {formatDate(msg.sentAt)}
+                              </p>
                             </div>
                           </div>
                         ))}
                       </div>
 
-                      {/* Input */}
                       <div className="p-4 border-t border-gray-100 dark:border-white/5 bg-white dark:bg-gray-900">
                         <div className="flex items-center gap-3">
-                          <button className="p-2.5 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors">
-                            <Paperclip size={18} />
-                          </button>
-                          <div className="flex-1 relative">
-                            <input 
+                          <div className="flex-1">
+                            <Input
                               value={newMessage}
                               onChange={(e) => setNewMessage(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
-                              placeholder="Écrire un message..."
-                              className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-bleu-500/30 border border-transparent focus:border-bleu-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSendMessage();
+                              }}
+                              placeholder="Ecrire un message..."
+                              className="w-full"
                             />
                           </div>
-                          <button 
+                          <Button
                             onClick={handleSendMessage}
-                            disabled={!newMessage.trim()}
-                            className="p-2.5 bg-bleu-600 hover:bg-bleu-700 disabled:opacity-40 text-white rounded-xl transition-colors shadow-md"
+                            disabled={!newMessage.trim() || !recipientId.trim() || sendingMessage || !isRecipientAllowed}
+                            className="h-10 px-4"
                           >
-                            <Send size={18} />
-                          </button>
+                            <Send size={16} className="mr-2" /> Envoyer
+                          </Button>
                         </div>
                       </div>
                     </>
@@ -335,8 +509,8 @@ const ParentCommunication: React.FC = () => {
                         <div className="w-16 h-16 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
                           <MessageSquare size={32} className="text-gray-300" />
                         </div>
-                        <p className="font-bold text-gray-400">Sélectionnez une conversation</p>
-                        <p className="text-[11px] text-gray-400 font-semibold mt-1">Choisissez un enseignant pour voir la discussion</p>
+                        <p className="font-bold text-gray-400">Selectionnez une conversation</p>
+                        <p className="text-[11px] text-gray-400 font-semibold mt-1">Ouvrez une discussion pour afficher les messages</p>
                       </div>
                     </div>
                   )}
@@ -346,116 +520,70 @@ const ParentCommunication: React.FC = () => {
           </motion.div>
         )}
 
-        {/* ========== FORUM PARENTS ========== */}
         {activeTab === 'forum' && (
-          <motion.div key="forum" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="text-bleu-500" size={22} />
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Discussions communautaires</h2>
-            </div>
+          <motion.div key="forum" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            {forumLoading && <LoadingSpinner />}
+            {forumError && <ErrorBanner message={forumError} onRetry={loadForum} />}
 
-            <div className="space-y-4">
-              {forumMessages.map(thread => (
-                <Card key={thread.id} className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-sm dark:bg-gray-900/50">
-                  <div className="p-5">
-                    <div className="flex items-start gap-4">
-                      <Avatar name={thread.user} size="md" />
-                      <div className="flex-1 text-left">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h4 className="text-sm font-bold text-gray-900 dark:text-white">{thread.user}</h4>
-                          <Badge className={cn(
-                            "font-bold border-none text-[9px] h-5",
-                            thread.role === 'Admin' ? 'bg-or-50 text-or-600 dark:bg-or-900/20 dark:text-or-400' 
-                            : thread.role === 'Enseignant' ? 'bg-bleu-50 text-bleu-600 dark:bg-bleu-900/20 dark:text-bleu-400' 
-                            : 'bg-gray-100 text-gray-500 dark:bg-white/10'
-                          )}>{thread.role}</Badge>
-                          <span className="text-[10px] text-gray-400 ml-auto flex items-center gap-1"><Clock size={10} /> {thread.date}</span>
+            {!forumLoading && !forumError && topics.map((thread) => (
+              <Card key={thread.id} className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-sm dark:bg-gray-900/50">
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">{thread.subject || 'Discussion'}</h3>
+                    <button
+                      onClick={() => setExpandedForumId(expandedForumId === thread.id ? null : thread.id)}
+                      className="text-xs text-bleu-600 font-bold"
+                    >
+                      {expandedForumId === thread.id ? 'Masquer' : 'Voir'}
+                    </button>
+                  </div>
+                  <p className="text-[12px] text-gray-600 dark:text-gray-300 font-semibold">{thread.body}</p>
+                  <p className="text-[10px] text-gray-400 font-semibold mt-2">{thread.authorName} • {formatDate(thread.postedAt)}</p>
+                </div>
+
+                {expandedForumId === thread.id && (
+                  <div className="px-5 pb-5 border-t border-gray-50 dark:border-white/5 pt-4 space-y-3">
+                    {thread.replies.map((reply) => (
+                      <div key={reply.id} className="flex gap-2 text-left">
+                        <CornerDownRight size={14} className="text-gray-400 mt-1" />
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-700 dark:text-gray-300">{reply.authorName}</p>
+                          <p className="text-[11px] text-gray-500">{reply.body}</p>
                         </div>
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mt-2 leading-relaxed">{thread.content}</p>
-
-                        <button 
-                          onClick={() => setExpandedForumId(expandedForumId === thread.id ? null : thread.id)}
-                          className="mt-4 text-[11px] font-bold text-bleu-600 hover:text-bleu-700 flex items-center gap-1 bg-bleu-50 dark:bg-bleu-900/10 px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          <MessageSquare size={12} /> {thread.replies} Réponses
-                        </button>
                       </div>
+                    ))}
+
+                    <div className="flex gap-2 pt-2">
+                      <Input
+                        value={replyTexts[thread.id] || ''}
+                        onChange={(e) => setReplyTexts((prev) => ({ ...prev, [thread.id]: e.target.value }))}
+                        placeholder="Ecrire une reponse..."
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={() => handleReplySubmit(thread.id)}
+                        disabled={!replyTexts[thread.id]?.trim() || sendingReply === thread.id}
+                      >
+                        {sendingReply === thread.id ? <Loader2 size={14} className="animate-spin" /> : 'Repondre'}
+                      </Button>
                     </div>
                   </div>
-
-                  <AnimatePresence>
-                    {expandedForumId === thread.id && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="bg-gray-50 dark:bg-white/[0.02] border-t border-gray-100 dark:border-white/5"
-                      >
-                        <div className="p-5 space-y-4 text-left">
-                          {thread.repliesList.map(reply => (
-                            <div key={reply.id} className="flex items-start gap-3 pl-8 relative">
-                              <CornerDownRight className="absolute left-2 top-2 text-gray-300 dark:text-gray-600" size={16} />
-                              <Avatar name={reply.user} size="sm" />
-                              <div className="bg-white dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm flex-1 border border-gray-100 dark:border-white/5">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[11px] font-bold text-gray-900 dark:text-white">{reply.user}</span>
-                                  <span className="text-[9px] font-semibold text-gray-400">{reply.date}</span>
-                                </div>
-                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">{reply.content}</p>
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* Formulaire de réponse */}
-                          <div className="pl-8 pt-2 flex gap-3">
-                            <Avatar name="Mamadou Bah" size="sm" />
-                            <div className="flex-1 relative">
-                              <input 
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                placeholder="Votre réponse..." 
-                                className="w-full pl-4 pr-12 py-3 rounded-2xl bg-white dark:bg-gray-800 text-sm font-semibold border border-gray-200 dark:border-white/10 outline-none focus:border-bleu-500 focus:ring-1 focus:ring-bleu-500/30"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleReplySubmit(thread.id);
-                                }}
-                              />
-                              <button 
-                                onClick={() => handleReplySubmit(thread.id)}
-                                className="absolute right-2 top-1.5 p-2 bg-bleu-600 text-white rounded-xl hover:bg-bleu-700 transition-colors"
-                              >
-                                <Send size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Card>
-              ))}
-            </div>
+                )}
+              </Card>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* TOAST SUCCESS */}
       <AnimatePresence>
         {isSuccess && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-8 right-8 z-[100] flex items-center p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-vert-100 min-w-[300px]"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-6 right-6 z-50 bg-vert-600 text-white px-4 py-3 rounded-xl shadow-xl text-sm font-bold"
           >
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-vert-100 text-vert-500 rounded-xl">
-                <CheckCircle2 size={24} />
-              </div>
-              <div className="text-left font-bold">
-                <p className="text-sm text-gray-900 dark:text-white">Message envoyé</p>
-                <p className="text-[11px] text-gray-500 font-semibold">Votre message a été transmis</p>
-              </div>
-            </div>
+            {successMsg}
           </motion.div>
         )}
       </AnimatePresence>

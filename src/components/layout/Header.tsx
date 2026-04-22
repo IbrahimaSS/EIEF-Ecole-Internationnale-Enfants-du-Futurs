@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Bell, Settings, LogOut, User, Sun, Moon } from 'lucide-react';
 import Avatar from '../ui/Avatar';
-import { Camera, Lock, CheckCircle2, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 

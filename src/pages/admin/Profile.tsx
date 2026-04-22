@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Camera, Mail, Phone, Briefcase, Save, CheckCircle2, Shield, Lock, CreditCard, Bell } from 'lucide-react';
+import { User, Camera, Mail, Phone, Briefcase, Save, CheckCircle2, Shield, Lock, Bell } from 'lucide-react';
 import { Card, Input, Button, Avatar } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 

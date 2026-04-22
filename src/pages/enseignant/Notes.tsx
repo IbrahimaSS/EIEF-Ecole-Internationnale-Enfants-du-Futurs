@@ -8,7 +8,6 @@ import {
   Filter,
   Calculator,
   Download,
-  AlertCircle,
   TrendingUp,
 } from "lucide-react";
 import { Card, Input, Button, Badge, Select } from "../../components/ui";
@@ -57,20 +56,37 @@ const EnseignantNotes: React.FC = () => {
     fetchClasses();
   }, [token, user?.id]);
 
-  // 2. Charger les élèves quand la classe change
+  // 2. Charger les élèves et les notes existantes
   useEffect(() => {
     if (selectedClassId && selectedSubjectId) {
       const fetchStudents = async () => {
         try {
-          const data = await teacherService.getClassStudents(
-            selectedClassId,
-            selectedSubjectId,
-          );
+          const [data, grades] = await Promise.all([
+            teacherService.getClassStudents(selectedClassId, selectedSubjectId),
+            gradeService.getByClassAndSubject(
+              selectedClassId,
+              selectedSubjectId,
+              parseInt(selectedSemester),
+            ),
+          ]);
+
+          const gradesByStudent = new Map<string, { value: number; comment?: string }>();
+          grades.forEach((grade) => {
+            if (grade.evaluationType === selectedExam) {
+              gradesByStudent.set(grade.studentId, {
+                value: grade.value,
+                comment: grade.comment,
+              });
+            }
+          });
+
           setStudents(
             data.map((s) => ({
               ...s,
-              note: "", // On commence vide pour la saisie
-              appreciation: "",
+              note: gradesByStudent.has(s.studentId)
+                ? String(gradesByStudent.get(s.studentId)?.value ?? "")
+                : "",
+              appreciation: gradesByStudent.get(s.studentId)?.comment || "",
             })),
           );
         } catch (error) {
@@ -79,7 +95,7 @@ const EnseignantNotes: React.FC = () => {
       };
       fetchStudents();
     }
-  }, [selectedClassId, selectedSubjectId]);
+  }, [selectedClassId, selectedSubjectId, selectedExam, selectedSemester]);
 
   const handleClassChange = (value: string) => {
     const cls = classes.find((c) => c.classId === value);
@@ -97,6 +113,45 @@ const EnseignantNotes: React.FC = () => {
     setStudents((prev) =>
       prev.map((s) => (s.studentId === studentId ? { ...s, [field]: value } : s)),
     );
+  };
+
+  const handleExportCsv = () => {
+    const classLabel = selectedClassData?.className || "Classe";
+    const subjectLabel = selectedClassData?.subjectName || "Matiere";
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+    const header = [
+      "Eleve",
+      "Classe",
+      "Matiere",
+      "Evaluation",
+      "Semestre",
+      "Note",
+      "Appreciation",
+    ].join(",");
+
+    const rows = students.map((s) =>
+      [
+        escapeCsv(s.name || ""),
+        escapeCsv(classLabel),
+        escapeCsv(subjectLabel),
+        escapeCsv(selectedExam),
+        selectedSemester,
+        s.note || "",
+        escapeCsv(s.appreciation || ""),
+      ].join(","),
+    );
+
+    const csvContent = [header, ...rows].join("\n");
+    const blob = new Blob([`\ufeff${csvContent}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `notes_${classLabel.replace(/\s+/g, "-")}_S${selectedSemester}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const calculateAverage = () => {
@@ -166,6 +221,8 @@ const EnseignantNotes: React.FC = () => {
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
+            onClick={handleExportCsv}
+            disabled={students.length === 0}
             className="border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 font-bold text-[11px] rounded-xl flex items-center gap-2"
           >
             <Download size={16} /> Exporter .CSV

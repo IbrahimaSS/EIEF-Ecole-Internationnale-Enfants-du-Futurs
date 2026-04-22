@@ -1,15 +1,29 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, GraduationCap, Wallet,
-  AlertCircle, BookOpen, ShoppingBag, Clock, ArrowRight,
-  TrendingUp, TrendingDown
+  AlertCircle, BookOpen, ShoppingBag, Clock, ArrowRight, Package,
 } from 'lucide-react';
 import { StatCard, Card, Badge, Button } from '../../components/ui';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
+import { getLowStockProducts, ProductResponse } from '../../services/storeServices';
 
 const AdminDashboard: React.FC = () => {
   const { data, loading, error } = useAdminDashboard();
+  const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([]);
+
+  useEffect(() => {
+    const fetchLowStockProducts = async () => {
+      try {
+        const products = await getLowStockProducts();
+        setLowStockProducts(products.slice(0, 5));
+      } catch {
+        setLowStockProducts([]);
+      }
+    };
+
+    fetchLowStockProducts();
+  }, []);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('fr-GN').format(amount) + ' FGN';
@@ -190,6 +204,39 @@ const AdminDashboard: React.FC = () => {
                 </button>
               ))}
             </div>
+          </Card>
+
+          <Card className="p-6 border-none shadow-soft bg-white dark:bg-gray-900/50 dark:backdrop-blur-md">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold gradient-bleu-or-text flex items-center gap-2">
+                <Package className="text-rouge-500" size={18} />
+                Stock Faible (Supérette)
+              </h3>
+              <Badge variant={lowStockProducts.length > 0 ? 'error' : 'success'} className="text-[9px] py-0 px-2 font-semibold">
+                {lowStockProducts.length > 0 ? `${lowStockProducts.length} alerte(s)` : 'RAS'}
+              </Badge>
+            </div>
+
+            {lowStockProducts.length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Aucun produit sous le seuil d'alerte.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {lowStockProducts.map((product) => (
+                  <div key={product.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/5">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{product.name}</p>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">SKU: {product.sku}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-rouge-500">{product.quantity} restant(s)</p>
+                      <p className="text-[10px] text-gray-400">Seuil: {product.alertThreshold}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* ÉTAT PLATEFORME */}

@@ -8,7 +8,6 @@ import {
   Lock, 
   Smartphone, 
   Mail,
-  EyeOff,
   Save,
   CheckCircle2,
   Settings,
@@ -24,8 +23,6 @@ const ElevePreferences: React.FC = () => {
   const [emailNotif, setEmailNotif] = useState(false);
   const [pushNotif, setPushNotif] = useState(true);
   const [noteNotif, setNoteNotif] = useState(true);
-  const [absenceNotif, setAbsenceNotif] = useState(false);
-  const [forumNotif, setForumNotif] = useState(true);
   const [twoFactor, setTwoFactor] = useState(false);
   
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');

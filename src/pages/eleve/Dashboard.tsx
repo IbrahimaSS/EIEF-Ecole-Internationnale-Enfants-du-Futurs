@@ -42,7 +42,6 @@ const EleveDashboard: React.FC = () => {
 
   const [data, setData]       = useState<StudentDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
 
  // Remplace le useEffect par celui-ci
 useEffect(() => {
@@ -77,12 +76,6 @@ useEffect(() => {
       </div>
     </div>
   );
-// Supprime ce bloc — plus besoin avec le fallback ci-dessus
-if (error) return (
-  <div className="flex items-center justify-center h-64 text-rouge-600 font-bold text-sm">
-    {error}
-  </div>
-);
 
   if (!data) return null;
 

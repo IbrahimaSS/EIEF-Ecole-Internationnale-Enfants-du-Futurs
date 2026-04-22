@@ -4,14 +4,10 @@ import {
   ArrowRight, 
   ChevronLeft,
   ShieldAlert,
-  ShieldCheck,
   Lock,
   Globe,
   Database,
   Activity,
-  Users,
-  Settings,
-  PieChart,
   Cpu,
   CheckCircle2
 } from 'lucide-react';

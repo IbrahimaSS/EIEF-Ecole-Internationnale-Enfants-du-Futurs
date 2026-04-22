@@ -19,7 +19,7 @@ export interface AnnouncementResponse {
   title: string;
   content: string;
   targetRole: string | null; // null quand l'annonce cible tout le monde
-  publishedAt: string;       // ISO 8601
+  publishedAt: string; // ISO 8601
 }
 
 export interface MessageRequest {
@@ -29,10 +29,12 @@ export interface MessageRequest {
 
 export interface MessageResponse {
   id: string;
+  senderId: string;
   senderName: string;
+  recipientId: string;
   recipientName: string;
   content: string;
-  sentAt: string;        // ISO 8601
+  sentAt: string; // ISO 8601
   readAt: string | null; // null si non lu
 }
 
@@ -46,7 +48,7 @@ export interface ForumPostResponse {
   authorName: string;
   subject: string;
   body: string;
-  postedAt: string;          // ISO 8601
+  postedAt: string; // ISO 8601
   replies: ForumPostResponse[];
 }
 
@@ -57,7 +59,7 @@ export interface ForumPostResponse {
  * GET /messages/announcements?targetRole=PARENT
  */
 export const getAnnouncements = (
-  targetRole?: string
+  targetRole?: string,
 ): Promise<AnnouncementResponse[]> => {
   const qs = targetRole ? `?targetRole=${encodeURIComponent(targetRole)}` : "";
   return apiRequest<AnnouncementResponse[]>(`/messages/announcements${qs}`);
@@ -68,13 +70,15 @@ export const getAnnouncements = (
  * POST /messages/announcements?authorId={authorId}
  */
 export const createAnnouncement = (
-  authorId: string,
-  data: AnnouncementRequest
+  authorIdOrData: string | AnnouncementRequest,
+  dataMaybe?: AnnouncementRequest,
 ): Promise<AnnouncementResponse> =>
-  apiRequest<AnnouncementResponse>(
-    `/messages/announcements?authorId=${authorId}`,
-    { method: "POST", body: JSON.stringify(data) }
-  );
+  apiRequest<AnnouncementResponse>(`/messages/announcements`, {
+    method: "POST",
+    body: JSON.stringify(
+      typeof authorIdOrData === "string" ? dataMaybe : authorIdOrData,
+    ),
+  });
 
 /**
  * Mettre à jour une annonce existante.
@@ -82,7 +86,7 @@ export const createAnnouncement = (
  */
 export const updateAnnouncement = (
   id: string,
-  data: AnnouncementRequest
+  data: AnnouncementRequest,
 ): Promise<AnnouncementResponse> =>
   apiRequest<AnnouncementResponse>(`/messages/announcements/${id}`, {
     method: "PUT",
@@ -103,12 +107,14 @@ export const deleteAnnouncement = (id: string): Promise<void> =>
  * POST /messages/send?senderId={senderId}
  */
 export const sendMessage = (
-  senderId: string,
-  data: MessageRequest
+  senderIdOrData: string | MessageRequest,
+  dataMaybe?: MessageRequest,
 ): Promise<MessageResponse> =>
-  apiRequest<MessageResponse>(`/messages/send?senderId=${senderId}`, {
+  apiRequest<MessageResponse>(`/messages/send`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(
+      typeof senderIdOrData === "string" ? dataMaybe : senderIdOrData,
+    ),
   });
 
 /**
@@ -160,13 +166,15 @@ export const getForumTopics = (): Promise<ForumPostResponse[]> =>
  * POST /messages/forum/topics?authorId={authorId}
  */
 export const createForumTopic = (
-  authorId: string,
-  data: ForumPostRequest
+  authorIdOrData: string | ForumPostRequest,
+  dataMaybe?: ForumPostRequest,
 ): Promise<ForumPostResponse> =>
-  apiRequest<ForumPostResponse>(
-    `/messages/forum/topics?authorId=${authorId}`,
-    { method: "POST", body: JSON.stringify(data) }
-  );
+  apiRequest<ForumPostResponse>(`/messages/forum/topics`, {
+    method: "POST",
+    body: JSON.stringify(
+      typeof authorIdOrData === "string" ? dataMaybe : authorIdOrData,
+    ),
+  });
 
 /**
  * Ajouter une réponse à un sujet existant.
@@ -174,13 +182,15 @@ export const createForumTopic = (
  */
 export const addForumReply = (
   topicId: string,
-  authorId: string,
-  data: ForumPostRequest
+  authorIdOrData: string | ForumPostRequest,
+  dataMaybe?: ForumPostRequest,
 ): Promise<ForumPostResponse> =>
-  apiRequest<ForumPostResponse>(
-    `/messages/forum/topics/${topicId}/replies?authorId=${authorId}`,
-    { method: "POST", body: JSON.stringify(data) }
-  );
+  apiRequest<ForumPostResponse>(`/messages/forum/topics/${topicId}/replies`, {
+    method: "POST",
+    body: JSON.stringify(
+      typeof authorIdOrData === "string" ? dataMaybe : authorIdOrData,
+    ),
+  });
 
 /**
  * Supprimer un sujet (ADMIN / STAFF côté serveur).
@@ -210,7 +220,7 @@ export const STOMP_BROKER_URL =
  */
 export const createStompClient = (
   token: string,
-  onMessage: (msg: MessageResponse) => void
+  onMessage: (msg: MessageResponse) => void,
 ) => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Client } = require("@stomp/stompjs");
@@ -245,7 +255,7 @@ export const createStompClient = (
  */
 export const sendMessageWs = (
   stompClient: any,
-  request: MessageRequest
+  request: MessageRequest,
 ): void => {
   stompClient.publish({
     destination: "/app/chat.send",

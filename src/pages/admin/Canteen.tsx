@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Utensils, Calendar, Users, TrendingUp, Plus, Clock, Coffee,
-  Drumstick, History, FileSpreadsheet, CheckCircle2, Salad, Apple,
-  Info, X, FileText, Pizza, Fish, Soup, Beef, Star, Image as ImageIcon,
+  Utensils, Users, TrendingUp, Plus,
+  Drumstick, FileSpreadsheet, CheckCircle2, Salad, Apple,
+  X, FileText, Pizza, Fish, Soup, Beef,
   Loader2, AlertTriangle, Trash2, Edit3, RefreshCw
 } from 'lucide-react';
 import { Card, Badge, StatCard, Button, Avatar, Modal, Input, Select } from '../../components/ui';
@@ -154,7 +154,11 @@ const AdminCanteen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { fetchMenus(); fetchSubscriptions(); fetchMeals(); }, []);
+  useEffect(() => {
+    fetchMenus();
+    fetchSubscriptions();
+    fetchMeals();
+  }, [fetchMeals, fetchMenus, fetchSubscriptions]);
 
   // ─── Toast helper ────────────────────────────────────────────────────────────
 

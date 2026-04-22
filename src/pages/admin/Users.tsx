@@ -5,7 +5,7 @@ import {
   Users as UsersIcon, GraduationCap, UserPlus, Search,
   MoreVertical, Eye, Edit, Trash2, X, CheckCircle2, AlertCircle,
   Loader2, UserCheck, Briefcase, Phone, Mail, Calendar, Hash,
-  BookOpen, Building2, Shield, ChevronLeft, User,
+  BookOpen, Shield, User,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import { cn } from '../../utils/cn';

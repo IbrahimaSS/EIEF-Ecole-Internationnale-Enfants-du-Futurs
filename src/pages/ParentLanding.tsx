@@ -8,7 +8,6 @@ import {
   CreditCard,
   MessageSquare,
   Bus,
-  Activity,
   Award,
   ShieldCheck,
   Star,

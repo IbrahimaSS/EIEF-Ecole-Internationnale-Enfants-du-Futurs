@@ -3,9 +3,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, CalendarDays, BookOpen, Plus, Trash2, Search,
-  GraduationCap, Clock, Users, ChevronRight, X, CheckCircle2,
+  GraduationCap, Clock, Users, X, CheckCircle2,
   AlertCircle, Loader2, FileText, Download, Printer, MoreVertical,
-  Edit, Eye, ClipboardList, Award, TrendingUp, BarChart3,
+  Edit, Eye, ClipboardList, Award, BarChart3,
 } from 'lucide-react';
 import { Card, Badge, Button, Modal, Input, Select, Avatar, Table } from '../../components/ui';
 import { cn } from '../../utils/cn';

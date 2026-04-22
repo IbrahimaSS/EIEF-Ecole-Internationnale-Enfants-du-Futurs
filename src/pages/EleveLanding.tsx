@@ -15,7 +15,6 @@ import {
   FileText,
   Award,
   Video,
-  Clock,
   CheckCircle
 } from 'lucide-react';
 

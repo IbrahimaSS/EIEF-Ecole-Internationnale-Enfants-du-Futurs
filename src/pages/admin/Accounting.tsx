@@ -69,12 +69,14 @@ interface Student {
 
 const AdminAccounting: React.FC = () => {
   const [payments, setPayments] = useState<PaymentResponse[]>([]);
+  const [overduePayments, setOverduePayments] = useState<PaymentResponse[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('Tous');
+  const [selectedStudentFilter, setSelectedStudentFilter] = useState('all');
   const [isEncaissementModalOpen, setIsEncaissementModalOpen] = useState(false);
   const [isRapportsModalOpen, setIsRapportsModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -111,18 +113,74 @@ const AdminAccounting: React.FC = () => {
     } catch { return null; }
   };
 
+  const downloadReport = async (path: string, fallbackFileName: string, openInNewTab = false) => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${getApiBaseUrl()}${path}`, {
+        method: 'GET',
+        headers: token ? { 'enfantsfuture-auth-token': `enfantsfuture ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        throw new Error(`Erreur HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      if (openInNewTab) {
+        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        const disposition = res.headers.get('content-disposition') || '';
+        const matchedFileName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = matchedFileName || fallbackFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
+      showSuccess('Rapport généré avec succès');
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la génération du rapport');
+    }
+  };
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await apiRequest<PaymentResponse[]>('/payments', { method: 'GET' });
+      const studentId = selectedStudentFilter !== 'all' ? selectedStudentFilter : undefined;
+      const categoryModule = filterCategory !== 'Tous' ? filterCategory : undefined;
+      const trimmedSearch = searchQuery.trim();
+
+      const params = new URLSearchParams();
+      if (studentId) params.set('studentId', studentId);
+      if (categoryModule) params.set('module', categoryModule);
+      if (trimmedSearch) params.set('query', trimmedSearch);
+
+      const query = params.toString();
+      const endpoint = query ? `/payments/filter?${query}` : '/payments/filter';
+      const data = await apiRequest<PaymentResponse[]>(endpoint, { method: 'GET' });
+
       setPayments(data);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Erreur lors du chargement des paiements');
     } finally {
       setLoading(false);
+    }
+  }, [filterCategory, searchQuery, selectedStudentFilter]);
+
+  const fetchOverduePayments = useCallback(async () => {
+    try {
+      const data = await apiRequest<PaymentResponse[]>('/payments/overdue', { method: 'GET' });
+      setOverduePayments(data);
+    } catch (err: any) {
+      console.error('Erreur chargement impayés:', err);
     }
   }, []);
 
@@ -136,9 +194,17 @@ const AdminAccounting: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchPayments();
     fetchStudents();
-  }, [fetchPayments, fetchStudents]);
+    fetchOverduePayments();
+  }, [fetchStudents, fetchOverduePayments]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchPayments();
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [fetchPayments]);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
@@ -148,8 +214,7 @@ const AdminAccounting: React.FC = () => {
 
   const totalAttendu = payments.reduce((acc, curr) => acc + Number(curr.amount), 0);
 
-  const totalImpayes = payments
-    .filter(p => p.status === 'PENDING' || p.status === 'OVERDUE')
+  const totalImpayes = overduePayments
     .reduce((acc, curr) => acc + Number(curr.amount), 0);
 
   const tauxRecouvrement = totalAttendu > 0
@@ -235,7 +300,10 @@ const AdminAccounting: React.FC = () => {
       setIsEncaissementModalOpen(false);
       showSuccess('Encaissement créé avec succès');
       setFormData({ amount: 0, reference: '', method: 'CASH', studentId: '', categoryId: null });
-      fetchPayments();
+      await Promise.all([
+        fetchPayments(),
+        fetchOverduePayments(),
+      ]);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la création du paiement');
     } finally {
@@ -247,7 +315,10 @@ const AdminAccounting: React.FC = () => {
     try {
       await apiRequest<PaymentResponse>(`/payments/${id}/pay`, { method: 'PATCH' });
       showSuccess('Paiement marqué comme payé');
-      fetchPayments();
+      await Promise.all([
+        fetchPayments(),
+        fetchOverduePayments(),
+      ]);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la mise à jour');
     }
@@ -264,7 +335,10 @@ const AdminAccounting: React.FC = () => {
       });
       if (!res.ok && res.status !== 204) throw new Error(`Erreur HTTP ${res.status}`);
       showSuccess('Paiement supprimé');
-      fetchPayments();
+      await Promise.all([
+        fetchPayments(),
+        fetchOverduePayments(),
+      ]);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la suppression');
     }
@@ -390,17 +464,14 @@ const AdminAccounting: React.FC = () => {
   // ── Filtrage ──────────────────────────────────────────────────────────────
 
   const categoriesList = [
-    'Tous',
-    ...Array.from(new Set(payments.map(p => p.categoryName).filter(Boolean))),
+    { value: 'Tous', label: 'Tous' },
+    { value: 'SCOLARITE', label: 'Scolarité' },
+    { value: 'CANTINE', label: 'Cantine' },
+    { value: 'TRANSPORT', label: 'Transport' },
+    { value: 'SUPERETTE', label: 'Supérette' },
   ];
 
-  const filteredPaiements = payments.filter(p => {
-    const matchesSearch =
-      p.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.reference?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'Tous' || p.categoryName === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredPaiements = payments;
 
   // ── Colonnes table ────────────────────────────────────────────────────────
 
@@ -624,29 +695,44 @@ const AdminAccounting: React.FC = () => {
           <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
             {categoriesList.map(cat => (
               <button
-                key={cat}
-                onClick={() => setFilterCategory(cat)}
+                key={cat.value}
+                onClick={() => setFilterCategory(cat.value)}
                 className={`
                   px-4 py-2 rounded-xl text-[10px] font-semibold whitespace-nowrap transition-all
-                  ${filterCategory === cat
+                  ${filterCategory === cat.value
                     ? 'bg-gray-900 dark:bg-or-500 text-white shadow-lg'
                     : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5'
                   }
                 `}
               >
-                {cat}
+                {cat.label}
               </button>
             ))}
           </div>
-          <div className="relative w-full lg:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
-            <input
-              type="text"
-              placeholder="Rechercher une transaction..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
-            />
+          <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+            <select
+              value={selectedStudentFilter}
+              onChange={e => setSelectedStudentFilter(e.target.value)}
+              className="w-full sm:w-72 px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
+            >
+              <option value="all">Tous les élèves</option>
+              {students.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.firstName} {s.lastName}{s.registrationNumber ? ` (${s.registrationNumber})` : ''}
+                </option>
+              ))}
+            </select>
+
+            <div className="relative w-full lg:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
+              <input
+                type="text"
+                placeholder="Rechercher une transaction..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -909,9 +995,9 @@ const AdminAccounting: React.FC = () => {
         <div className="space-y-6 text-left py-2 font-bold uppercase tracking-widest">
           <div className="space-y-3">
             {[
-              { name: "Journal de Caisse (Aujourd'hui)", desc: 'Toutes les opérations du jour',        type: 'PDF',   action: () => window.open(`${getApiBaseUrl()}/payments/report/daily`, '_blank') },
-              { name: 'Relevé Mensuel des Recettes',     desc: 'Analyse détaillée des encaissements', type: 'EXCEL', action: () => window.open(`${getApiBaseUrl()}/payments/report/monthly`, '_blank') },
-              { name: 'Liste des Impayés',               desc: 'Rapport stratégique de recouvrement', type: 'PDF',   action: () => window.open(`${getApiBaseUrl()}/payments/overdue`, '_blank') },
+              { name: "Journal de Caisse (Aujourd'hui)", desc: 'Toutes les opérations du jour',        type: 'HTML',  action: () => downloadReport('/payments/report/daily', 'journal-caisse.html', true) },
+              { name: 'Relevé Mensuel des Recettes',     desc: 'Analyse détaillée des encaissements', type: 'EXCEL', action: () => downloadReport('/payments/report/monthly', 'releve-mensuel.csv') },
+              { name: 'Liste des Impayés',               desc: 'Rapport stratégique de recouvrement', type: 'CSV',   action: () => downloadReport('/payments/report/overdue', 'liste-impayes.csv') },
             ].map((rep, i) => (
               <button
                 key={i}

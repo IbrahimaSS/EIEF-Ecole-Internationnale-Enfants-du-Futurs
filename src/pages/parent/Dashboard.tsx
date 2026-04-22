@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Users, 
@@ -16,9 +16,83 @@ import {
 } from 'lucide-react';
 import { Card, Button, Avatar, Badge } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import { userService, StudentResponse } from '../../services/userService';
+import { studentService, StudentDashboardResponse } from '../../services/studentService';
+import { apiRequest } from '../../services/api';
+
+type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
+
+interface PaymentResponse {
+   id: string;
+   amount: number;
+   method: string;
+   reference: string;
+   studentName: string;
+   categoryName: string;
+   status: PaymentStatus;
+   paidAt: string | null;
+}
 
 const ParentDashboard: React.FC = () => {
   const navigate = useNavigate();
+   const user = useAuthStore((state) => state.user);
+   const token = useAuthStore((state) => state.token);
+
+   const [students, setStudents] = useState<StudentResponse[]>([]);
+   const [studentDashboards, setStudentDashboards] = useState<Record<string, StudentDashboardResponse>>({});
+   const [payments, setPayments] = useState<PaymentResponse[]>([]);
+
+   useEffect(() => {
+      const loadData = async () => {
+         if (!user?.id || !token) {
+            return;
+         }
+
+         try {
+            const linkedStudents = await userService.getStudentsByParent(token, user.id);
+            setStudents(linkedStudents);
+
+            const [dashboards, paymentGroups] = await Promise.all([
+               Promise.all(
+                  linkedStudents.map((student) => studentService.getDashboard(student.id)),
+               ),
+               Promise.all(
+                  linkedStudents.map((student) =>
+                     apiRequest<PaymentResponse[]>(`/payments/student/${student.id}`, { method: 'GET', token }),
+                  ),
+               ),
+            ]);
+
+            const dashboardMap: Record<string, StudentDashboardResponse> = {};
+            linkedStudents.forEach((student, index) => {
+               dashboardMap[student.id] = dashboards[index];
+            });
+
+            setStudentDashboards(dashboardMap);
+            setPayments(paymentGroups.flat());
+         } catch (_error) {
+            setStudents([]);
+            setStudentDashboards({});
+            setPayments([]);
+         }
+      };
+
+      loadData();
+   }, [token, user?.id]);
+
+   const totalPaid = useMemo(
+      () => payments.filter((payment) => payment.status === 'PAID').reduce((sum, payment) => sum + Number(payment.amount), 0),
+      [payments],
+   );
+
+   const totalPending = useMemo(
+      () =>
+         payments
+            .filter((payment) => payment.status === 'PENDING' || payment.status === 'OVERDUE' || payment.status === 'PARTIAL')
+            .reduce((sum, payment) => sum + Number(payment.amount), 0),
+      [payments],
+   );
 
   return (
     <motion.div
@@ -40,7 +114,7 @@ const ParentDashboard: React.FC = () => {
                   <span className="text-[11px] font-bold tracking-wide">Espace Famille</span>
                </div>
                <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-4 leading-tight">
-                  Bonjour, Famille Bah
+                  Bonjour, {user?.firstName || 'Famille'}
                </h1>
                <p className="text-sm font-semibold text-white/80 max-w-lg leading-relaxed">
                   Bienvenue sur votre portail. Suivez en temps réel la scolarité de vos enfants, gérez vos paiements et communiquez avec l'équipe pédagogique.
@@ -49,11 +123,11 @@ const ParentDashboard: React.FC = () => {
             
             <div className="flex gap-4">
                <Card className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl text-center min-w-[120px]">
-                  <p className="text-3xl font-black text-or-400">2</p>
+                  <p className="text-3xl font-black text-or-400">{students.length}</p>
                   <p className="text-[11px] font-bold text-white mt-1">Enfants inscrits</p>
                </Card>
                <Card className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl text-center min-w-[120px]">
-                  <p className="text-3xl font-black text-vert-400">À jour</p>
+                  <p className="text-3xl font-black text-vert-400">{totalPending > 0 ? 'Alerte' : 'A jour'}</p>
                   <p className="text-[11px] font-bold text-white mt-1">Scolarité</p>
                </Card>
             </div>
@@ -73,75 +147,56 @@ const ParentDashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-               {/* Enfant 1 */}
-               <Card className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-soft hover:shadow-lg transition-all dark:bg-gray-900/50 group">
-                  <div className="bg-gradient-to-r from-bleu-50 to-white dark:from-bleu-900/10 dark:to-transparent p-5 border-b border-gray-50 dark:border-white/5">
-                     <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-4">
-                           <Avatar name="Aïssatou Bah" size="lg" className="ring-4 ring-white dark:ring-gray-800 shadow-sm" />
-                           <div>
-                              <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight">Aïssatou Bah</h3>
-                              <p className="text-sm font-semibold text-bleu-600 dark:text-bleu-400">Terminale S1</p>
-                           </div>
-                        </div>
-                     </div>
-                  </div>
-                  
-                  <div className="p-5 space-y-4">
-                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-semibold flex items-center gap-2"><TrendingUp size={16} /> Moyenne Gle</span>
-                        <span className="font-black text-gray-900 dark:text-white text-lg">15.5<span className="text-[10px] text-gray-400 font-semibold">/20</span></span>
-                     </div>
-                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-semibold flex items-center gap-2"><Activity size={16} /> Absences</span>
-                        <Badge className="bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400 border-none font-bold">0 heure</Badge>
-                     </div>
-                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-semibold flex items-center gap-2"><FileText size={16} /> Prochain devoir</span>
-                        <span className="font-bold text-gray-900 dark:text-white text-[11px]">Maths (Demain)</span>
-                     </div>
-                  </div>
-                  <div className="p-3 bg-gray-50 dark:bg-white/5 border-t border-gray-100 dark:border-white/5">
-                     <Button onClick={() => navigate('/parent/eleves')} className="w-full text-[11px] font-bold h-10 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:border-bleu-300 transition-colors">
-                        Détails scolarité
-                     </Button>
-                  </div>
-               </Card>
+               {students.length === 0 && (
+                  <Card className="p-6 border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50">
+                    <p className="text-sm font-semibold text-gray-500">Aucun enfant lie au compte parent.</p>
+                  </Card>
+               )}
 
-               {/* Enfant 2 */}
-               <Card className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-soft hover:shadow-lg transition-all dark:bg-gray-900/50 group">
-                  <div className="bg-gradient-to-r from-or-50 to-white dark:from-or-900/10 dark:to-transparent p-5 border-b border-gray-50 dark:border-white/5">
-                     <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-4">
-                           <Avatar name="Mamadou Bah" size="lg" className="ring-4 ring-white dark:ring-gray-800 shadow-sm" />
-                           <div>
-                              <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight">Mamadou Bah</h3>
-                              <p className="text-sm font-semibold text-or-600 dark:text-or-400">4ème B</p>
-                           </div>
-                        </div>
-                     </div>
-                  </div>
-                  
-                  <div className="p-5 space-y-4">
-                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-semibold flex items-center gap-2"><TrendingUp size={16} /> Moyenne Gle</span>
-                        <span className="font-black text-gray-900 dark:text-white text-lg">12.0<span className="text-[10px] text-gray-400 font-semibold">/20</span></span>
-                     </div>
-                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-semibold flex items-center gap-2"><Activity size={16} /> Absences</span>
-                        <Badge className="bg-rouge-50 text-rouge-600 dark:bg-rouge-900/20 dark:text-rouge-400 border-none font-bold">2 heures</Badge>
-                     </div>
-                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-semibold flex items-center gap-2"><FileText size={16} /> Prochain devoir</span>
-                        <span className="font-bold text-gray-900 dark:text-white text-[11px]">Français (Jeu.)</span>
-                     </div>
-                  </div>
-                  <div className="p-3 bg-gray-50 dark:bg-white/5 border-t border-gray-100 dark:border-white/5">
-                     <Button onClick={() => navigate('/parent/eleves')} className="w-full text-[11px] font-bold h-10 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:border-or-300 transition-colors">
-                        Détails scolarité
-                     </Button>
-                  </div>
-               </Card>
+               {students.map((student) => {
+                 const dashboard = studentDashboards[student.id];
+                 const firstAssignment = dashboard?.upcomingAssignments?.[0];
+                 const avg = dashboard?.averageGrade ?? 0;
+                 const absencesEstimate = Math.max(0, Math.round((100 - (dashboard?.attendanceRate ?? 100)) / 10));
+                 const cardGradient = avg >= 14 ? 'from-bleu-50' : 'from-or-50';
+                 const classColor = avg >= 14 ? 'text-bleu-600 dark:text-bleu-400' : 'text-or-600 dark:text-or-400';
+
+                 return (
+                   <Card key={student.id} className="p-0 overflow-hidden border border-gray-100 dark:border-white/5 shadow-soft hover:shadow-lg transition-all dark:bg-gray-900/50 group">
+                      <div className={`bg-gradient-to-r ${cardGradient} to-white dark:to-transparent p-5 border-b border-gray-50 dark:border-white/5`}>
+                         <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-4">
+                               <Avatar name={`${student.firstName} ${student.lastName}`} size="lg" className="ring-4 ring-white dark:ring-gray-800 shadow-sm" />
+                               <div>
+                                  <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight">{student.firstName} {student.lastName}</h3>
+                                  <p className={`text-sm font-semibold ${classColor}`}>{student.className || 'Classe non renseignee'}</p>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+
+                      <div className="p-5 space-y-4">
+                         <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500 font-semibold flex items-center gap-2"><TrendingUp size={16} /> Moyenne Gle</span>
+                            <span className="font-black text-gray-900 dark:text-white text-lg">{avg.toFixed(2)}<span className="text-[10px] text-gray-400 font-semibold">/20</span></span>
+                         </div>
+                         <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500 font-semibold flex items-center gap-2"><Activity size={16} /> Absences</span>
+                            <Badge className="bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400 border-none font-bold">{absencesEstimate} heure</Badge>
+                         </div>
+                         <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500 font-semibold flex items-center gap-2"><FileText size={16} /> Prochain devoir</span>
+                            <span className="font-bold text-gray-900 dark:text-white text-[11px]">{firstAssignment?.title || 'Aucun devoir planifie'}</span>
+                         </div>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-white/5 border-t border-gray-100 dark:border-white/5">
+                         <Button onClick={() => navigate('/parent/eleves')} className="w-full text-[11px] font-bold h-10 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 transition-colors">
+                            Détails scolarité
+                         </Button>
+                      </div>
+                   </Card>
+                 );
+               })}
             </div>
             
             {/* RÉCENT ANNONCES */}
@@ -184,18 +239,18 @@ const ParentDashboard: React.FC = () => {
                   <div className="mb-6">
                      <p className="text-[11px] font-bold text-gray-500 mb-1">Tranche en cours (Avril)</p>
                      <p className="text-2xl font-black text-vert-600 dark:text-vert-400 flex items-center gap-2">
-                        Réglée <CheckCircle2 size={24} className="text-vert-500" />
+                        {totalPending > 0 ? 'En attente' : 'Reglee'} <CheckCircle2 size={24} className="text-vert-500" />
                      </p>
                   </div>
                   
                   <div className="space-y-3 mb-6">
                      <div className="flex justify-between items-center text-[12px] font-semibold text-gray-600 dark:text-gray-400 pb-3 border-b border-gray-100 dark:border-white/5">
-                        <span>Cantine (Aïssatou)</span>
-                        <span className="font-bold text-gray-900 dark:text-white">Payé</span>
+                        <span>Total payé</span>
+                        <span className="font-bold text-gray-900 dark:text-white">{new Intl.NumberFormat('fr-FR').format(totalPaid)} GNF</span>
                      </div>
                      <div className="flex justify-between items-center text-[12px] font-semibold text-gray-600 dark:text-gray-400 pb-3 border-b border-gray-100 dark:border-white/5">
-                        <span>Transport (Mamadou)</span>
-                        <span className="font-bold text-rouge-500">Non payé</span>
+                        <span>Reste à payer</span>
+                        <span className="font-bold text-rouge-500">{new Intl.NumberFormat('fr-FR').format(totalPending)} GNF</span>
                      </div>
                   </div>
 

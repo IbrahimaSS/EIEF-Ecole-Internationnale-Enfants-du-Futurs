@@ -1,44 +1,135 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Wallet, 
   CreditCard, 
   CheckCircle2, 
   AlertCircle, 
-  Download, 
+   Download,
   History,
   ShieldCheck,
-  ChevronRight,
   Calendar
 } from 'lucide-react';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
+import { userService, StudentResponse } from '../../services/userService';
+import { apiRequest } from '../../services/api';
+
+type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
+type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
+
+interface PaymentResponse {
+   id: string;
+   amount: number;
+   method: PaymentMethod;
+   reference: string;
+   studentName: string;
+   categoryName: string;
+   status: PaymentStatus;
+   paidAt: string | null;
+}
+
+interface PaymentViewModel {
+   id: string;
+   date: string;
+   type: string;
+   amount: string;
+   status: 'payé' | 'en_attente';
+}
 
 const ParentPaiements: React.FC = () => {
+   const user = useAuthStore((state) => state.user);
+   const token = useAuthStore((state) => state.token);
+
+   const [students, setStudents] = useState<StudentResponse[]>([]);
+   const [payments, setPayments] = useState<PaymentResponse[]>([]);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedEnfant, setSelectedEnfant] = useState('aissatou');
   const [selectedType, setSelectedType] = useState('scolarite');
-  const [montant, setMontant] = useState('');
+   const [montant, setMontant] = useState('0');
   const [selectedMethod, setSelectedMethod] = useState<'orange' | 'mtn'>('orange');
 
-  const transactions = [
-    { id: 'TRX-8921', date: '05 Avril 2026', type: 'Scolarité (Avril) - Aïssatou', amount: '150 000 GNF', status: 'payé' },
-    { id: 'TRX-8920', date: '05 Avril 2026', type: 'Cantine - Aïssatou', amount: '50 000 GNF', status: 'payé' },
-    { id: 'TRX-8919', date: '01 Avril 2026', type: 'Transport - Mamadou', amount: '80 000 GNF', status: 'en_attente' },
-    { id: 'TRX-8801', date: '05 Mars 2026', type: 'Scolarité (Mars) - Famille', amount: '300 000 GNF', status: 'payé' },
-  ];
+   useEffect(() => {
+      const loadData = async () => {
+         if (!user?.id || !token) {
+            return;
+         }
 
-  const handlePayment = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsPayModalOpen(false);
-      setIsSuccess(true);
-      setMontant('');
-      setTimeout(() => setIsSuccess(false), 3000);
-    }, 2000);
-  };
+         setLoading(true);
+         setError(null);
+         try {
+            const linkedStudents = await userService.getStudentsByParent(token, user.id);
+            setStudents(linkedStudents);
+
+            const paymentResults = await Promise.all(
+               linkedStudents.map((student) =>
+                  apiRequest<PaymentResponse[]>(`/payments/student/${student.id}`, { method: 'GET', token }),
+               ),
+            );
+
+            setPayments(
+               paymentResults
+                  .flat()
+                  .sort((a, b) => {
+                     const aDate = a.paidAt ? new Date(a.paidAt).getTime() : 0;
+                     const bDate = b.paidAt ? new Date(b.paidAt).getTime() : 0;
+                     return bDate - aDate;
+                  }),
+            );
+         } catch (err) {
+            setError(err instanceof Error ? err.message : 'Erreur de chargement des paiements');
+         } finally {
+            setLoading(false);
+         }
+      };
+
+      loadData();
+   }, [token, user?.id]);
+
+   const formatCurrency = (value: number): string =>
+      `${new Intl.NumberFormat('fr-FR').format(value)} GNF`;
+
+   const formatDate = (raw: string | null): string => {
+      if (!raw) {
+         return '-';
+      }
+      return new Date(raw).toLocaleDateString('fr-FR', {
+         day: '2-digit',
+         month: 'long',
+         year: 'numeric',
+      });
+   };
+
+   const transactions: PaymentViewModel[] = useMemo(
+      () =>
+         payments.map((payment) => ({
+            id: payment.reference || payment.id,
+            date: formatDate(payment.paidAt),
+            type: `${payment.categoryName || 'Paiement'} - ${payment.studentName}`,
+            amount: formatCurrency(Number(payment.amount)),
+            status: payment.status === 'PAID' ? 'payé' : 'en_attente',
+         })),
+      [payments],
+   );
+
+   const totalPaye = useMemo(
+      () => payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount), 0),
+      [payments],
+   );
+   const totalImpayes = useMemo(
+      () =>
+         payments
+            .filter((p) => p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'PARTIAL')
+            .reduce((sum, p) => sum + Number(p.amount), 0),
+      [payments],
+   );
+   const prochaineMensualite = useMemo(
+      () => payments.find((p) => p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'PARTIAL'),
+      [payments],
+   );
 
   const openPayForOverdue = (enfant: string, type: string, amount: string) => {
     setSelectedEnfant(enfant);
@@ -78,7 +169,7 @@ const ParentPaiements: React.FC = () => {
          <Card className="p-6 bg-gradient-to-br from-bleu-900 to-indigo-900 border-none text-white shadow-xl shadow-bleu-900/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-[30px] -mr-10 -mt-10 pointer-events-none" />
             <p className="text-[11px] font-bold text-bleu-200 uppercase tracking-widest mb-2">Total Payé (Année)</p>
-            <p className="text-3xl font-black tracking-tight mb-1">2 150 000 <span className="text-lg text-bleu-300">GNF</span></p>
+            <p className="text-3xl font-black tracking-tight mb-1">{new Intl.NumberFormat('fr-FR').format(totalPaye)} <span className="text-lg text-bleu-300">GNF</span></p>
             <p className="text-[10px] font-semibold text-bleu-200 mt-4 flex items-center gap-1">
                <ShieldCheck size={12} /> Paiements sécurisés
             </p>
@@ -89,12 +180,10 @@ const ParentPaiements: React.FC = () => {
                <AlertCircle size={60} className="text-rouge-500" />
             </div>
             <p className="text-[11px] font-bold text-rouge-600 dark:text-rouge-400 uppercase tracking-widest mb-2">Reste à payer</p>
-            <p className="text-3xl font-black text-rouge-600 dark:text-rouge-400 tracking-tight mb-1">80 000 <span className="text-lg opacity-70">GNF</span></p>
-            <p className="text-[10px] font-semibold text-rouge-500/80 mt-2">
-               Échéance dépassée: Transport (Mamadou)
-            </p>
+            <p className="text-3xl font-black text-rouge-600 dark:text-rouge-400 tracking-tight mb-1">{new Intl.NumberFormat('fr-FR').format(totalImpayes)} <span className="text-lg opacity-70">GNF</span></p>
+            <p className="text-[10px] font-semibold text-rouge-500/80 mt-2">Montants en attente ou en retard</p>
             <button 
-               onClick={() => openPayForOverdue('mamadou', 'transport', '80000')}
+               onClick={() => openPayForOverdue('famille', 'scolarite', String(totalImpayes || 0))}
                className="mt-3 w-full h-9 bg-rouge-600 hover:bg-rouge-700 text-white text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
                <CreditCard size={14} /> Régulariser maintenant
@@ -106,11 +195,17 @@ const ParentPaiements: React.FC = () => {
                <p className="text-[11px] font-bold text-vert-600 dark:text-vert-400 uppercase tracking-widest">Prochaine Mensualité</p>
                <Calendar className="text-vert-500" size={16} />
             </div>
-            <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tight mb-1">300 000 <span className="text-sm text-gray-500">GNF</span></p>
-            <p className="text-[10px] font-bold text-gray-500 mt-2">Avant le 05 Mai 2026</p>
+            <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tight mb-1">{prochaineMensualite ? formatCurrency(Number(prochaineMensualite.amount)) : 'Aucune'}{prochaineMensualite && <span className="text-sm text-gray-500"> </span>}</p>
+            <p className="text-[10px] font-bold text-gray-500 mt-2">{prochaineMensualite ? 'Paiement en attente' : 'Aucune echeance en attente'}</p>
             <Badge className="bg-vert-200 text-vert-700 dark:bg-vert-900/30 dark:text-vert-400 border-none font-bold text-[9px] mt-3">À venir</Badge>
          </Card>
       </div>
+
+      {error && (
+         <Card className="p-4 border border-rouge-100 bg-rouge-50 dark:bg-rouge-900/10">
+            <p className="text-sm font-bold text-rouge-600">{error}</p>
+         </Card>
+      )}
 
       {/* HISTORIQUE */}
       <Card className="p-0 border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50 overflow-hidden">
@@ -132,7 +227,7 @@ const ParentPaiements: React.FC = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                  {transactions.map((trx) => (
+                  {!loading && transactions.map((trx) => (
                      <tr key={trx.id} className="hover:bg-gray-50/30 dark:hover:bg-white/[0.01] transition-colors">
                         <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{trx.id}</td>
                         <td className="px-6 py-4 text-[12px] font-semibold text-gray-500">{trx.date}</td>
@@ -169,6 +264,13 @@ const ParentPaiements: React.FC = () => {
                         </td>
                      </tr>
                   ))}
+                  {!loading && transactions.length === 0 && (
+                     <tr>
+                        <td colSpan={6} className="px-6 py-10 text-center text-sm font-semibold text-gray-500">
+                           Aucun paiement trouve pour le moment.
+                        </td>
+                     </tr>
+                  )}
                </tbody>
             </table>
          </div>
@@ -177,7 +279,7 @@ const ParentPaiements: React.FC = () => {
       {/* MODAL PAIEMENT */}
       <Modal 
         isOpen={isPayModalOpen} 
-        onClose={() => !isProcessing && setIsPayModalOpen(false)}
+            onClose={() => setIsPayModalOpen(false)}
         size="lg"
         title={
           <div className="flex items-center gap-4">
@@ -202,9 +304,11 @@ const ParentPaiements: React.FC = () => {
                      onChange={(e) => setSelectedEnfant(e.target.value)}
                      className="w-full font-semibold"
                      options={[
-                        { value: 'aissatou', label: 'Aïssatou Bah (Terminale S1)' },
-                        { value: 'mamadou', label: 'Mamadou Bah (4ème B)' },
                         { value: 'famille', label: 'Toute la famille' },
+                        ...students.map((student) => ({
+                          value: student.id,
+                          label: `${student.firstName} ${student.lastName}${student.className ? ` (${student.className})` : ''}`,
+                        })),
                      ]}
                   />
                </div>
@@ -267,11 +371,17 @@ const ParentPaiements: React.FC = () => {
                </div>
             </div>
 
-            {/* ÉTAPE 4 : NUMÉRO */}
+                  {/* ÉTAPE 4 : NUMÉRO */}
             <div>
                <label className="text-[11px] font-bold text-gray-500 block mb-1.5 ml-1">Numéro de téléphone affilié</label>
                <Input placeholder="Ex: 620 XX XX XX" className="font-bold text-lg h-12" />
             </div>
+
+                  <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/10">
+                     <p className="text-[12px] font-semibold text-gray-600 dark:text-gray-300">
+                        Le paiement en ligne parent sera active dans une prochaine phase. Utilisez ce recapitulatif pour preparer votre versement.
+                     </p>
+                  </div>
 
             {/* RÉCAPITULATIF */}
             {montant && (
@@ -285,12 +395,12 @@ const ParentPaiements: React.FC = () => {
                </div>
             )}
 
-            <Button 
-               onClick={handlePayment}
-               disabled={isProcessing || !montant}
+            <Button
+               onClick={() => setIsPayModalOpen(false)}
+               disabled={!montant}
                className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-[13px] rounded-xl border-none hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
             >
-               {isProcessing ? <span className="animate-spin">⏳</span> : montant ? `Payer ${parseInt(montant).toLocaleString('fr-FR')} GNF` : 'Entrez un montant'}
+               {montant ? `Fermer (${parseInt(montant).toLocaleString('fr-FR')} GNF)` : 'Fermer'}
             </Button>
             
             <p className="text-center text-[10px] text-gray-400 font-semibold flex items-center justify-center gap-1">
@@ -298,25 +408,6 @@ const ParentPaiements: React.FC = () => {
             </p>
          </div>
       </Modal>
-
-      {/* TOAST SUCCESS */}
-      {isSuccess && (
-         <motion.div
-           initial={{ opacity: 0, y: 50, scale: 0.9 }}
-           animate={{ opacity: 1, y: 0, scale: 1 }}
-           className="fixed bottom-8 right-8 z-[100] flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-vert-100 min-w-[300px]"
-         >
-           <div className="flex items-center gap-4">
-             <div className="p-2 bg-vert-100 text-vert-500 rounded-xl">
-               <CheckCircle2 size={24} />
-             </div>
-             <div className="text-left font-bold">
-               <p className="text-sm text-gray-900 dark:text-white">Paiement Réussi</p>
-               <p className="text-[11px] text-gray-500 font-semibold">Le reçu a été généré avec succès.</p>
-             </div>
-           </div>
-         </motion.div>
-      )}
 
     </motion.div>
   );

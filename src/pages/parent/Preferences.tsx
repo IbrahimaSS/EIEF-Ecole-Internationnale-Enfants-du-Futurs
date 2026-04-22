@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Bell, 
@@ -14,10 +14,15 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Card, Button } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
+import { userService } from '../../services/userService';
 
 const ParentPreferences: React.FC = () => {
+   const { token } = useAuthStore();
+   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const [emailNotif, setEmailNotif] = useState(true);
   const [pushNotif, setPushNotif] = useState(true);
@@ -29,13 +34,63 @@ const ParentPreferences: React.FC = () => {
   
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
 
-  const handleSave = () => {
+   useEffect(() => {
+      if (!token) {
+         setIsLoading(false);
+         return;
+      }
+
+      const loadPreferences = async () => {
+         setIsLoading(true);
+         setErrorMessage(null);
+         try {
+            const preferences = await userService.getMyPreferences(token);
+            setTheme(preferences.theme);
+            setEmailNotif(preferences.emailNotifications);
+            setPushNotif(preferences.pushNotifications);
+            setNoteNotif(preferences.noteNotifications);
+            setAbsenceNotif(preferences.absenceNotifications);
+            setHideEmail(preferences.hideEmail);
+            setHidePhone(preferences.hidePhone);
+            setTwoFactor(preferences.twoFactorEnabled);
+         } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Impossible de charger les preferences.");
+         } finally {
+            setIsLoading(false);
+         }
+      };
+
+      loadPreferences();
+   }, [token]);
+
+   const handleSave = async () => {
+      if (!token) {
+         setErrorMessage("Session invalide. Veuillez vous reconnecter.");
+         return;
+      }
+
     setIsSaving(true);
-    setTimeout(() => {
+      setErrorMessage(null);
+
+      try {
+         await userService.updateMyPreferences(token, {
+            theme,
+            emailNotifications: emailNotif,
+            pushNotifications: pushNotif,
+            noteNotifications: noteNotif,
+            absenceNotifications: absenceNotif,
+            hideEmail,
+            hidePhone,
+            twoFactorEnabled: twoFactor,
+         });
+
       setIsSaving(false);
       setIsSuccess(true);
       setTimeout(() => setIsSuccess(false), 3000);
-    }, 1000);
+      } catch (error) {
+         setIsSaving(false);
+         setErrorMessage(error instanceof Error ? error.message : "Impossible de sauvegarder les preferences.");
+      }
   };
 
   const Toggle = ({ active, onChange }: { active: boolean, onChange: () => void }) => (
@@ -74,6 +129,18 @@ const ParentPreferences: React.FC = () => {
           Sauvegarder
         </Button>
       </div>
+
+         {isLoading && (
+            <Card className="p-4 border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50">
+               <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">Chargement des preferences...</p>
+            </Card>
+         )}
+
+         {errorMessage && (
+            <Card className="p-4 border border-rouge-200 dark:border-rouge-900/40 bg-rouge-50/80 dark:bg-rouge-900/10">
+               <p className="text-sm font-semibold text-rouge-700 dark:text-rouge-300">{errorMessage}</p>
+            </Card>
+         )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
          {/* APPARENCE */}

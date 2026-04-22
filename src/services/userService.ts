@@ -1,5 +1,5 @@
 // src/services/userService.ts
-import { apiRequest } from './api';
+import { apiRequest } from "./api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,7 +78,7 @@ export interface ParentRequest {
   firstName: string;
   lastName: string;
   phone?: string;
-  roleName: 'PARENT';
+  roleName: "PARENT";
 }
 
 // ── Employés ──────────────────────────────────────────────────────────────────
@@ -103,121 +103,217 @@ export interface EmployeeRequest {
   roleName: string;
 }
 
+export interface AdminUserResponse {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  roleName: string;
+  active?: boolean;
+  isActive?: boolean;
+  avatarUrl?: string | null;
+}
+
+export interface ContactResponse {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  roleName: string;
+  isActive: boolean;
+  avatarUrl?: string | null;
+}
+
+export interface UserProfileUpdateRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  avatarUrl?: string;
+}
+
+export interface UserPreferencesRequest {
+  theme?: "light" | "dark" | "system";
+  emailNotifications?: boolean;
+  pushNotifications?: boolean;
+  noteNotifications?: boolean;
+  absenceNotifications?: boolean;
+  hideEmail?: boolean;
+  hidePhone?: boolean;
+  twoFactorEnabled?: boolean;
+}
+
+export interface UserPreferencesResponse {
+  theme: "light" | "dark" | "system";
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  noteNotifications: boolean;
+  absenceNotifications: boolean;
+  hideEmail: boolean;
+  hidePhone: boolean;
+  twoFactorEnabled: boolean;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const userService = {
+  getAllUsers: (token: string) =>
+    apiRequest<AdminUserResponse[]>("/users", { token }),
 
   // ── Élèves ──────────────────────────────────────────────────────────────────
 
-  getAllStudents: (token: string, params?: { classId?: string; search?: string }) => {
+  getAllStudents: (
+    token: string,
+    params?: { classId?: string; search?: string },
+  ) => {
     const qs = new URLSearchParams();
-    if (params?.classId) qs.set('classId', params.classId);
-    if (params?.search)  qs.set('search',  params.search);
-    const query = qs.toString() ? `?${qs.toString()}` : '';
+    if (params?.classId) qs.set("classId", params.classId);
+    if (params?.search) qs.set("search", params.search);
+    const query = qs.toString() ? `?${qs.toString()}` : "";
     return apiRequest<StudentResponse[]>(`/users/students${query}`, { token });
   },
+
+  getStudentsByParent: (token: string, parentUserId: string) =>
+    apiRequest<StudentResponse[]>(`/users/parents/${parentUserId}/students`, {
+      token,
+    }),
 
   getStudentById: (token: string, id: string) =>
     apiRequest<StudentResponse>(`/users/students/${id}`, { token }),
 
   createStudent: (token: string, payload: StudentRequest) =>
-    apiRequest<StudentResponse>('/users/students', {
-      method: 'POST',
+    apiRequest<StudentResponse>("/users/students", {
+      method: "POST",
       body: JSON.stringify(payload),
       token,
     }),
 
   updateStudent: (token: string, id: string, payload: StudentRequest) =>
     apiRequest<StudentResponse>(`/users/students/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
       token,
     }),
 
   deleteStudent: (token: string, id: string) =>
-    apiRequest<void>(`/users/students/${id}`, { method: 'DELETE', token }),
+    apiRequest<void>(`/users/students/${id}`, { method: "DELETE", token }),
 
   // ── Enseignants ─────────────────────────────────────────────────────────────
 
   getAllTeachers: (token: string, search?: string) => {
-    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
     return apiRequest<TeacherResponse[]>(`/users/teachers${query}`, { token });
   },
+
+  getTeachersByParent: (token: string, parentUserId: string) =>
+    apiRequest<TeacherResponse[]>(`/users/parents/${parentUserId}/teachers`, {
+      token,
+    }),
+
+  getTeachersByStudent: (token: string, studentUserId: string) =>
+    apiRequest<TeacherResponse[]>(`/users/students/${studentUserId}/teachers`, {
+      token,
+    }),
+
+  getContactsByTeacher: (token: string, teacherUserId: string) =>
+    apiRequest<ContactResponse[]>(`/users/teachers/${teacherUserId}/contacts`, {
+      token,
+    }),
 
   getTeacherById: (token: string, id: string) =>
     apiRequest<TeacherResponse>(`/users/teachers/${id}`, { token }),
 
   createTeacher: (token: string, payload: TeacherRequest) =>
-    apiRequest<TeacherResponse>('/users/teachers', {
-      method: 'POST',
+    apiRequest<TeacherResponse>("/users/teachers", {
+      method: "POST",
       body: JSON.stringify(payload),
       token,
     }),
 
   updateTeacher: (token: string, id: string, payload: TeacherRequest) =>
     apiRequest<TeacherResponse>(`/users/teachers/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
       token,
     }),
 
   deleteTeacher: (token: string, id: string) =>
-    apiRequest<void>(`/users/teachers/${id}`, { method: 'DELETE', token }),
+    apiRequest<void>(`/users/teachers/${id}`, { method: "DELETE", token }),
 
   // ── Parents ─────────────────────────────────────────────────────────────────
 
   getAllParents: (token: string) =>
-    apiRequest<ParentResponse[]>('/users', { token }).then(users =>
-      users.filter(u => u.roleName === 'PARENT')
+    apiRequest<ParentResponse[]>("/users", { token }).then((users) =>
+      users.filter((u) => u.roleName === "PARENT"),
     ),
 
   createParent: (token: string, payload: ParentRequest) =>
-    apiRequest<ParentResponse>('/users/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ ...payload, roleName: 'PARENT' }),
+    apiRequest<ParentResponse>("/users/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, roleName: "PARENT" }),
       token,
     }),
 
   updateParent: (token: string, id: string, payload: ParentRequest) =>
     apiRequest<ParentResponse>(`/users/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ ...payload, roleName: 'PARENT' }),
+      method: "PUT",
+      body: JSON.stringify({ ...payload, roleName: "PARENT" }),
       token,
     }),
 
   deleteParent: (token: string, id: string) =>
-    apiRequest<void>(`/users/${id}`, { method: 'DELETE', token }),
+    apiRequest<void>(`/users/${id}`, { method: "DELETE", token }),
 
   // ── Employés ────────────────────────────────────────────────────────────────
 
   getAllEmployees: (token: string) =>
-    apiRequest<EmployeeResponse[]>('/users', { token }).then(users =>
-      users.filter(u => !['PARENT', 'STUDENT'].includes(u.roleName))
+    apiRequest<EmployeeResponse[]>("/users", { token }).then((users) =>
+      users.filter((u) => !["PARENT", "STUDENT"].includes(u.roleName)),
     ),
 
   createEmployee: (token: string, payload: EmployeeRequest) =>
-    apiRequest<EmployeeResponse>('/users/auth/register', {
-      method: 'POST',
+    apiRequest<EmployeeResponse>("/users/auth/register", {
+      method: "POST",
       body: JSON.stringify(payload),
       token,
     }),
 
   updateEmployee: (token: string, id: string, payload: EmployeeRequest) =>
     apiRequest<EmployeeResponse>(`/users/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
       token,
     }),
 
   deleteEmployee: (token: string, id: string) =>
-    apiRequest<void>(`/users/${id}`, { method: 'DELETE', token }),
+    apiRequest<void>(`/users/${id}`, { method: "DELETE", token }),
 
   // ── Profil ──────────────────────────────────────────────────────────────────
-  updateProfile: (token: string, userId: string, payload: any) =>
-    apiRequest<any>(`/users/me?userId=${userId}`, {
-      method: 'PUT',
+  updateProfile: (
+    token: string,
+    userIdOrPayload:
+      | string
+      | UserProfileUpdateRequest
+      | Record<string, unknown>,
+    payloadMaybe?: UserProfileUpdateRequest | Record<string, unknown>,
+  ) =>
+    apiRequest<any>(`/users/me`, {
+      method: "PUT",
+      body: JSON.stringify(
+        typeof userIdOrPayload === "string" ? payloadMaybe : userIdOrPayload,
+      ),
+      token,
+    }),
+
+  getMyPreferences: (token: string) =>
+    apiRequest<UserPreferencesResponse>("/users/me/preferences", { token }),
+
+  updateMyPreferences: (token: string, payload: UserPreferencesRequest) =>
+    apiRequest<UserPreferencesResponse>("/users/me/preferences", {
+      method: "PUT",
       body: JSON.stringify(payload),
       token,
     }),
 };
-

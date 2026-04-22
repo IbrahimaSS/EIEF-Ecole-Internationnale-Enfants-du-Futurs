@@ -1,12 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings as SettingsIcon,
   Shield,
   Database,
-  Bell,
   Building2,
-  Key,
   History,
   Save,
   RefreshCw,
@@ -97,12 +95,11 @@ React.useEffect(() => {
   };
 
   // ── Logs ──
-  const [logModuleFilter, setLogModuleFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
   const { logs, loading: logsLoading, error: logsError, reload: reloadLogs } =
-    useAuditLogs(logModuleFilter ? { module: logModuleFilter } : undefined);
+    useAuditLogs();
 
   const filteredLogs = logs.filter(log =>
     !searchQuery ||

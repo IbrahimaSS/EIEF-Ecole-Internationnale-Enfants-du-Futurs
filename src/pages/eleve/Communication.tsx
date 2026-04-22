@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare, Send, Bell, AlertCircle, Clock, Megaphone,
@@ -19,19 +19,10 @@ import {
   MessageResponse,
   ForumPostResponse,
 } from '../../services/communicationApi';
+import { useAuthStore } from '../../store/authStore';
+import { userService, TeacherResponse } from '../../services/userService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const getCurrentUserId = (): string | null => {
-  try {
-    const raw = window.localStorage.getItem('auth-storage');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.state?.user?.id ?? null;
-  } catch {
-    return null;
-  }
-};
 
 const formatDate = (iso: string): string => {
   const d = new Date(iso);
@@ -47,6 +38,7 @@ const formatDate = (iso: string): string => {
 // ─── Types locaux ─────────────────────────────────────────────────────────────
 
 interface Conversation {
+  interlocutorId: string;
   interlocutorName: string;
   messages: MessageResponse[];
   hasUnread: boolean;
@@ -59,14 +51,16 @@ const buildConversations = (
   const map = new Map<string, Conversation>();
 
   const upsert = (msg: MessageResponse, isIncoming: boolean) => {
-    const key = isIncoming ? msg.senderName : msg.recipientName;
+    const key = isIncoming ? msg.senderId : msg.recipientId;
+    const interlocutorName = isIncoming ? msg.senderName : msg.recipientName;
     const existing = map.get(key);
     if (existing) {
       existing.messages.push(msg);
       if (isIncoming && !msg.readAt) existing.hasUnread = true;
     } else {
       map.set(key, {
-        interlocutorName: key,
+        interlocutorId: key,
+        interlocutorName,
         messages: [msg],
         hasUnread: isIncoming && !msg.readAt,
       });
@@ -102,11 +96,12 @@ const EleveCommunication: React.FC = () => {
   const [sent, setSent] = useState<MessageResponse[]>([]);
   const [messagerieLoading, setMessagerieLoading] = useState(false);
   const [messagerieError, setMessagerieError] = useState<string | null>(null);
-  const [selectedInterlocutor, setSelectedInterlocutor] = useState<string | null>(null);
+  const [selectedInterlocutorId, setSelectedInterlocutorId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [searchConversation, setSearchConversation] = useState('');
   const [recipientId, setRecipientId] = useState('');
+  const [teacherContacts, setTeacherContacts] = useState<TeacherResponse[]>([]);
 
   // Forum
   const [topics, setTopics] = useState<ForumPostResponse[]>([]);
@@ -116,7 +111,9 @@ const EleveCommunication: React.FC = () => {
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [sendingReply, setSendingReply] = useState<string | null>(null);
 
-  const currentUserId = getCurrentUserId();
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
+  const currentUserId = user?.id ?? null;
 
   // ── Loaders ───────────────────────────────────────────────────────────────
 
@@ -151,6 +148,16 @@ const EleveCommunication: React.FC = () => {
     }
   }, [currentUserId]);
 
+  const loadTeacherContacts = useCallback(async () => {
+    if (!currentUserId || !token) return;
+    try {
+      const contacts = await userService.getTeachersByStudent(token, currentUserId);
+      setTeacherContacts(contacts);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [currentUserId, token]);
+
   const loadForum = useCallback(async () => {
     setForumLoading(true);
     setForumError(null);
@@ -165,9 +172,12 @@ const EleveCommunication: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'annonces') loadAnnonces();
-    if (activeTab === 'messagerie') loadMessagerie();
+    if (activeTab === 'messagerie') {
+      loadMessagerie();
+      loadTeacherContacts();
+    }
     if (activeTab === 'forum') loadForum();
-  }, [activeTab, loadAnnonces, loadMessagerie, loadForum]);
+  }, [activeTab, loadAnnonces, loadMessagerie, loadForum, loadTeacherContacts]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -179,10 +189,18 @@ const EleveCommunication: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUserId || !recipientId.trim()) return;
+
+    const isAllowedRecipient = teacherContacts.some((teacher) => teacher.userId === recipientId.trim());
+    if (!isAllowedRecipient) {
+      setMessagerieError('Destinataire invalide. Selectionnez un enseignant autorise.');
+      return;
+    }
+
     setSendingMessage(true);
     try {
       await sendMessage(currentUserId, { recipientId: recipientId.trim(), content: newMessage.trim() });
       setNewMessage('');
+      setMessagerieError(null);
       showSuccess('Message envoyé !');
       await loadMessagerie();
     } catch (err: any) {
@@ -192,9 +210,19 @@ const EleveCommunication: React.FC = () => {
     }
   };
 
-  const handleSelectConversation = async (name: string) => {
-    setSelectedInterlocutor(name);
-    const unread = inbox.filter((m) => m.senderName === name && !m.readAt);
+  const handleSelectConversation = async (conversation: Conversation) => {
+    setSelectedInterlocutorId(conversation.interlocutorId);
+
+    const matchedTeacher = teacherContacts.find(
+      (t) => t.userId === conversation.interlocutorId,
+    );
+    if (matchedTeacher?.userId) {
+      setRecipientId(matchedTeacher.userId);
+    } else {
+      setRecipientId('');
+    }
+
+    const unread = inbox.filter((m) => m.senderId === conversation.interlocutorId && !m.readAt);
     await Promise.all(unread.map((m) => markMessageAsRead(m.id))).catch(console.error);
     if (unread.length > 0) await loadMessagerie();
   };
@@ -225,7 +253,21 @@ const EleveCommunication: React.FC = () => {
     c.interlocutorName.toLowerCase().includes(searchConversation.toLowerCase())
   );
 
-  const selectedConv = selectedInterlocutor ? conversations.get(selectedInterlocutor) : null;
+  const contactOptions = useMemo(
+    () =>
+      teacherContacts.map((teacher) => ({
+        value: teacher.userId,
+        label: `${teacher.firstName} ${teacher.lastName}`,
+      })),
+    [teacherContacts],
+  );
+
+  const isRecipientAllowed = useMemo(
+    () => teacherContacts.some((teacher) => teacher.userId === recipientId.trim()),
+    [teacherContacts, recipientId],
+  );
+
+  const selectedConv = selectedInterlocutorId ? conversations.get(selectedInterlocutorId) : null;
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
@@ -392,13 +434,13 @@ const EleveCommunication: React.FC = () => {
                       return (
                         <button
                           key={conv.interlocutorName}
-                          onClick={() => handleSelectConversation(conv.interlocutorName)}
+                          onClick={() => handleSelectConversation(conv)}
                           className={cn(
                             'w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-all relative overflow-hidden',
-                            selectedInterlocutor === conv.interlocutorName && 'bg-bleu-50/50 dark:bg-bleu-900/10'
+                            selectedInterlocutorId === conv.interlocutorId && 'bg-bleu-50/50 dark:bg-bleu-900/10'
                           )}
                         >
-                          {selectedInterlocutor === conv.interlocutorName && (
+                          {selectedInterlocutorId === conv.interlocutorId && (
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-bleu-600" />
                           )}
                           <div className="flex gap-3">
@@ -436,7 +478,7 @@ const EleveCommunication: React.FC = () => {
 
                       <div className="flex-1 p-6 overflow-y-auto space-y-6">
                         {selectedConv.messages.map((m) => {
-                          const isMine = m.senderName !== selectedConv.interlocutorName;
+                          const isMine = m.senderId === currentUserId;
                           return (
                             <div key={m.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                               <div
@@ -458,12 +500,18 @@ const EleveCommunication: React.FC = () => {
                       </div>
 
                       <div className="p-4 border-t border-gray-50 dark:border-white/5 space-y-2">
-                        <input
+                        <select
                           value={recipientId}
                           onChange={(e) => setRecipientId(e.target.value)}
-                          placeholder="UUID du destinataire..."
-                          className="w-full px-4 py-2 bg-gray-50 dark:bg-white/5 rounded-xl text-[10px] font-semibold outline-none focus:ring-2 focus:ring-bleu-500/20 text-gray-400"
-                        />
+                          className="w-full px-4 py-2 bg-gray-50 dark:bg-white/5 rounded-xl text-[10px] font-semibold outline-none focus:ring-2 focus:ring-bleu-500/20 text-gray-700 dark:text-gray-200"
+                        >
+                          <option value="">Choisir un enseignant destinataire</option>
+                          {contactOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                         <div className="flex items-center gap-3">
                           <button className="p-2.5 bg-gray-50 dark:bg-white/5 text-gray-400 rounded-2xl hover:text-gray-900 transition-colors">
                             <Paperclip size={18} />
@@ -477,7 +525,7 @@ const EleveCommunication: React.FC = () => {
                           />
                           <button
                             onClick={handleSendMessage}
-                            disabled={sendingMessage}
+                            disabled={sendingMessage || !isRecipientAllowed || !newMessage.trim()}
                             className="p-3 bg-bleu-600 text-white rounded-2xl hover:bg-bleu-700 shadow-lg shadow-bleu-500/30 disabled:opacity-50"
                           >
                             {sendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

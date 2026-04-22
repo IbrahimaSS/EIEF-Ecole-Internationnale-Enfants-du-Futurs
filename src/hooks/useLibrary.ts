@@ -119,7 +119,7 @@ export const useLibrary = (): UseLibraryReturn => {
       setError(null);
       try {
         await libraryService.uploadResource(data, uploadedById);
-        await fetchResourcesByTeacher(uploadedById);
+        await fetchResources();
       } catch (err) {
         const apiError = err as ApiError;
         setError(
@@ -130,7 +130,7 @@ export const useLibrary = (): UseLibraryReturn => {
         setLoading(false);
       }
     },
-    [fetchResourcesByTeacher],
+    [fetchResources],
   );
 
   // Modifier une ressource

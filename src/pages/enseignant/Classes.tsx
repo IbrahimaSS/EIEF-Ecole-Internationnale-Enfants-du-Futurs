@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Users,
   BookOpen,
   Search,
   MapPin,
   TrendingUp,
-  ChevronRight,
   Activity,
   FileSpreadsheet,
   Award,
-  Calendar,
 } from "lucide-react";
 import {
   Card,

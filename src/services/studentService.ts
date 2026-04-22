@@ -1,6 +1,7 @@
-import { apiRequest } from './api';
-import { StudentResponse } from './userService';
-import { ScheduleResponse } from '../types/schedule';
+import { apiRequest } from "./api";
+import { StudentResponse } from "./userService";
+import { ScheduleResponse } from "../types/schedule";
+import { Resource } from "../types/library";
 
 // ── Types alignés sur les DTOs backend ──────────────────────────────────────
 
@@ -60,15 +61,28 @@ export const studentService = {
     apiRequest<StudentDashboardResponse>(`/student/${studentId}/dashboard`),
 
   getNotes: (studentId: string, semester?: number) => {
-    const query = semester ? `?semester=${semester}` : '';
-    return apiRequest<StudentNotesResponse>(`/student/${studentId}/notes${query}`);
+    const query = semester ? `?semester=${semester}` : "";
+    return apiRequest<StudentNotesResponse>(
+      `/student/${studentId}/notes${query}`,
+    );
+  },
+
+  getResources: (
+    studentId: string,
+    params?: { type?: string; search?: string },
+  ) => {
+    const qs = new URLSearchParams();
+    if (params?.type) qs.set("type", params.type);
+    if (params?.search) qs.set("search", params.search);
+    const query = qs.toString() ? `?${qs.toString()}` : "";
+    return apiRequest<Resource[]>(`/student/${studentId}/resources${query}`);
   },
 
   getAll: (params?: { classId?: string; search?: string }) => {
     const qs = new URLSearchParams();
-    if (params?.classId) qs.set('classId', params.classId);
-    if (params?.search) qs.set('search', params.search);
-    const query = qs.toString() ? `?${qs.toString()}` : '';
+    if (params?.classId) qs.set("classId", params.classId);
+    if (params?.search) qs.set("search", params.search);
+    const query = qs.toString() ? `?${qs.toString()}` : "";
     return apiRequest<StudentResponse[]>(`/users/students${query}`);
   },
 
@@ -78,14 +92,14 @@ export const studentService = {
 
   update: (studentId: string, data: Partial<StudentResponse>) => {
     return apiRequest<StudentResponse>(`/users/students/${studentId}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
   delete: (studentId: string) => {
     return apiRequest<void>(`/users/students/${studentId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 };

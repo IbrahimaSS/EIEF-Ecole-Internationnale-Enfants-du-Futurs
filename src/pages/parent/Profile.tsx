@@ -1,31 +1,69 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
   Mail, 
   Phone, 
-  MapPin, 
   Camera, 
   Shield, 
   Save,
   CheckCircle2,
   Users,
-  Briefcase
+   Briefcase
 } from 'lucide-react';
 import { Card, Input, Button, Badge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
+import { userService, StudentResponse } from '../../services/userService';
 
 const ParentProfile: React.FC = () => {
-  const { user } = useAuthStore();
+   const { user, token, setUser } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'informations' | 'securite'>('informations');
   
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+   const [children, setChildren] = useState<StudentResponse[]>([]);
+   const [isChildrenLoading, setIsChildrenLoading] = useState(false);
+   const [childrenError, setChildrenError] = useState<string | null>(null);
+
+   const [firstName, setFirstName] = useState(user?.firstName ?? '');
+   const [lastName, setLastName] = useState(user?.lastName ?? '');
+   const [email, setEmail] = useState(user?.email ?? '');
+   const [phone, setPhone] = useState(user?.telephone ?? '');
   
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+   useEffect(() => {
+      setFirstName(user?.firstName ?? '');
+      setLastName(user?.lastName ?? '');
+      setEmail(user?.email ?? '');
+      setPhone(user?.telephone ?? '');
+   }, [user]);
+
+   useEffect(() => {
+      if (!token || !user?.id) {
+         setChildren([]);
+         return;
+      }
+
+      const loadChildren = async () => {
+         setIsChildrenLoading(true);
+         setChildrenError(null);
+         try {
+            const data = await userService.getStudentsByParent(token, user.id);
+            setChildren(data);
+         } catch (error) {
+            setChildrenError(error instanceof Error ? error.message : "Impossible de charger les enfants associes.");
+         } finally {
+            setIsChildrenLoading(false);
+         }
+      };
+
+      loadChildren();
+   }, [token, user?.id]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
@@ -39,13 +77,38 @@ const ParentProfile: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
+   const handleSave = async () => {
+      if (!token || !user) {
+         setErrorMessage('Session invalide. Veuillez vous reconnecter.');
+         return;
+      }
+
+      setErrorMessage(null);
     setIsSaving(true);
-    setTimeout(() => {
+
+      try {
+         await userService.updateProfile(token, {
+            firstName,
+            lastName,
+            email,
+            phone,
+         });
+
+         setUser({
+            ...user,
+            firstName,
+            lastName,
+            email,
+            telephone: phone,
+         });
+
       setIsSaving(false);
       setIsSuccess(true);
       setTimeout(() => setIsSuccess(false), 3000);
-    }, 1500);
+      } catch (error) {
+         setIsSaving(false);
+         setErrorMessage(error instanceof Error ? error.message : 'Impossible de sauvegarder le profil.');
+      }
   };
 
   return (
@@ -96,13 +159,13 @@ const ParentProfile: React.FC = () => {
             </div>
 
             <div className="flex-1 text-center sm:text-left mb-2">
-               <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{user?.firstName} {user?.lastName}</h1>
+               <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{firstName} {lastName}</h1>
                <div className="flex flex-col sm:flex-row gap-3 mt-3 justify-center sm:justify-start items-center">
                   <Badge className="bg-or-50 text-or-600 dark:bg-or-900/30 dark:text-or-400 border-none font-bold">
                      Parent d'élève
                   </Badge>
                   <Badge className="bg-bleu-50 text-bleu-600 dark:bg-bleu-900/30 dark:text-bleu-400 border-none font-bold">
-                     2 enfants inscrits
+                     {isChildrenLoading ? 'Chargement des enfants...' : `${children.length} enfant${children.length > 1 ? 's' : ''} inscrit${children.length > 1 ? 's' : ''}`}
                   </Badge>
                </div>
             </div>
@@ -119,6 +182,12 @@ const ParentProfile: React.FC = () => {
          </div>
       </div>
 
+      {errorMessage && (
+         <Card className="p-4 border border-rouge-200 dark:border-rouge-900/40 bg-rouge-50/80 dark:bg-rouge-900/10">
+            <p className="text-sm font-semibold text-rouge-700 dark:text-rouge-300">{errorMessage}</p>
+         </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
          {/* SIDEBAR */}
          <div className="space-y-6">
@@ -129,25 +198,37 @@ const ParentProfile: React.FC = () => {
                      <div className="p-2 bg-or-50 dark:bg-white/5 rounded-lg text-or-600 dark:text-or-400"><Users size={16} /></div>
                      <div>
                         <p className="font-bold text-gray-900 dark:text-white">Enfants</p>
-                        <p className="text-gray-500 text-[11px] font-semibold">Aïssatou Bah, Mamadou Bah</p>
+                           <p className="text-gray-500 text-[11px] font-semibold">
+                             {isChildrenLoading
+                               ? 'Chargement...'
+                               : children.length > 0
+                                 ? children.map((child) => `${child.firstName} ${child.lastName}`).join(', ')
+                                 : 'Aucun enfant lié'}
+                           </p>
                      </div>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                      <div className="p-2 bg-bleu-50 dark:bg-white/5 rounded-lg text-bleu-600 dark:text-bleu-400"><Briefcase size={16} /></div>
                      <div>
-                        <p className="font-bold text-gray-900 dark:text-white">Profession</p>
-                        <p className="text-gray-500 text-[11px] font-semibold">Ingénieur Informatique</p>
+                           <p className="font-bold text-gray-900 dark:text-white">Email</p>
+                           <p className="text-gray-500 text-[11px] font-semibold">{email || 'Non renseigné'}</p>
                      </div>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
-                     <div className="p-2 bg-vert-50 dark:bg-white/5 rounded-lg text-vert-600 dark:text-vert-400"><MapPin size={16} /></div>
+                        <div className="p-2 bg-vert-50 dark:bg-white/5 rounded-lg text-vert-600 dark:text-vert-400"><Phone size={16} /></div>
                      <div>
-                        <p className="font-bold text-gray-900 dark:text-white">Adresse</p>
-                        <p className="text-gray-500 text-[11px] font-semibold">Conakry, Guinée</p>
+                           <p className="font-bold text-gray-900 dark:text-white">Téléphone</p>
+                           <p className="text-gray-500 text-[11px] font-semibold">{phone || 'Non renseigné'}</p>
                      </div>
                   </div>
                </div>
             </Card>
+
+               {childrenError && (
+                 <Card className="p-4 border border-rouge-200 dark:border-rouge-900/40 bg-rouge-50/80 dark:bg-rouge-900/10">
+                   <p className="text-sm font-semibold text-rouge-700 dark:text-rouge-300">{childrenError}</p>
+                 </Card>
+               )}
          </div>
 
          {/* MAIN CONTENT */}
@@ -176,31 +257,35 @@ const ParentProfile: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div>
                               <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Nom</label>
-                              <Input defaultValue={user?.lastName} className="font-semibold" />
+                              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="font-semibold" />
                            </div>
                            <div>
                               <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Prénom</label>
-                              <Input defaultValue={user?.firstName} className="font-semibold" />
+                              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="font-semibold" />
                            </div>
                            <div className="md:col-span-2">
                               <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Adresse Email</label>
-                              <Input defaultValue={user?.email} type="email" className="font-semibold" icon={Mail} />
+                              <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="font-semibold" icon={Mail} />
                            </div>
                            <div>
                               <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Téléphone</label>
-                              <Input defaultValue="+224 62X XX XX XX" className="font-semibold" icon={Phone} />
+                              <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="font-semibold" icon={Phone} />
                            </div>
                            <div>
-                              <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Localisation</label>
-                              <Input defaultValue="Conakry, Guinée" className="font-semibold" icon={MapPin} />
+                              <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Nombre d'enfants</label>
+                              <Input value={String(children.length)} className="font-semibold" readOnly />
                            </div>
                            <div>
-                              <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Profession</label>
-                              <Input defaultValue="Ingénieur Informatique" className="font-semibold" />
-                           </div>
-                           <div>
-                              <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Relation</label>
-                              <Input defaultValue="Père" className="font-semibold" />
+                              <label className="text-[11px] font-bold text-gray-500 block mb-2 ml-1">Classes des enfants</label>
+                              <Input
+                                value={
+                                  children.length > 0
+                                    ? Array.from(new Set(children.map((child) => child.className).filter(Boolean))).join(', ') || 'Non assignée'
+                                    : 'Aucune'
+                                }
+                                className="font-semibold"
+                                readOnly
+                              />
                            </div>
                         </div>
                      </Card>
