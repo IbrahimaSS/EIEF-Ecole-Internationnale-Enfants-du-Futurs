@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 // ── Clés de cache centralisées ────────────────────────────────────────────────
 
-const QUERY_KEYS = {
+const SCHEDULE_QUERY_KEYS = {
   schedules: "schedules",
   schedule: "schedule",
   teacherSchedules: "teacherSchedules",
@@ -18,14 +18,14 @@ const QUERY_KEYS = {
 
 export const useSchedules = () => {
   return useQuery({
-    queryKey: [QUERY_KEYS.schedules],
+    queryKey: [SCHEDULE_QUERY_KEYS.schedules],
     queryFn: scheduleService.getAll,
   });
 };
 
 export const useSchedule = (id: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.schedule, id],
+    queryKey: [SCHEDULE_QUERY_KEYS.schedule, id],
     queryFn: () => scheduleService.getById(id),
     enabled: !!id,
   });
@@ -33,7 +33,7 @@ export const useSchedule = (id: string) => {
 
 export const useTeacherSchedules = (teacherId: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.teacherSchedules, teacherId],
+    queryKey: [SCHEDULE_QUERY_KEYS.teacherSchedules, teacherId],
     queryFn: () => scheduleService.getByTeacher(teacherId),
     enabled: !!teacherId,
   });
@@ -41,7 +41,7 @@ export const useTeacherSchedules = (teacherId: string) => {
 
 export const useTeacherDaySchedules = (teacherId: string, day: number) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.teacherSchedules, teacherId, day],
+    queryKey: [SCHEDULE_QUERY_KEYS.teacherSchedules, teacherId, day],
     queryFn: () => scheduleService.getByTeacherAndDay(teacherId, day),
     enabled: !!teacherId && day >= 1 && day <= 7,
   });
@@ -49,7 +49,7 @@ export const useTeacherDaySchedules = (teacherId: string, day: number) => {
 
 export const useClassSchedules = (classId: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.classSchedules, classId],
+    queryKey: [SCHEDULE_QUERY_KEYS.classSchedules, classId],
     queryFn: () => scheduleService.getByClass(classId),
     enabled: !!classId,
   });
@@ -59,7 +59,7 @@ export const useClassSchedules = (classId: string) => {
 
 export const useStudentSchedule = (studentId: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.studentSchedule, studentId],
+    queryKey: [SCHEDULE_QUERY_KEYS.studentSchedule, studentId],
     queryFn: () => studentScheduleService.getSchedule(studentId),
     enabled: !!studentId,
   });
@@ -67,7 +67,7 @@ export const useStudentSchedule = (studentId: string) => {
 
 export const useStudentTodaySchedule = (studentId: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.studentTodaySchedule, studentId],
+    queryKey: [SCHEDULE_QUERY_KEYS.studentTodaySchedule, studentId],
     queryFn: () => studentScheduleService.getTodaySchedule(studentId),
     enabled: !!studentId,
   });
@@ -82,8 +82,8 @@ export const useScheduleMutations = () => {
     mutationFn: scheduleService.create,
     onSuccess: () => {
       toast.success("Emploi du temps créé");
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.schedules] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.classSchedules] });
+      queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEYS.schedules] });
+      queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEYS.classSchedules] });
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erreur lors de la création");
@@ -95,8 +95,8 @@ export const useScheduleMutations = () => {
       scheduleService.update(id, data),
     onSuccess: () => {
       toast.success("Emploi du temps mis à jour");
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.schedules] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.classSchedules] });
+      queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEYS.schedules] });
+      queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEYS.classSchedules] });
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erreur lors de la mise à jour");
@@ -107,8 +107,8 @@ export const useScheduleMutations = () => {
     mutationFn: scheduleService.delete,
     onSuccess: () => {
       toast.success("Emploi du temps supprimé");
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.schedules] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.classSchedules] });
+      queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEYS.schedules] });
+      queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEYS.classSchedules] });
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erreur lors de la suppression");

@@ -303,6 +303,9 @@ const EnseignantNotes: React.FC = () => {
                 options={[
                   { value: "1", label: "Semestre 1 (S1)" },
                   { value: "2", label: "Semestre 2 (S2)" },
+                  { value: "3", label: "Semestre 3 (S3)" },
+                  { value: "4", label: "Semestre 4 (S4)" },
+                  { value: "5", label: "Semestre 5 (S5)" },
                 ]}
               />
             </div>

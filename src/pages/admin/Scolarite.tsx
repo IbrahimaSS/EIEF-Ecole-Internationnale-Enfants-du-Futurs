@@ -5,7 +5,7 @@ import {
   Building2, CalendarDays, BookOpen, Plus, Trash2, Search,
   GraduationCap, Clock, Users, X, CheckCircle2,
   AlertCircle, Loader2, FileText, Download, Printer, MoreVertical,
-  Edit, Eye, ClipboardList, Award, BarChart3,
+  Edit, Eye, ClipboardList, Award, BarChart3, Save,
 } from 'lucide-react';
 import { Card, Badge, Button, Modal, Input, Select, Avatar, Table } from '../../components/ui';
 import { cn } from '../../utils/cn';
@@ -115,9 +115,6 @@ interface AcademicYearResponse {
   isActive: boolean;
 }
 
-// ClassSubject est l'association classe↔matière côté backend (CourseRequest attend un classSubjectId).
-// On les reconstruit depuis les schedules existants ou on les crée manuellement.
-
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -126,6 +123,14 @@ const DAY_OPTIONS = DAYS.map((d, i) => ({ value: String(i + 1), label: d }));
 type TabId = 'emplois' | 'notes';
 type NotifKind = 'success' | 'error';
 interface Notif { kind: NotifKind; message: string }
+interface EditableGradeRow {
+  studentId: string;
+  studentName: string;
+  registrationNumber: string;
+  note: string;
+  appreciation: string;
+  gradeId?: string;
+}
 
 const empty = {
   schedule: () => ({
@@ -186,6 +191,12 @@ const AdminScolarite: React.FC = () => {
   const [selectedStudent,  setSelectedStudent]  = useState<StudentResponse | null>(null);
   const [studentGrades,    setStudentGrades]    = useState<GradeResponse[]>([]);
   const [gradesLoading,    setGradesLoading]    = useState(false);
+  const [gradeRows,        setGradeRows]        = useState<EditableGradeRow[]>([]);
+  const [gradeClassId,     setGradeClassId]     = useState('');
+  const [gradeSubjectId,   setGradeSubjectId]   = useState('');
+  const [gradeSemester,    setGradeSemester]    = useState('1');
+  const [gradeEntryLoading, setGradeEntryLoading] = useState(false);
+  const [gradeSaving,      setGradeSaving]      = useState(false);
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [classSchedules,   setClassSchedules]   = useState<ScheduleResponse[]>([]);
   const [classSchLoading,  setClassSchLoading]  = useState(false);
@@ -207,7 +218,6 @@ const AdminScolarite: React.FC = () => {
   const [openMenuId,       setOpenMenuId]       = useState<string | null>(null);
 
   // ── Notification ──────────────────────────────────────────────────────────
- // Remplacez la ligne 171 par :
   const notifTimer = useRef<NodeJS.Timeout | undefined>(undefined);
   const showNotif = useCallback((kind: NotifKind, message: string) => {
     clearTimeout(notifTimer.current);
@@ -264,7 +274,191 @@ const AdminScolarite: React.FC = () => {
     finally { setGradesLoading(false); }
   }, []);
 
+  const gradeClass = classes.find(cls => cls.id === gradeClassId) ?? null;
+  const gradeClassStudents = gradeClass
+    ? students.filter(student => student.className === gradeClass.name)
+    : [];
+  const gradeSubjectOptions = (
+    Array.from(
+      new Map(
+        schedules
+          .filter(schedule => schedule.classId === gradeClassId)
+          .map(schedule => [
+            schedule.subjectId,
+            { id: schedule.subjectId, name: schedule.subjectName },
+          ]),
+      ).values(),
+    )
+  ).length > 0
+    ? Array.from(
+        new Map(
+          schedules
+            .filter(schedule => schedule.classId === gradeClassId)
+            .map(schedule => [
+              schedule.subjectId,
+              { id: schedule.subjectId, name: schedule.subjectName },
+            ]),
+        ).values(),
+      )
+    : subjects.map(subject => ({ id: subject.id, name: subject.name }));
+
+  const fetchGradeRows = useCallback(async (
+    classId: string,
+    subjectId: string,
+    semester: string,
+  ) => {
+    const currentClass = classes.find(cls => cls.id === classId);
+    if (!currentClass || !subjectId) {
+      setGradeRows([]);
+      return;
+    }
+
+    const classStudents = students.filter(student => student.className === currentClass.name);
+    setGradeEntryLoading(true);
+    try {
+      const grades = await apiFetch<GradeResponse[]>(
+        `/grades/class/${classId}/subject/${subjectId}?semester=${semester}`,
+      );
+      const gradeMap = new Map(
+        grades.map(grade => [grade.studentId, grade] as const),
+      );
+
+      setGradeRows(
+        classStudents.map(student => {
+          const existingGrade = gradeMap.get(student.id);
+          return {
+            studentId: student.id,
+            studentName: `${student.firstName} ${student.lastName}`,
+            registrationNumber: student.registrationNumber,
+            note: existingGrade ? String(existingGrade.value) : '',
+            appreciation: existingGrade?.comment || '',
+            gradeId: existingGrade?.id,
+          };
+        }),
+      );
+    } catch {
+      setGradeRows(
+        classStudents.map(student => ({
+          studentId: student.id,
+          studentName: `${student.firstName} ${student.lastName}`,
+          registrationNumber: student.registrationNumber,
+          note: '',
+          appreciation: '',
+        })),
+      );
+    } finally {
+      setGradeEntryLoading(false);
+    }
+  }, [classes, students]);
+
+  const handleGradeRowChange = (
+    studentId: string,
+    field: 'note' | 'appreciation',
+    value: string,
+  ) => {
+    setGradeRows(prev =>
+      prev.map(row => (row.studentId === studentId ? { ...row, [field]: value } : row)),
+    );
+  };
+
+  const handleSaveGrades = async () => {
+    if (!gradeClassId || !gradeSubjectId) {
+      showNotif('error', 'Veuillez sélectionner une classe et une matière.');
+      return;
+    }
+
+    const hasInvalidNote = gradeRows.some(row => {
+      if (row.note === '') return false;
+      const value = Number(row.note);
+      return Number.isNaN(value) || value < 0 || value > 20;
+    });
+
+    if (hasInvalidNote) {
+      showNotif('error', 'Chaque note doit être comprise entre 0 et 20.');
+      return;
+    }
+
+    setGradeSaving(true);
+    try {
+      const operations = gradeRows.map(async row => {
+        const payload = {
+          studentId: row.studentId,
+          subjectId: gradeSubjectId,
+          value: Number(row.note),
+          semester: Number(gradeSemester),
+          evaluationType: 'Note du semestre',
+          comment: row.appreciation || undefined,
+        };
+
+        if (row.note === '') {
+          if (row.gradeId) {
+            await apiFetch(`/grades/${row.gradeId}`, { method: 'DELETE' });
+          }
+          return;
+        }
+
+        if (row.gradeId) {
+          await apiFetch(`/grades/${row.gradeId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+          return;
+        }
+
+        await apiFetch('/grades', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      });
+
+      await Promise.all(operations);
+      await fetchGradeRows(gradeClassId, gradeSubjectId, gradeSemester);
+      showNotif('success', 'Les notes ont été enregistrées par la scolarité.');
+    } catch (e: any) {
+      showNotif('error', e?.message ?? 'Erreur lors de l\'enregistrement des notes.');
+    } finally {
+      setGradeSaving(false);
+    }
+  };
+
   // ── Ouvrir détail classe ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!gradeClassId && classes.length > 0) {
+      setGradeClassId(classes[0].id);
+    }
+  }, [classes, gradeClassId]);
+
+  useEffect(() => {
+    if (!gradeClassId) {
+      if (gradeSubjectId) setGradeSubjectId('');
+      return;
+    }
+
+    if (gradeSubjectOptions.length === 0) {
+      if (gradeSubjectId) setGradeSubjectId('');
+      return;
+    }
+
+    const subjectExists = gradeSubjectOptions.some(subject => subject.id === gradeSubjectId);
+    if (!subjectExists) {
+      setGradeSubjectId(gradeSubjectOptions[0].id);
+    }
+  }, [gradeClassId, gradeSubjectId, gradeSubjectOptions]);
+
+  useEffect(() => {
+    if (activeTab !== 'notes' || !gradeClassId || !gradeSubjectId) {
+      return;
+    }
+
+    fetchGradeRows(gradeClassId, gradeSubjectId, gradeSemester);
+  }, [
+    activeTab,
+    fetchGradeRows,
+    gradeClassId,
+    gradeSubjectId,
+    gradeSemester,
+  ]);
+
   const openClassDetail = (cls: ClassResponse) => {
     setSelectedClass(cls);
     fetchClassSchedules(cls.id);
@@ -372,7 +566,6 @@ const AdminScolarite: React.FC = () => {
       setIsAcademicYearModalOpen(false);
       setAcademicYearForm({ name: '', startDate: '', endDate: '', isCurrent: false });
       
-      // Mettre à jour la liste et auto-sélectionner la nouvelle année
       await fetchAll();
       setClassForm(f => ({ ...f, academicYearId: res.id }));
     } catch (e: any) {
@@ -438,248 +631,249 @@ const AdminScolarite: React.FC = () => {
     fetchStudentGrades(student.id);
     setIsGradesModalOpen(true);
   };
+
   // ── Impression emploi du temps ────────────────────────────────────────────────
-const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
-  const slotsByDay = DAYS.map((day, i) =>
-    slots.filter(s => s.dayOfWeek === i + 1)
-  );
+  const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
+    const slotsByDay = DAYS.map((day, i) =>
+      slots.filter(s => s.dayOfWeek === i + 1)
+    );
 
-  const html = `
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-      <meta charset="UTF-8" />
-      <title>Emploi du temps — ${cls.name}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-          font-family: 'Segoe UI', Arial, sans-serif;
-          color: #1a1a2e;
-          background: #fff;
-          padding: 32px;
-        }
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Emploi du temps — ${cls.name}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #1a1a2e;
+            background: #fff;
+            padding: 32px;
+          }
 
-        /* ── En-tête ── */
-        .header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          padding-bottom: 20px;
-          border-bottom: 3px solid #1e40af;
-          margin-bottom: 24px;
-        }
-        .school-name {
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 2px;
-          text-transform: uppercase;
-          color: #6b7280;
-          margin-bottom: 4px;
-        }
-        .doc-title {
-          font-size: 24px;
-          font-weight: 800;
-          color: #1e40af;
-          line-height: 1.1;
-        }
-        .class-name {
-          font-size: 16px;
-          font-weight: 600;
-          color: #374151;
-          margin-top: 2px;
-        }
-        .meta-block {
-          text-align: right;
-          font-size: 10px;
-          color: #9ca3af;
-          line-height: 1.8;
-        }
-        .meta-block strong { color: #374151; }
+          /* ── En-tête ── */
+          .header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #1e40af;
+            margin-bottom: 24px;
+          }
+          .school-name {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 4px;
+          }
+          .doc-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: #1e40af;
+            line-height: 1.1;
+          }
+          .class-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            margin-top: 2px;
+          }
+          .meta-block {
+            text-align: right;
+            font-size: 10px;
+            color: #9ca3af;
+            line-height: 1.8;
+          }
+          .meta-block strong { color: #374151; }
 
-        /* ── Infos classe ── */
-        .info-row {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-        .info-chip {
-          flex: 1;
-          padding: 10px 16px;
-          background: #f0f4ff;
-          border-radius: 10px;
-          border-left: 4px solid #1e40af;
-        }
-        .info-chip label {
-          display: block;
-          font-size: 8px;
-          font-weight: 700;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          color: #9ca3af;
-          margin-bottom: 2px;
-        }
-        .info-chip span {
-          font-size: 13px;
-          font-weight: 700;
-          color: #1e40af;
-        }
+          /* ── Infos classe ── */
+          .info-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+          }
+          .info-chip {
+            flex: 1;
+            padding: 10px 16px;
+            background: #f0f4ff;
+            border-radius: 10px;
+            border-left: 4px solid #1e40af;
+          }
+          .info-chip label {
+            display: block;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #9ca3af;
+            margin-bottom: 2px;
+          }
+          .info-chip span {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e40af;
+          }
 
-        /* ── Grille ── */
-        .grid {
-          display: grid;
-          grid-template-columns: repeat(6, 1fr);
-          gap: 8px;
-          margin-bottom: 32px;
-        }
-        .day-col { display: flex; flex-direction: column; gap: 6px; }
-        .day-header {
-          background: #1e40af;
-          color: #fff;
-          text-align: center;
-          padding: 8px 4px;
-          border-radius: 8px;
-          font-size: 9px;
-          font-weight: 800;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-        }
-        .slot {
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-left: 4px solid #1e40af;
-          border-radius: 8px;
-          padding: 8px 8px 8px 10px;
-          min-height: 64px;
-        }
-        .slot-time {
-          font-size: 9px;
-          font-weight: 700;
-          color: #1e40af;
-          margin-bottom: 3px;
-        }
-        .slot-subject {
-          font-size: 11px;
-          font-weight: 700;
-          color: #111827;
-          margin-bottom: 2px;
-          line-height: 1.2;
-        }
-        .slot-teacher {
-          font-size: 9px;
-          color: #6b7280;
-        }
-        .slot-room {
-          font-size: 8px;
-          color: #9ca3af;
-          margin-top: 2px;
-          font-style: italic;
-        }
-        .empty-day {
-          background: #f9fafb;
-          border: 1px dashed #e5e7eb;
-          border-radius: 8px;
-          min-height: 48px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 9px;
-          color: #d1d5db;
-        }
+          /* ── Grille ── */
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin-bottom: 32px;
+          }
+          .day-col { display: flex; flex-direction: column; gap: 6px; }
+          .day-header {
+            background: #1e40af;
+            color: #fff;
+            text-align: center;
+            padding: 8px 4px;
+            border-radius: 8px;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+          }
+          .slot {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid #1e40af;
+            border-radius: 8px;
+            padding: 8px 8px 8px 10px;
+            min-height: 64px;
+          }
+          .slot-time {
+            font-size: 9px;
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 3px;
+          }
+          .slot-subject {
+            font-size: 11px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 2px;
+            line-height: 1.2;
+          }
+          .slot-teacher {
+            font-size: 9px;
+            color: #6b7280;
+          }
+          .slot-room {
+            font-size: 8px;
+            color: #9ca3af;
+            margin-top: 2px;
+            font-style: italic;
+          }
+          .empty-day {
+            background: #f9fafb;
+            border: 1px dashed #e5e7eb;
+            border-radius: 8px;
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: #d1d5db;
+          }
 
-        /* ── Légende / pied ── */
-        .footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-top: 16px;
-          border-top: 1px solid #e5e7eb;
-          font-size: 9px;
-          color: #9ca3af;
-        }
-        .footer strong { color: #374151; }
+          /* ── Légende / pied ── */
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 9px;
+            color: #9ca3af;
+          }
+          .footer strong { color: #374151; }
 
-        @media print {
-          body { padding: 16px; }
-          @page { margin: 12mm; size: A4 landscape; }
-        }
-      </style>
-    </head>
-    <body>
+          @media print {
+            body { padding: 16px; }
+            @page { margin: 12mm; size: A4 landscape; }
+          }
+        </style>
+      </head>
+      <body>
 
-      <div class="header">
-        <div>
-          <div class="school-name">Institut Enfants Future</div>
-          <div class="doc-title">Emploi du temps</div>
-          <div class="class-name">${cls.name}${cls.level ? ` — ${cls.level}` : ''}</div>
+        <div class="header">
+          <div>
+            <div class="school-name">Institut Enfants Future</div>
+            <div class="doc-title">Emploi du temps</div>
+            <div class="class-name">${cls.name}${cls.level ? ` — ${cls.level}` : ''}</div>
+          </div>
+          <div class="meta-block">
+            <div><strong>Année académique :</strong> ${cls.academicYearName || '—'}</div>
+            <div><strong>Prof. principal :</strong> ${cls.mainTeacherName || 'Non défini'}</div>
+            <div><strong>Effectif :</strong> ${cls.studentCount} / ${cls.maxStudents} élèves</div>
+            <div><strong>Imprimé le :</strong> ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+            <div><strong>Créneaux :</strong> ${slots.length} au total</div>
+          </div>
         </div>
-        <div class="meta-block">
-          <div><strong>Année académique :</strong> ${cls.academicYearName || '—'}</div>
-          <div><strong>Prof. principal :</strong> ${cls.mainTeacherName || 'Non défini'}</div>
-          <div><strong>Effectif :</strong> ${cls.studentCount} / ${cls.maxStudents} élèves</div>
-          <div><strong>Imprimé le :</strong> ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
-          <div><strong>Créneaux :</strong> ${slots.length} au total</div>
-        </div>
-      </div>
 
-      <div class="info-row">
-        <div class="info-chip">
-          <label>Classe</label>
-          <span>${cls.name}</span>
+        <div class="info-row">
+          <div class="info-chip">
+            <label>Classe</label>
+            <span>${cls.name}</span>
+          </div>
+          <div class="info-chip">
+            <label>Niveau</label>
+            <span>${cls.level || '—'}</span>
+          </div>
+          <div class="info-chip">
+            <label>Créneaux / semaine</label>
+            <span>${slots.length}</span>
+          </div>
+          <div class="info-chip">
+            <label>Matières</label>
+            <span>${new Set(slots.map(s => s.subjectName)).size}</span>
+          </div>
         </div>
-        <div class="info-chip">
-          <label>Niveau</label>
-          <span>${cls.level || '—'}</span>
+
+        <div class="grid">
+          ${DAYS.map((day, i) => {
+            const daySlots = slotsByDay[i];
+            return `
+              <div class="day-col">
+                <div class="day-header">${day}</div>
+                ${daySlots.length === 0
+                  ? `<div class="empty-day">—</div>`
+                  : daySlots
+                      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                      .map(s => `
+                        <div class="slot">
+                          <div class="slot-time">${s.startTime} – ${s.endTime}</div>
+                          <div class="slot-subject">${s.subjectName}</div>
+                          ${s.teacherName ? `<div class="slot-teacher">${s.teacherName}</div>` : ''}
+                          ${s.room ? `<div class="slot-room">📍 ${s.room}</div>` : ''}
+                        </div>
+                      `).join('')
+                }
+              </div>
+            `;
+          }).join('')}
         </div>
-        <div class="info-chip">
-          <label>Créneaux / semaine</label>
-          <span>${slots.length}</span>
+
+        <div class="footer">
+          <span>Document généré automatiquement — Institut Enfants Future</span>
+          <span><strong>${cls.name}</strong> • Année ${cls.academicYearName || '—'}</span>
         </div>
-        <div class="info-chip">
-          <label>Matières</label>
-          <span>${new Set(slots.map(s => s.subjectName)).size}</span>
-        </div>
-      </div>
 
-      <div class="grid">
-        ${DAYS.map((day, i) => {
-          const daySlots = slotsByDay[i];
-          return `
-            <div class="day-col">
-              <div class="day-header">${day}</div>
-              ${daySlots.length === 0
-                ? `<div class="empty-day">—</div>`
-                : daySlots
-                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                    .map(s => `
-                      <div class="slot">
-                        <div class="slot-time">${s.startTime} – ${s.endTime}</div>
-                        <div class="slot-subject">${s.subjectName}</div>
-                        ${s.teacherName ? `<div class="slot-teacher">${s.teacherName}</div>` : ''}
-                        ${s.room ? `<div class="slot-room">📍 ${s.room}</div>` : ''}
-                      </div>
-                    `).join('')
-              }
-            </div>
-          `;
-        }).join('')}
-      </div>
+      </body>
+      </html>
+    `;
 
-      <div class="footer">
-        <span>Document généré automatiquement — Institut Enfants Future</span>
-        <span><strong>${cls.name}</strong> • Année ${cls.academicYearName || '—'}</span>
-      </div>
-
-    </body>
-    </html>
-  `;
-
-  const win = window.open('', '_blank', 'width=1100,height=700');
-  if (!win) { showNotif('error', 'Veuillez autoriser les popups pour imprimer.'); return; }
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); }, 400);
-};
+    const win = window.open('', '_blank', 'width=1100,height=700');
+    if (!win) { showNotif('error', 'Veuillez autoriser les popups pour imprimer.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
+  };
 
   // ── Filtres recherche ──────────────────────────────────────────────────────
   const q = searchQuery.toLowerCase();
@@ -703,6 +897,13 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
   const overallAvg = studentGrades.length
     ? studentGrades.reduce((s, g) => s + Number(g.value), 0) / studentGrades.length
     : null;
+  const gradeValues = gradeRows
+    .map(row => Number(row.note))
+    .filter(value => !Number.isNaN(value));
+  const gradeAverage = gradeValues.length
+    ? gradeValues.reduce((sum, value) => sum + value, 0) / gradeValues.length
+    : null;
+  const filledGradesCount = gradeRows.filter(row => row.note !== '').length;
 
   // ── Colonnes tableau schedules ────────────────────────────────────────────
   const scheduleColumns = [
@@ -975,38 +1176,35 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
                           </div>
                         </div>
 
-<div className="flex flex-col gap-2">
-  <button
-    onClick={() => openClassDetail(cls)}
-    className="px-3 py-1.5 text-[9px] font-bold bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600 dark:text-bleu-300 rounded-lg hover:bg-bleu-100 transition-all flex items-center gap-1"
-  >
-    <Eye size={11} /> Voir
-  </button>
-  <button
-    onClick={() => openAddSchedule(cls)}
-    className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"
-  >
-    <Plus size={11} /> Ajouter
-  </button>
-  <button
-    onClick={async e => {
-      e.stopPropagation();
-      // Récupérer les créneaux frais de la classe avant d'imprimer
-      try {
-        const slots = await apiFetch<ScheduleResponse[]>(`/schedules/class/${cls.id}`);
-        printSchedule(cls, slots);
-      } catch {
-        // Fallback : utiliser les créneaux déjà en mémoire
-        const slots = schedules.filter(s => s.classId === cls.id);
-        printSchedule(cls, slots);
-      }
-    }}
-    className="px-3 py-1.5 text-[9px] font-bold bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded-lg hover:bg-purple-100 transition-all flex items-center gap-1"
-  >
-    <Printer size={11} /> Imprimer
-  </button>
-</div>
-                        
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => openClassDetail(cls)}
+                            className="px-3 py-1.5 text-[9px] font-bold bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600 dark:text-bleu-300 rounded-lg hover:bg-bleu-100 transition-all flex items-center gap-1"
+                          >
+                            <Eye size={11} /> Voir
+                          </button>
+                          <button
+                            onClick={() => openAddSchedule(cls)}
+                            className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"
+                          >
+                            <Plus size={11} /> Ajouter
+                          </button>
+                          <button
+                            onClick={async e => {
+                              e.stopPropagation();
+                              try {
+                                const slots = await apiFetch<ScheduleResponse[]>(`/schedules/class/${cls.id}`);
+                                printSchedule(cls, slots);
+                              } catch {
+                                const slots = schedules.filter(s => s.classId === cls.id);
+                                printSchedule(cls, slots);
+                              }
+                            }}
+                            className="px-3 py-1.5 text-[9px] font-bold bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded-lg hover:bg-purple-100 transition-all flex items-center gap-1"
+                          >
+                            <Printer size={11} /> Imprimer
+                          </button>
+                        </div>
                       </div>
                     </Card>
                   );
@@ -1032,21 +1230,165 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
         {/* ── TAB: RELEVÉS DE NOTES ────────────────────────────────────────── */}
         {activeTab === 'notes' && (
           <motion.div key="notes" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
-            <Card className="p-2 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
-              {loading ? (
-                <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
-                  <Loader2 size={22} className="animate-spin" />
-                  <span className="text-sm font-medium">Chargement...</span>
+            <div className="space-y-6">
+              <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50 dark:backdrop-blur-md">
+                <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
+                    <Select
+                      label="Classe"
+                      options={[
+                        { value: '', label: 'Sélectionner une classe' },
+                        ...classes.map(cls => ({ value: cls.id, label: cls.name })),
+                      ]}
+                      value={gradeClassId}
+                      onChange={e => setGradeClassId(e.target.value)}
+                    />
+                    <Select
+                      label="Matière"
+                      options={[
+                        { value: '', label: gradeClassId ? 'Sélectionner une matière' : 'Choisir une classe d\'abord' },
+                        ...gradeSubjectOptions.map(subject => ({ value: subject.id, label: subject.name })),
+                      ]}
+                      value={gradeSubjectId}
+                      onChange={e => setGradeSubjectId(e.target.value)}
+                    />
+                    <Select
+                      label="Semestre"
+                      options={[
+                        { value: '1', label: 'Semestre 1' },
+                        { value: '2', label: 'Semestre 2' },
+                        { value: '3', label: 'Semestre 3' },
+                        { value: '4', label: 'Semestre 4' },
+                        { value: '5', label: 'Semestre 5' },
+                      ]}
+                      value={gradeSemester}
+                      onChange={e => setGradeSemester(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSaveGrades}
+                    disabled={!gradeClassId || !gradeSubjectId || gradeSaving || gradeEntryLoading}
+                    className="h-11 px-6 bg-bleu-600 border-none text-white shadow-lg shadow-bleu-600/20 flex items-center gap-2"
+                  >
+                    {gradeSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    Enregistrer les notes
+                  </Button>
                 </div>
-              ) : filteredStudents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-                  <GraduationCap size={40} className="opacity-20" />
-                  <span className="text-sm font-medium">Aucun élève trouvé</span>
+                <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-gray-500">
+                  <span className="px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 font-semibold">Classe: {gradeClass?.name || '—'}</span>
+                  <span className="px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 font-semibold">Élèves: {gradeClassStudents.length}</span>
+                  <span className="px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 font-semibold">Notes saisies: {filledGradesCount}</span>
+                  <span className="px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 font-semibold">Moyenne: {gradeAverage !== null ? `${gradeAverage.toFixed(2)}/20` : '—'}</span>
                 </div>
-              ) : (
-                <Table data={filteredStudents as any} columns={studentColumns as any} />
-              )}
-            </Card>
+              </Card>
+
+              <Card className="p-0 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
+                {loading || gradeEntryLoading ? (
+                  <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                    <Loader2 size={22} className="animate-spin" />
+                    <span className="text-sm font-medium">Chargement des notes...</span>
+                  </div>
+                ) : !gradeClassId || !gradeSubjectId ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+                    <ClipboardList size={40} className="opacity-20" />
+                    <span className="text-sm font-medium">Sélectionnez une classe et une matière pour saisir les notes.</span>
+                  </div>
+                ) : gradeRows.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+                    <GraduationCap size={40} className="opacity-20" />
+                    <span className="text-sm font-medium">Aucun élève trouvé pour cette classe.</span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[980px] text-left">
+                      <thead className="bg-gray-50 dark:bg-white/5">
+                        <tr>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">Élève</th>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">Matricule</th>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-gray-400 text-center">Note /20</th>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">Appréciation</th>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-gray-400 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                        {gradeRows
+                          .filter(row => searchQuery ? `${row.studentName} ${row.registrationNumber}`.toLowerCase().includes(searchQuery.toLowerCase()) : true)
+                          .map(row => {
+                            const currentStudent = students.find(student => student.id === row.studentId) ?? null;
+                            const noteValue = Number(row.note);
+                            const noteIsLow = row.note !== '' && !Number.isNaN(noteValue) && noteValue < 10;
+                            const noteIsSet = row.note !== '' && !Number.isNaN(noteValue);
+                            return (
+                              <tr key={row.studentId} className="bg-white dark:bg-transparent">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <Avatar name={row.studentName} size="sm" />
+                                    <span className="font-semibold text-sm text-gray-900 dark:text-white">{row.studentName}</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-500">{row.registrationNumber}</td>
+                                <td className="px-6 py-4">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="20"
+                                    step="0.5"
+                                    value={row.note}
+                                    onChange={e => handleGradeRowChange(row.studentId, 'note', e.target.value)}
+                                    className={cn(
+                                      'h-10 max-w-[110px] mx-auto text-center font-black',
+                                      noteIsLow && 'text-red-500 bg-red-50 border-red-200 dark:bg-red-900/10',
+                                      noteIsSet && !noteIsLow && 'text-bleu-600 bg-bleu-50 border-bleu-200 dark:bg-bleu-900/10',
+                                    )}
+                                  />
+                                </td>
+                                <td className="px-6 py-4">
+                                  <Input
+                                    type="text"
+                                    value={row.appreciation}
+                                    onChange={e => handleGradeRowChange(row.studentId, 'appreciation', e.target.value)}
+                                    placeholder="Commentaire de la scolarité"
+                                    className="h-10 w-full"
+                                  />
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => currentStudent && openGrades(currentStudent)}
+                                      disabled={!currentStudent}
+                                      className="h-8 px-3 text-[10px] flex items-center gap-2"
+                                    >
+                                      <FileText size={13} /> Relevé
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-2 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
+                {loading ? (
+                  <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                    <Loader2 size={22} className="animate-spin" />
+                    <span className="text-sm font-medium">Chargement...</span>
+                  </div>
+                ) : filteredStudents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+                    <GraduationCap size={40} className="opacity-20" />
+                    <span className="text-sm font-medium">Aucun élève trouvé</span>
+                  </div>
+                ) : (
+                  <Table data={filteredStudents as any} columns={studentColumns as any} />
+                )}
+              </Card>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1127,24 +1469,24 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
           )}
 
           <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
-  <Button
-    variant="outline"
-    onClick={() => {
-      if (selectedClass) printSchedule(selectedClass, classSchedules);
-    }}
-    disabled={classSchedules.length === 0}
-    className="flex-1 h-11 flex items-center justify-center gap-2"
-  >
-    <Printer size={15} /> Imprimer l'emploi du temps
-  </Button>
-  <Button
-    variant="outline"
-    onClick={() => { setIsDetailModalOpen(false); setSelectedClass(null); }}
-    className="flex-1 h-11"
-  >
-    Fermer
-  </Button>
-</div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (selectedClass) printSchedule(selectedClass, classSchedules);
+              }}
+              disabled={classSchedules.length === 0}
+              className="flex-1 h-11 flex items-center justify-center gap-2"
+            >
+              <Printer size={15} /> Imprimer l'emploi du temps
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setIsDetailModalOpen(false); setSelectedClass(null); }}
+              className="flex-1 h-11"
+            >
+              Fermer
+            </Button>
+          </div>
         </div>
       </Modal>
 
@@ -1261,6 +1603,9 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
                 { value: '',  label: 'Tous les semestres' },
                 { value: '1', label: 'Semestre 1' },
                 { value: '2', label: 'Semestre 2' },
+                { value: '3', label: 'Semestre 3' },
+                { value: '4', label: 'Semestre 4' },
+                { value: '5', label: 'Semestre 5' },
               ]}
               value={selectedSemester}
               onChange={e => {
@@ -1283,18 +1628,18 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
             {[
               { label: 'Matricule', value: selectedStudent?.registrationNumber },
               { label: 'Classe',    value: selectedStudent?.className },
-{
-  label: 'Semestres',
-  value: Array.isArray(studentGrades) && studentGrades.length
-    ? Array.from(
-        new Set(
-          studentGrades
-            .map(g => g.semester)
-            .filter(Boolean)
-        )
-      ).join(', ')
-    : '—'
-},
+              {
+                label: 'Semestres',
+                value: Array.isArray(studentGrades) && studentGrades.length
+                  ? Array.from(
+                      new Set(
+                        studentGrades
+                          .map(g => g.semester)
+                          .filter(Boolean)
+                      )
+                    ).join(', ')
+                  : '—'
+              },
               { label: 'Matières',  value: Object.keys(gradesBySubject).length || '—' },
             ].map(({ label, value }) => (
               <Card key={label} className="p-3 bg-gray-50 dark:bg-white/5 border-none">
@@ -1370,7 +1715,6 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
             <Button
               variant="outline"
               onClick={() => {
-                // Export CSV simple
                 const rows = [
                   ['Matière', 'Type', 'Note', 'Semestre', 'Date', 'Commentaire'],
                   ...studentGrades.map(g => [
@@ -1639,7 +1983,7 @@ const printSchedule = (cls: ClassResponse, slots: ScheduleResponse[]) => {
               Annuler
             </Button>
             <Button onClick={handleSubmitAcademicYear} disabled={submitting} className="flex-1 h-12 shadow-lg shadow-bleu-600/20">
-              {submitting ? 'Création...' : 'Créer l\'année'}
+              {submitting ? 'Création...' : "Créer l'année"}
             </Button>
           </div>
         </div>

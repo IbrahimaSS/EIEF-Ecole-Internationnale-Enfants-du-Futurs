@@ -34,7 +34,8 @@ const evolutionDisplay = (evo: number) => {
 
 // ── Composant ────────────────────────────────────────────────────────────────
 
-type Semestre = 1 | 2;
+type Semestre = 1 | 2 | 3 | 4 | 5;
+const SEMESTRES: Semestre[] = [1, 2, 3, 4, 5];
 
 const EleveNotes: React.FC = () => {
   const { user } = useAuthStore();
@@ -97,7 +98,7 @@ const EleveNotes: React.FC = () => {
 
         {/* Sélecteur semestre */}
         <div className="flex items-center bg-gray-100 dark:bg-white/5 rounded-2xl p-1.5 gap-1 self-start lg:self-center">
-          {([1, 2] as Semestre[]).map((sem) => (
+          {SEMESTRES.map((sem) => (
             <button
               key={sem}
               onClick={() => setSelectedSem(sem)}

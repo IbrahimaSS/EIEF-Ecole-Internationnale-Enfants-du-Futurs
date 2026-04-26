@@ -84,7 +84,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const enseignantItems: SidebarItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/enseignant/dashboard' },
     { id: 'classes', label: 'Mes classes', icon: <GraduationCap size={20} />, href: '/enseignant/classes' },
-    { id: 'notes', label: 'Notes', icon: <BookOpen size={20} />, href: '/enseignant/notes' },
     { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/enseignant/communication' },
     { id: 'ressources', label: 'Ressources', icon: <BookOpen size={20} />, href: '/enseignant/ressources' },
   ];

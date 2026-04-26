@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -9,17 +9,9 @@ import {
   MessageSquare,
   ChevronRight,
   TrendingUp,
-  AlertCircle,
-  UserCheck,
+  PlusCircle,
 } from "lucide-react";
-import {
-  Card,
-  StatCard,
-  Badge,
-  Button,
-  Avatar,
-  Modal,
-} from "../../components/ui";
+import { Card, StatCard, Badge, Button } from "../../components/ui";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { teacherService } from "../../services/teacherService";
@@ -28,67 +20,65 @@ import { TeacherDashboardResponse } from "../../types/academic";
 const EnseignantDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuthStore();
-  const [isAppelModalOpen, setIsAppelModalOpen] = useState(false);
   const [stats, setStats] = useState<TeacherDashboardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const pendingTasks = [
-    {
-      id: 1,
-      title: "Saisie des notes",
-      desc: "Devoir de Physique (1ère S2)",
-      deadline: "Aujourd'hui",
-      priority: "high",
-    },
-    {
-      id: 2,
-      title: "Faire l'appel",
-      desc: "Cours en cours (1ère S2)",
-      deadline: "Maintenant",
-      priority: "urgent",
-    },
-    {
-      id: 3,
-      title: "Message au parent",
-      desc: "Concernant l'absence de Diallo",
-      deadline: "Demain",
-      priority: "medium",
-    },
-  ];
-
-  // Fausse liste d'élèves pour l'appel
-  const [students, setStudents] = useState([
-    { id: 1, name: "Amadou Diallo", status: "present" },
-    { id: 2, name: "Aïssatou Barry", status: "present" },
-    { id: 3, name: "Mamadou Sow", status: "absent" },
-    { id: 4, name: "Fatoumata Camara", status: "late" },
-    { id: 5, name: "Ibrahim Sylla", status: "present" },
-  ]);
-
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (token && user?.id) {
-        try {
-          const data = await teacherService.getDashboard(user.id);
-          setStats(data);
-        } catch (error) {
-          console.error("Erreur lors du chargement du dashboard:", error);
-        } finally {
-          setIsLoading(false);
-        }
+      if (!token || !user?.id) {
+        return;
+      }
+
+      try {
+        const data = await teacherService.getDashboard(user.id);
+        setStats(data);
+      } catch (error) {
+        console.error("Erreur lors du chargement du dashboard:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchDashboardData();
+    void fetchDashboardData();
   }, [token, user?.id]);
 
-  const updateStudentStatus = (id: number, status: string) => {
-    setStudents(students.map((s) => (s.id === id ? { ...s, status } : s)));
-  };
+  const dashboardTasks = useMemo(
+    () => [
+      {
+        id: "appel",
+        title: "Faire l'appel",
+        desc:
+          stats?.todaySchedule && stats.todaySchedule.length > 0
+            ? `${stats.todaySchedule.length} cours planifie(s) aujourd'hui`
+            : "Choisir la classe ou vous voulez faire l'appel",
+        actionLabel: "Aller dans les classes",
+        onClick: () => navigate("/enseignant/classes"),
+        color: "bg-bleu-500 shadow-lg shadow-bleu-500/20",
+        icon: <CheckSquare size={16} />,
+      },
+      {
+        id: "ressource",
+        title: "Ajouter une ressource",
+        desc: "Publier un support ou un document pour vos classes",
+        actionLabel: "Ouvrir ressources",
+        onClick: () => navigate("/enseignant/ressources"),
+        color: "bg-or-500 shadow-lg shadow-or-500/20",
+        icon: <PlusCircle size={16} />,
+      },
+      {
+        id: "communication",
+        title: "Message au parent",
+        desc: "Acceder a la communication pour envoyer votre message",
+        actionLabel: "Ouvrir communication",
+        onClick: () => navigate("/enseignant/communication"),
+        color: "bg-indigo-500 shadow-lg shadow-indigo-500/20",
+        icon: <MessageSquare size={16} />,
+      },
+    ],
+    [navigate, stats?.todaySchedule],
+  );
 
-  const handleValidationAppel = () => {
-    setIsAppelModalOpen(false);
-  };
+  const unreadMessages = dashboardTasks.length;
 
   return (
     <motion.div
@@ -97,7 +87,6 @@ const EnseignantDashboard: React.FC = () => {
       transition={{ duration: 0.5 }}
       className="space-y-8 pb-8 text-left"
     >
-      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-2 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-bleu-100 dark:bg-bleu-900/30 rounded-2xl shadow-inner text-bleu-600">
@@ -114,7 +103,7 @@ const EnseignantDashboard: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <Button
-            onClick={() => setIsAppelModalOpen(true)}
+            onClick={() => navigate("/enseignant/classes")}
             className="bg-gradient-to-r from-or-600 to-or-400 text-gray-900 shadow-lg shadow-or-500/20 text-[12px] font-bold px-8 h-12 rounded-[1rem] hover:scale-[1.02] flex items-center gap-2 border-none"
           >
             <CheckSquare size={16} /> Faire l'appel rapide
@@ -122,7 +111,6 @@ const EnseignantDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* STATS OVERVIEW */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Classes & Groupes"
@@ -133,33 +121,32 @@ const EnseignantDashboard: React.FC = () => {
           color="bleu"
         />
         <StatCard
-          title="Total Élèves"
+          title="Total Eleves"
           value={isLoading ? "..." : stats?.totalStudents.toString() || "0"}
           icon={<BookOpen size={24} />}
-          trend={{ value: "+2%", direction: "up" }}
-          subtitle="Présence moy."
+          trend={{ value: "+0%", direction: "up" }}
+          subtitle="Eleves suivis"
           color="or"
         />
         <StatCard
-          title="Moyenne Générale"
+          title="Moyenne Generale"
           value={isLoading ? "..." : stats?.averageGrade.toFixed(1) || "0.0"}
           icon={<TrendingUp size={24} />}
-          trend={{ value: "+5%", direction: "up" }}
-          subtitle="vs Semestre 1"
+          trend={{ value: "+0%", direction: "up" }}
+          subtitle="Donnees du service"
           color="vert"
         />
         <StatCard
           title="Heures cette semaine"
           value={isLoading ? "..." : `${stats?.hoursThisWeek || 0}h`}
           icon={<Clock size={24} />}
-          trend={{ value: "-4h", direction: "down" }}
-          subtitle="Sur le planning"
+          trend={{ value: "+0h", direction: "up" }}
+          subtitle="Charge planifiee"
           color="rouge"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left">
-        {/* SCHEDULE SECTION (Left 2 cols) */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -184,8 +171,11 @@ const EnseignantDashboard: React.FC = () => {
                 stats.todaySchedule.map((course) => (
                   <div
                     key={course.id}
-                    className={`p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors group cursor-pointer 
-                        ${course.status === "current" ? "bg-bleu-50/50 dark:bg-bleu-900/10" : "hover:bg-gray-50 dark:hover:bg-white/5"}`}
+                    className={`p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors group cursor-pointer ${
+                      course.status === "current"
+                        ? "bg-bleu-50/50 dark:bg-bleu-900/10"
+                        : "hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
                   >
                     <div className="flex items-center gap-6">
                       <div
@@ -202,7 +192,11 @@ const EnseignantDashboard: React.FC = () => {
 
                       <div className="text-left font-bold">
                         <h3
-                          className={`text-lg tracking-tight ${course.status === "current" ? "text-bleu-600 dark:text-bleu-400" : "text-gray-900 dark:text-white"}`}
+                          className={`text-lg tracking-tight ${
+                            course.status === "current"
+                              ? "text-bleu-600 dark:text-bleu-400"
+                              : "text-gray-900 dark:text-white"
+                          }`}
                         >
                           {course.subjectName}
                         </h3>
@@ -219,17 +213,16 @@ const EnseignantDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {course.status === "current" && (
+                      {course.status === "current" ? (
                         <Button
-                          onClick={() => setIsAppelModalOpen(true)}
+                          onClick={() => navigate("/enseignant/classes")}
                           className="bg-bleu-600 text-white h-10 px-6 text-[11px] font-bold border-none shadow-lg shadow-bleu-500/20 rounded-xl"
                         >
                           Faire l'appel
                         </Button>
-                      )}
-                      {course.status !== "current" && (
+                      ) : (
                         <Badge className="bg-gray-100 text-gray-500 text-[10px] font-semibold border-none dark:bg-white/10">
-                          Programmé
+                          Programme
                         </Badge>
                       )}
                     </div>
@@ -237,42 +230,30 @@ const EnseignantDashboard: React.FC = () => {
                 ))
               ) : (
                 <div className="p-20 text-center text-gray-400 font-bold">
-                  Aucun cours prévu pour aujourd'hui.
+                  Aucun cours prevu pour aujourd'hui.
                 </div>
               )}
             </div>
           </Card>
         </div>
 
-        {/* TASKS & QUICK ACTIONS (Right col) */}
         <div className="space-y-6">
           <h2 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <CheckSquare className="text-bleu-500" size={18} /> Tâches & Rappels
+            <CheckSquare className="text-bleu-500" size={18} /> Taches & Rappels
           </h2>
 
           <Card className="p-0 overflow-hidden border-none shadow-soft dark:bg-gray-900/50">
             <div className="divide-y divide-gray-50 dark:divide-white/5 p-2">
-              {pendingTasks.map((task) => (
+              {dashboardTasks.map((task) => (
                 <div
                   key={task.id}
+                  onClick={task.onClick}
                   className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 rounded-2xl transition-colors cursor-pointer group"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4">
-                      <div
-                        className={`p-2.5 rounded-xl text-white ${
-                          task.priority === "urgent"
-                            ? "bg-rouge-500 shadow-lg shadow-rouge-500/20"
-                            : task.priority === "high"
-                              ? "bg-or-500 shadow-lg shadow-or-500/20"
-                              : "bg-bleu-500 shadow-lg shadow-bleu-500/20"
-                        }`}
-                      >
-                        {task.priority === "urgent" ? (
-                          <AlertCircle size={16} />
-                        ) : (
-                          <CheckSquare size={16} />
-                        )}
+                      <div className={`p-2.5 rounded-xl text-white ${task.color}`}>
+                        {task.icon}
                       </div>
                       <div className="text-left">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-tight">
@@ -286,7 +267,7 @@ const EnseignantDashboard: React.FC = () => {
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-[10px] font-semibold text-gray-400">
-                      {task.deadline}
+                      {task.actionLabel}
                     </span>
                     <span className="text-or-600 dark:text-or-400 group-hover:translate-x-1 transition-transform">
                       <ChevronRight size={16} />
@@ -306,7 +287,7 @@ const EnseignantDashboard: React.FC = () => {
                 Messages Non Lus
               </h3>
               <p className="text-3xl font-black tracking-tight mb-4 text-or-400">
-                3
+                {unreadMessages}
               </p>
               <Button
                 onClick={() => navigate("/enseignant/communication")}
@@ -318,97 +299,6 @@ const EnseignantDashboard: React.FC = () => {
           </Card>
         </div>
       </div>
-
-      {/* MODAL FAIRE L'APPEL */}
-      <Modal
-        isOpen={isAppelModalOpen}
-        onClose={() => setIsAppelModalOpen(false)}
-        size="lg"
-        title={
-          <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-bleu-100 dark:bg-bleu-900/30 rounded-2xl text-bleu-600 shadow-inner">
-              <UserCheck size={24} />
-            </div>
-            <div className="text-left font-bold tracking-tight">
-              <h2 className="text-xl gradient-bleu-or-text">Faire l'appel</h2>
-              <p className="text-[12px] text-gray-500 dark:text-gray-400 font-semibold">
-                Physique • 1ère S2 • Aujourd'hui
-              </p>
-            </div>
-          </div>
-        }
-      >
-        <div className="space-y-4 py-2">
-          <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/10 flex justify-between items-center mb-6">
-            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-              Effectif total: 5 Élèves
-            </span>
-            <div className="flex gap-4 text-[11px] font-bold">
-              <span className="text-vert-600">
-                {students.filter((s) => s.status === "present").length} Présents
-              </span>
-              <span className="text-rouge-600">
-                {students.filter((s) => s.status === "absent").length} Absents
-              </span>
-              <span className="text-or-600">
-                {students.filter((s) => s.status === "late").length} Retards
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-            {students.map((student) => (
-              <div
-                key={student.id}
-                className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/10 rounded-xl hover:border-bleu-300 transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar name={student.name} size="sm" />
-                  <span className="font-bold text-sm text-gray-900 dark:text-white">
-                    {student.name}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => updateStudentStatus(student.id, "present")}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${student.status === "present" ? "bg-vert-100 text-vert-700 border border-vert-300 shadow-sm" : "bg-gray-50 text-gray-400 hover:bg-gray-100 border border-transparent"}`}
-                  >
-                    Présent
-                  </button>
-                  <button
-                    onClick={() => updateStudentStatus(student.id, "late")}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${student.status === "late" ? "bg-or-100 text-or-700 border border-or-300 shadow-sm" : "bg-gray-50 text-gray-400 hover:bg-gray-100 border border-transparent"}`}
-                  >
-                    Retard
-                  </button>
-                  <button
-                    onClick={() => updateStudentStatus(student.id, "absent")}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${student.status === "absent" ? "bg-rouge-100 text-rouge-700 border border-rouge-300 shadow-sm" : "bg-gray-50 text-gray-400 hover:bg-gray-100 border border-transparent"}`}
-                  >
-                    Absent
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-4 pt-6 border-t border-gray-100 dark:border-white/10 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsAppelModalOpen(false)}
-              className="flex-1 h-12 text-[12px] font-bold rounded-[1rem]"
-            >
-              Annuler
-            </Button>
-            <Button
-              onClick={handleValidationAppel}
-              className="flex-1 h-12 bg-bleu-600 text-white shadow-lg shadow-bleu-500/20 text-[12px] font-bold rounded-[1rem] border-none hover:scale-[1.02]"
-            >
-              Valider l'appel
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </motion.div>
   );
 };

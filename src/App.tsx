@@ -17,9 +17,8 @@ import AdminSettings from './pages/admin/Settings';
 import AdminProfile from './pages/admin/Profile';
 
 import Login from './pages/auth/Login';
-import EnseignantDashboard from './pages/enseignant/Dashboard';
-import EnseignantClasses from './pages/enseignant/Classes';
-import EnseignantNotes from './pages/enseignant/Notes';
+import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
+import EnseignantClasses from './pages/enseignant/TeacherClasses';
 import EnseignantCommunication from './pages/enseignant/Communication';
 import EnseignantRessources from './pages/enseignant/Ressources';
 import EnseignantProfile from './pages/enseignant/Profile';
@@ -116,7 +115,6 @@ function App() {
             <Route index element={<EnseignantDashboard />} />
             <Route path="dashboard" element={<EnseignantDashboard />} />
             <Route path="classes" element={<EnseignantClasses />} />
-            <Route path="notes" element={<EnseignantNotes />} />
             <Route path="communication" element={<EnseignantCommunication />} />
             <Route path="ressources" element={<EnseignantRessources />} />
             <Route path="profil" element={<EnseignantProfile />} />
@@ -203,7 +201,6 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         const teacherPages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Enseignant', subtitle: `Bonjour, ${user?.firstName} !` },
           'classes': { title: 'Mes Classes', subtitle: 'Gérez vos effectifs' },
-          'notes': { title: 'Saisie des Notes', subtitle: 'Évaluations et bulletins' },
           'communication': { title: 'Communication', subtitle: 'Messagerie avec les élèves et parents' },
           'ressources': { title: 'Ressources Pédagogiques', subtitle: 'Exercices, TP, Sujets et Compositions' },
           'profil': { title: 'Mon Profil', subtitle: 'Gérez vos informations personnelles' },

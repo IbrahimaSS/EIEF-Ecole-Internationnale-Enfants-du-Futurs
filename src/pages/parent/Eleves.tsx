@@ -21,7 +21,8 @@ import { studentService, StudentNotesResponse } from '../../services/studentServ
 import { apiRequest } from '../../services/api';
 import { ScheduleResponse } from '../../types/schedule';
 
-type Semestre = 1 | 2;
+type Semestre = 1 | 2 | 3 | 4 | 5;
+const SEMESTRES: Semestre[] = [1, 2, 3, 4, 5];
 
 const ParentEleves: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -58,16 +59,17 @@ const ParentEleves: React.FC = () => {
         setSelectedSemestre(semSelection);
 
         const notesPayload = await Promise.all(
-          linkedStudents.flatMap((student) => [
-            studentService.getNotes(student.id, 1),
-            studentService.getNotes(student.id, 2),
-          ]),
+          linkedStudents.flatMap((student) =>
+            SEMESTRES.map((semester) => studentService.getNotes(student.id, semester)),
+          ),
         );
 
         const nextNotesCache: Record<string, StudentNotesResponse> = {};
         linkedStudents.forEach((student, index) => {
-          nextNotesCache[`${student.id}-1`] = notesPayload[index * 2];
-          nextNotesCache[`${student.id}-2`] = notesPayload[index * 2 + 1];
+          SEMESTRES.forEach((semester, semIndex) => {
+            nextNotesCache[`${student.id}-${semester}`] =
+              notesPayload[index * SEMESTRES.length + semIndex];
+          });
         });
 
         setNotesCache(nextNotesCache);
@@ -92,10 +94,10 @@ const ParentEleves: React.FC = () => {
     loadData();
   }, [token, user?.id]);
 
-  const semestres: { key: Semestre; label: string }[] = [
-    { key: 1, label: 'Semestre 1' },
-    { key: 2, label: 'Semestre 2' },
-  ];
+  const semestres: { key: Semestre; label: string }[] = SEMESTRES.map((semester) => ({
+    key: semester,
+    label: `Semestre ${semester}`,
+  }));
 
   const toggleChild = (id: string) => {
     setExpandedChild(expandedChild === id ? null : id);
