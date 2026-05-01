@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -43,11 +44,13 @@ const Modal: React.FC<ModalProps> = ({
     xl: 'max-w-4xl'
   };
 
-  return (
+  // Rendu via React Portal dans document.body pour eviter les conflits de
+  // reconciliation DOM avec framer-motion (erreur "removeChild" en React 18).
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300">
       <div className={`
-        bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-[2rem] shadow-2xl w-full 
-        ${sizeClasses[size]} 
+        bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-[2rem] shadow-2xl w-full
+        ${sizeClasses[size]}
         max-h-[90vh] overflow-hidden
         transform transition-all duration-300 scale-100 ring-1 ring-white/10
       `}>
@@ -66,12 +69,13 @@ const Modal: React.FC<ModalProps> = ({
             )}
           </div>
         )}
-        
+
         <div className="p-8 overflow-y-auto max-h-[calc(90vh-100px)] custom-scrollbar">
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

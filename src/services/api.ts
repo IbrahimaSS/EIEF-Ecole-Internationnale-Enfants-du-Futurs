@@ -67,7 +67,11 @@ const parseJsonSafely = async <T>(response: Response): Promise<T | null> => {
     return null;
   }
 
-  return JSON.parse(rawBody) as T;
+  try {
+    return JSON.parse(rawBody) as T;
+  } catch {
+    return null;
+  }
 };
 
 export const apiRequest = async <T>(
@@ -78,6 +82,22 @@ export const apiRequest = async <T>(
     ...options,
     headers: buildHeaders(options),
   });
+
+  // Cas particulier : 204 No Content ou body vide (typique des DELETE)
+  // Si la requete a reussi, on retourne undefined caste en T sans tenter de parse.
+  const isNoContent =
+    response.status === 204 ||
+    response.headers.get("content-length") === "0";
+
+  if (isNoContent) {
+    if (!response.ok) {
+      throw new ApiError(
+        `Erreur API (${response.status})`,
+        response.status,
+      );
+    }
+    return undefined as unknown as T;
+  }
 
   const payload = await parseJsonSafely<ApiResponse<T> | ApiErrorResponse>(
     response,
@@ -92,11 +112,18 @@ export const apiRequest = async <T>(
     );
   }
 
-  if (!payload || !("data" in payload)) {
-    throw new ApiError("Reponse API invalide.", response.status);
+  // Reponse OK mais body vide (peut arriver sur certains endpoints)
+  if (!payload) {
+    return undefined as unknown as T;
   }
 
-  return payload.data;
+  // Si l'API renvoie l'enveloppe { success, message, data, ... } on extrait data.
+  // Sinon on retourne le payload tel quel (compatibilite endpoints non-standard).
+  if ("data" in payload) {
+    return (payload as ApiResponse<T>).data;
+  }
+
+  return payload as unknown as T;
 };
 
 

@@ -1,13 +1,15 @@
 // src/pages/admin/AdminUsers.tsx
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users as UsersIcon, GraduationCap, UserPlus, Search,
-  MoreVertical, Eye, Edit, Trash2, X, CheckCircle2, AlertCircle,
+  MoreVertical, Eye, Edit, Trash2, AlertCircle,
   Loader2, UserCheck, Briefcase, Phone, Mail, Calendar, Hash,
   BookOpen, Shield, User,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
+import NotificationToast from '../../components/shared/NotificationToast';
+import { useNotif } from '../../hooks/useNotif';
 import { cn } from '../../utils/cn';
 import { useUsers } from '../../hooks/useUsers';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
@@ -21,14 +23,12 @@ import type {
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type TabId = 'eleves' | 'enseignants' | 'parents' | 'employes';
-type NotifKind = 'success' | 'error';
-interface Notif { kind: NotifKind; message: string }
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
 const EMPLOYEE_ROLES = [
   { value: 'ADMIN',      label: 'Administrateur' },
-  { value: 'STAFF',      label: 'Personnel' },
+  { value: 'STAFF',      label: 'Manager' },
   { value: 'ACCOUNTANT', label: 'Comptable' },
 ];
 
@@ -193,7 +193,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
 
 // ─── Composant principal ───────────────────────────────────────────────────────
 
-const AdminUsers: React.FC = () => {
+interface AdminUsersProps {
+  /**
+   * Si true, l'onglet "Employés" et la possibilité de créer/éditer
+   * des employés sont masqués. Utile pour les rôles non-admin (ex: manager).
+   */
+  hideEmployeesTab?: boolean;
+}
+
+const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => {
 
   // ── Hooks élèves / enseignants ─────────────────────────────────────────────
   const { refetch: refetchDashboard } = useAdminDashboard();
@@ -223,7 +231,6 @@ const AdminUsers: React.FC = () => {
   const [searchQuery,      setSearchQuery]      = useState('');
   const [isAddModalOpen,   setIsAddModalOpen]   = useState(false);
   const [openMenuRowId,    setOpenMenuRowId]    = useState<string | null>(null);
-  const [notif,            setNotif]            = useState<Notif | null>(null);
   const [submitting,       setSubmitting]       = useState(false);
   const [editingId,        setEditingId]        = useState<string | null>(null);
   const [deleteTarget,     setDeleteTarget]     = useState<{ id: string; name: string } | null>(null);
@@ -237,13 +244,8 @@ const AdminUsers: React.FC = () => {
   const [parentForm,   setParentForm]   = useState<ParentRequest>(emptyParent());
   const [employeeForm, setEmployeeForm] = useState<EmployeeRequest>(emptyEmployee());
 
-  // ── Notification ───────────────────────────────────────────────────────────
-  const notifTimer = useRef<NodeJS.Timeout | undefined>(undefined);
-  const showNotif = useCallback((kind: NotifKind, message: string) => {
-    clearTimeout(notifTimer.current);
-    setNotif({ kind, message });
-    notifTimer.current = setTimeout(() => setNotif(null), 3500);
-  }, []);
+  // ── Notification (hook partagé) ────────────────────────────────────────────
+  const { notif, showNotif, closeNotif } = useNotif();
 
   // ── Fetch parents ──────────────────────────────────────────────────────────
   const fetchParents = useCallback(async () => {
@@ -290,9 +292,9 @@ const AdminUsers: React.FC = () => {
 
   useEffect(() => {
     fetchParents();
-    fetchEmployees();
+    if (!hideEmployeesTab) fetchEmployees();
     fetchClasses();
-  }, [fetchParents, fetchEmployees, fetchClasses]);
+  }, [fetchParents, fetchEmployees, fetchClasses, hideEmployeesTab]);
 
   // ── Recherche (debounce 350ms) ─────────────────────────────────────────────
   const searchTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -620,12 +622,21 @@ const AdminUsers: React.FC = () => {
     { key: 'actions', label: '', render: renderActions },
   ];
 
-  const tabs = [
+  const allTabs = [
     { id: 'eleves',      label: 'Élèves',     icon: GraduationCap, count: students.length  },
     { id: 'enseignants', label: 'Enseignants', icon: UsersIcon,     count: teachers.length  },
     { id: 'parents',     label: 'Parents',     icon: UserCheck,     count: parents.length   },
     { id: 'employes',    label: 'Employés',    icon: Briefcase,     count: employees.length },
   ] as const;
+  const tabs = hideEmployeesTab ? allTabs.filter(t => t.id !== 'employes') : allTabs;
+
+  // Sécurité : si on cache l'onglet Employés alors qu'il était sélectionné,
+  // bascule sur l'onglet Élèves.
+  useEffect(() => {
+    if (hideEmployeesTab && activeTab === 'employes') {
+      setActiveTab('eleves');
+    }
+  }, [hideEmployeesTab, activeTab]);
 
   const isLoading = activeTab === 'eleves' || activeTab === 'enseignants' ? loadingUT
                   : activeTab === 'parents' ? loadingP : loadingE;
@@ -677,7 +688,7 @@ const AdminUsers: React.FC = () => {
             <h1 className="text-xl font-semibold gradient-bleu-or-text">Annuaire des Utilisateurs</h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">
-            Gérez les élèves, enseignants, parents et le personnel
+            Gérez les élèves, enseignants, parents et les managers
           </p>
         </div>
         <Button
@@ -1047,60 +1058,15 @@ const AdminUsers: React.FC = () => {
               disabled={deleting}
               className="flex-1 h-12 bg-red-600 hover:bg-red-700 border-none shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
             >
-              {deleting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Suppression...
-                </>
-              ) : (
-                <>
-                  <Trash2 size={16} />
-                  Supprimer définitivement
-                </>
-              )}
+              {deleting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
+              Supprimer
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* ── TOAST NOTIFICATION ───────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {notif && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={cn(
-              'fixed bottom-10 right-10 z-[100] bg-white dark:bg-gray-900 shadow-2xl rounded-2xl p-4 flex items-center gap-4 min-w-[300px]',
-              notif.kind === 'success'
-                ? 'border border-green-100 dark:border-green-900/30'
-                : 'border border-red-100 dark:border-red-900/30'
-            )}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className={cn(
-              'w-10 h-10 rounded-xl flex items-center justify-center',
-              notif.kind === 'success'
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-                : 'bg-red-100 dark:bg-red-900/30 text-red-500'
-            )}>
-              {notif.kind === 'success' ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
-            </div>
-            <div className="text-left flex-1">
-              <p className="text-sm font-bold text-gray-900 dark:text-white">
-                {notif.kind === 'success' ? 'Opération réussie' : 'Erreur'}
-              </p>
-              <p className="text-xs text-gray-500">{notif.message}</p>
-            </div>
-            <button
-              onClick={() => setNotif(null)}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400"
-            >
-              <X size={16} />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ── TOAST NOTIFICATION (composant partagé) ─────────────────────────── */}
+      <NotificationToast notif={notif} onClose={closeNotif} />
     </motion.div>
   );
 };

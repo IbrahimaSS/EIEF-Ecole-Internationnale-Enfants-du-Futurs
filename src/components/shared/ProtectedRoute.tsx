@@ -43,7 +43,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       admin: '/admin/dashboard',
       enseignant: '/enseignant/dashboard',
       parent: '/parent/dashboard',
-      eleve: '/eleve/dashboard'
+      eleve: '/eleve/dashboard',
+      manager: '/manager/dashboard'
     };
     
     return (

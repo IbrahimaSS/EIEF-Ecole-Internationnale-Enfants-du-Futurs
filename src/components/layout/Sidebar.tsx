@@ -35,7 +35,7 @@ interface SidebarItem {
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve';
+  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager';
   userName: string;
   currentPage: string;
 }
@@ -103,12 +103,19 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/eleve/communication' },
   ];
 
+  const managerItems: SidebarItem[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/manager/dashboard' },
+    { id: 'scolarite', label: 'Scolarité & Pointage', icon: <GraduationCap size={20} />, href: '/manager/scolarite' },
+    { id: 'utilisateurs', label: 'Utilisateurs', icon: <Users size={20} />, href: '/manager/utilisateurs' },
+  ];
+
   const getItemsByRole = () => {
     switch (userRole) {
       case 'admin': return adminItems;
       case 'enseignant': return enseignantItems;
       case 'parent': return parentItems;
       case 'eleve': return eleveItems;
+      case 'manager': return managerItems;
       default: return [];
     }
   };
