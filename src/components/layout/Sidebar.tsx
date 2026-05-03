@@ -16,7 +16,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Calendar
+  Calendar,
+  Gamepad2
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
@@ -99,6 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'notes', label: 'Mes notes', icon: <GraduationCap size={20} />, href: '/eleve/notes' },
     { id: 'emploi', label: 'Emploi du temps', icon: <Calendar size={20} />, href: '/eleve/emploi' },
     { id: 'ressources', label: 'Ressources', icon: <BookOpen size={20} />, href: '/eleve/ressources' },
+    { id: 'jeux', label: 'Jeux Éducatifs', icon: <Gamepad2 size={20} />, href: '/eleve/jeux', badge: { count: 1, color: 'blue' } },
     { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/eleve/communication' },
   ];
 

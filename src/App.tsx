@@ -43,6 +43,10 @@ import EleveRessources from './pages/eleve/Ressources';
 import EleveCommunication from './pages/eleve/Communication';
 import EleveProfile from './pages/eleve/Profile';
 import ElevePreferences from './pages/eleve/Preferences';
+import CatalogueJeux from './pages/eleve/CatalogueJeux';
+import MathAdventure from './pages/eleve/MathAdventure';
+import LogicPuzzle from './pages/eleve/LogicPuzzle';
+import ColorMaster from './pages/eleve/ColorMaster';
 import EleveLanding from './pages/EleveLanding';
 import ParentLanding from './pages/ParentLanding';
 import EmployeLanding from './pages/EmployeLanding';
@@ -51,6 +55,7 @@ import Accueil from './pages/Accueil';
 import Programmes from './pages/Programmes';
 import Admission from './pages/Admission';
 import Contact from './pages/Contact';
+import Jeux from './pages/eleve/Jeux';
 
 // Composants partagés
 import ProtectedRoute from './components/shared/ProtectedRoute';
@@ -182,6 +187,10 @@ function App() {
             <Route path="emploi" element={<EleveEmploi />} />
             <Route path="ressources" element={<EleveRessources />} />
             <Route path="communication" element={<EleveCommunication />} />
+            <Route path="jeux" element={<CatalogueJeux />} />
+            <Route path="jeux/math" element={<MathAdventure />} />
+            <Route path="jeux/logic" element={<LogicPuzzle />} />
+            <Route path="jeux/color" element={<ColorMaster />} />
             <Route path="profil" element={<EleveProfile />} />
             <Route path="preferences" element={<ElevePreferences />} />
           </Route>
@@ -191,6 +200,7 @@ function App() {
           <Route path="/programmes" element={<Programmes />} />
           <Route path="/admission" element={<Admission />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/jeux" element={<Jeux />} />
           
           {/* Route 404 */}
           <Route path="*" element={<NotFound />} />
@@ -278,6 +288,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'emploi': { title: 'Emploi du Temps', subtitle: 'Ton planning de la semaine' },
           'ressources': { title: 'Ressources', subtitle: 'Accède à tes supports de cours' },
           'communication': { title: 'Communication', subtitle: 'Dispute avec tes profs et camardes' },
+          'jeux': { title: 'Catalogue de Jeux', subtitle: 'Apprends en t\'amusant !' },
           'profil': { title: 'Mon Profil', subtitle: 'Vérifie tes informations' },
           'preferences': { title: 'Réglages', subtitle: 'Personnalise ton espace' },
         };

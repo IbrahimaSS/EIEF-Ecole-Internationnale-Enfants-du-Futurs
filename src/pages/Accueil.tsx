@@ -20,7 +20,8 @@ import {
   ChevronDown,
   ArrowRightCircle,
   Sun,
-  Moon
+  Moon,
+  Gamepad2
 } from 'lucide-react';
 import { Button, Badge, Card } from '../components/ui';
 import { cn } from '../utils/cn';
@@ -102,7 +103,7 @@ const Accueil: React.FC = () => {
 
           <div className="hidden lg:flex items-center gap-8">
             <div className="flex items-center gap-6">
-              {['Accueil', 'Programmes', 'Admission', 'Contact'].map(link => (
+              {['Accueil', 'Programmes', 'Admission', 'Contact', 'Jeux'].map(link => (
                 <button 
                   key={link} 
                   onClick={() => navigate(link === 'Accueil' ? '/' : `/${link.toLowerCase()}`)}
@@ -166,6 +167,12 @@ const Accueil: React.FC = () => {
                 className="h-14 px-10 bg-white dark:bg-white/5 text-gray-900 dark:text-white rounded-xl font-bold text-xs uppercase tracking-widest border border-gray-200 dark:border-white/10 hover:border-or-500 dark:hover:border-white/20 transition-all font-sans"
               >
                 Admission
+              </button>
+              <button 
+                onClick={() => navigate('/jeux')}
+                className="h-14 px-8 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-black text-xs uppercase tracking-widest border border-transparent hover:scale-105 transition-all shadow-lg shadow-purple-500/20 flex items-center gap-2"
+              >
+                <Gamepad2 size={18} /> Espace Jeux
               </button>
             </div>
             
@@ -368,9 +375,10 @@ const Accueil: React.FC = () => {
             <div className="text-left">
                <h5 className="font-black uppercase tracking-widest text-[10px] mb-6 text-gray-400 dark:text-or-400 italic">Liens</h5>
                <ul className="space-y-3 text-sm font-bold text-gray-600 dark:text-gray-300">
-                  <li className="hover:text-bleu-600 dark:hover:text-white cursor-pointer transition-colors">Programmes</li>
-                  <li className="hover:text-bleu-600 dark:hover:text-white cursor-pointer transition-colors">Admission</li>
-                  <li className="hover:text-bleu-600 dark:hover:text-white cursor-pointer transition-colors">Contact</li>
+                  <li className="hover:text-bleu-600 dark:hover:text-white cursor-pointer transition-colors" onClick={() => navigate('/programmes')}>Programmes</li>
+                  <li className="hover:text-bleu-600 dark:hover:text-white cursor-pointer transition-colors" onClick={() => navigate('/admission')}>Admission</li>
+                  <li className="hover:text-bleu-600 dark:hover:text-white cursor-pointer transition-colors" onClick={() => navigate('/contact')}>Contact</li>
+                  <li className="hover:text-purple-500 dark:hover:text-purple-400 cursor-pointer transition-colors flex items-center gap-2" onClick={() => navigate('/jeux')}><Gamepad2 size={14}/> Espace Jeux</li>
                </ul>
             </div>
             <div className="text-left">
