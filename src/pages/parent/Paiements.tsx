@@ -12,29 +12,23 @@ import {
 } from 'lucide-react';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
-import { userService, StudentResponse } from '../../services/userService';
-import { apiRequest } from '../../services/api';
-
-type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
-type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
-
-interface PaymentResponse {
-   id: string;
-   amount: number;
-   method: PaymentMethod;
-   reference: string;
-   studentName: string;
-   categoryName: string;
-   status: PaymentStatus;
-   paidAt: string | null;
-}
+import { StudentResponse } from '../../services/userService';
+import {
+  isOpenParentPaymentStatus,
+  ParentPaymentResponse,
+  ParentPaymentStatus,
+  parentFinanceService,
+  ParentTuitionInstallmentStatusResponse,
+  ParentTuitionStatusResponse,
+} from '../../services/parentFinanceService';
 
 interface PaymentViewModel {
    id: string;
    date: string;
    type: string;
    amount: string;
-   status: 'payé' | 'en_attente';
+   status: ParentPaymentStatus;
+   amountValue: number;
 }
 
 const ParentPaiements: React.FC = () => {
@@ -42,7 +36,8 @@ const ParentPaiements: React.FC = () => {
    const token = useAuthStore((state) => state.token);
 
    const [students, setStudents] = useState<StudentResponse[]>([]);
-   const [payments, setPayments] = useState<PaymentResponse[]>([]);
+   const [payments, setPayments] = useState<ParentPaymentResponse[]>([]);
+   const [tuitionStatus, setTuitionStatus] = useState<ParentTuitionStatusResponse | null>(null);
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
 
@@ -61,26 +56,15 @@ const ParentPaiements: React.FC = () => {
          setLoading(true);
          setError(null);
          try {
-            const linkedStudents = await userService.getStudentsByParent(token, user.id);
-            setStudents(linkedStudents);
-
-            const paymentResults = await Promise.all(
-               linkedStudents.map((student) =>
-                  apiRequest<PaymentResponse[]>(`/payments/student/${student.id}`, { method: 'GET', token }),
-               ),
-            );
-
-            setPayments(
-               paymentResults
-                  .flat()
-                  .sort((a, b) => {
-                     const aDate = a.paidAt ? new Date(a.paidAt).getTime() : 0;
-                     const bDate = b.paidAt ? new Date(b.paidAt).getTime() : 0;
-                     return bDate - aDate;
-                  }),
-            );
+            const overview = await parentFinanceService.getOverview(token, user.id);
+            setStudents(overview.students);
+            setPayments(overview.payments);
+            setTuitionStatus(overview.tuitionStatus);
          } catch (err) {
             setError(err instanceof Error ? err.message : 'Erreur de chargement des paiements');
+            setStudents([]);
+            setPayments([]);
+            setTuitionStatus(null);
          } finally {
             setLoading(false);
          }
@@ -110,26 +94,122 @@ const ParentPaiements: React.FC = () => {
             date: formatDate(payment.paidAt),
             type: `${payment.categoryName || 'Paiement'} - ${payment.studentName}`,
             amount: formatCurrency(Number(payment.amount)),
-            status: payment.status === 'PAID' ? 'payé' : 'en_attente',
+            status: payment.status,
+            amountValue: Number(payment.amount),
          })),
       [payments],
    );
 
-   const totalPaye = useMemo(
-      () => payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount), 0),
+   const openGenericPayments = useMemo(
+      () => payments.filter((payment) => isOpenParentPaymentStatus(payment.status)),
       [payments],
    );
-   const totalImpayes = useMemo(
+
+   const tuitionInstallments = useMemo(
       () =>
-         payments
-            .filter((p) => p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'PARTIAL')
-            .reduce((sum, p) => sum + Number(p.amount), 0),
+         tuitionStatus?.students.flatMap((student) =>
+            student.installments.map((installment) => ({
+               ...installment,
+               studentName: student.studentName,
+               className: student.className,
+            })),
+         ) ?? [],
+      [tuitionStatus],
+   );
+
+   const openTuitionInstallments = useMemo(
+      () =>
+         tuitionInstallments
+            .filter((installment) => Number(installment.remainingAmount) > 0)
+            .sort((left, right) => {
+               if (left.overdue !== right.overdue) {
+                  return left.overdue ? -1 : 1;
+               }
+
+               return new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime();
+            }),
+      [tuitionInstallments],
+   );
+
+   const totalGenericPaid = useMemo(
+      () => payments.filter((payment) => payment.status === 'PAID').reduce((sum, payment) => sum + Number(payment.amount), 0),
       [payments],
    );
-   const prochaineMensualite = useMemo(
-      () => payments.find((p) => p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'PARTIAL'),
+
+   const totalGenericOutstanding = useMemo(
+      () => openGenericPayments.reduce((sum, payment) => sum + Number(payment.amount), 0),
+      [openGenericPayments],
+   );
+
+   const nextOpenTuitionInstallment = openTuitionInstallments[0] ?? null;
+   const nextOpenGenericPayment = openGenericPayments[0] ?? null;
+   const totalTuitionPaid = Number(tuitionStatus?.totalPaid || 0);
+   const totalTuitionOutstanding = Number(tuitionStatus?.totalRemaining || 0);
+   const totalPaye = totalGenericPaid + totalTuitionPaid;
+   const totalImpayes = totalGenericOutstanding + totalTuitionOutstanding;
+
+   const genericOverdueCount = useMemo(
+      () => payments.filter((payment) => payment.status === 'OVERDUE').length,
       [payments],
    );
+
+   const totalOverdueCount = genericOverdueCount + Number(tuitionStatus?.overdueCount || 0);
+
+   const getPaymentBadge = (status: ParentPaymentStatus) => {
+      if (status === 'PAID') {
+         return (
+            <Badge className="bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400 border-none font-bold text-[10px]">
+               <CheckCircle2 size={10} className="mr-1" /> Payé
+            </Badge>
+         );
+      }
+
+      if (status === 'OVERDUE') {
+         return (
+            <Badge className="bg-rouge-50 text-rouge-600 dark:bg-rouge-900/20 dark:text-rouge-400 border-none font-bold text-[10px]">
+               <AlertCircle size={10} className="mr-1" /> En retard
+            </Badge>
+         );
+      }
+
+      if (status === 'PARTIAL') {
+         return (
+            <Badge className="bg-or-50 text-or-600 dark:bg-or-900/20 dark:text-or-400 border-none font-bold text-[10px]">
+               <AlertCircle size={10} className="mr-1" /> Partiel
+            </Badge>
+         );
+      }
+
+      return (
+         <Badge className="bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300 border-none font-bold text-[10px]">
+            <AlertCircle size={10} className="mr-1" /> En attente
+         </Badge>
+      );
+   };
+
+   const getInstallmentBadge = (installment: ParentTuitionInstallmentStatusResponse) => {
+      if (Number(installment.remainingAmount) <= 0) {
+         return (
+            <Badge className="bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400 border-none font-bold text-[10px]">
+               <CheckCircle2 size={10} className="mr-1" /> Réglé
+            </Badge>
+         );
+      }
+
+      if (installment.overdue) {
+         return (
+            <Badge className="bg-rouge-50 text-rouge-600 dark:bg-rouge-900/20 dark:text-rouge-400 border-none font-bold text-[10px]">
+               <AlertCircle size={10} className="mr-1" /> En retard
+            </Badge>
+         );
+      }
+
+      return (
+         <Badge className="bg-or-50 text-or-600 dark:bg-or-900/20 dark:text-or-400 border-none font-bold text-[10px]">
+            <Calendar size={10} className="mr-1" /> À payer
+         </Badge>
+      );
+   };
 
   const openPayForOverdue = (enfant: string, type: string, amount: string) => {
     setSelectedEnfant(enfant);
@@ -181,7 +261,7 @@ const ParentPaiements: React.FC = () => {
             </div>
             <p className="text-[11px] font-bold text-rouge-600 dark:text-rouge-400 uppercase tracking-widest mb-2">Reste à payer</p>
             <p className="text-3xl font-black text-rouge-600 dark:text-rouge-400 tracking-tight mb-1">{new Intl.NumberFormat('fr-FR').format(totalImpayes)} <span className="text-lg opacity-70">GNF</span></p>
-            <p className="text-[10px] font-semibold text-rouge-500/80 mt-2">Montants en attente ou en retard</p>
+            <p className="text-[10px] font-semibold text-rouge-500/80 mt-2">{totalOverdueCount > 0 ? `${totalOverdueCount} retard(s) détecté(s)` : 'Montants en attente ou en retard'}</p>
             <button 
                onClick={() => openPayForOverdue('famille', 'scolarite', String(totalImpayes || 0))}
                className="mt-3 w-full h-9 bg-rouge-600 hover:bg-rouge-700 text-white text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -192,14 +272,152 @@ const ParentPaiements: React.FC = () => {
 
          <Card className="p-6 bg-vert-50 dark:bg-vert-900/10 border-none">
             <div className="flex justify-between items-start mb-2">
-               <p className="text-[11px] font-bold text-vert-600 dark:text-vert-400 uppercase tracking-widest">Prochaine Mensualité</p>
+               <p className="text-[11px] font-bold text-vert-600 dark:text-vert-400 uppercase tracking-widest">Prochaine échéance</p>
                <Calendar className="text-vert-500" size={16} />
             </div>
-            <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tight mb-1">{prochaineMensualite ? formatCurrency(Number(prochaineMensualite.amount)) : 'Aucune'}{prochaineMensualite && <span className="text-sm text-gray-500"> </span>}</p>
-            <p className="text-[10px] font-bold text-gray-500 mt-2">{prochaineMensualite ? 'Paiement en attente' : 'Aucune echeance en attente'}</p>
-            <Badge className="bg-vert-200 text-vert-700 dark:bg-vert-900/30 dark:text-vert-400 border-none font-bold text-[9px] mt-3">À venir</Badge>
+            <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tight mb-1">
+                     {nextOpenTuitionInstallment
+                        ? formatCurrency(Number(nextOpenTuitionInstallment.remainingAmount))
+                        : nextOpenGenericPayment
+                        ? formatCurrency(Number(nextOpenGenericPayment.amount))
+                : 'Aucune'}
+            </p>
+            <p className="text-[10px] font-bold text-gray-500 mt-2">
+                     {nextOpenTuitionInstallment
+                        ? `${nextOpenTuitionInstallment.installmentLabel} - ${nextOpenTuitionInstallment.studentName}`
+                        : nextOpenGenericPayment
+                        ? `${nextOpenGenericPayment.categoryName || 'Paiement'} - ${nextOpenGenericPayment.studentName}`
+                : 'Aucune echeance en attente'}
+            </p>
+            <Badge className="bg-vert-200 text-vert-700 dark:bg-vert-900/30 dark:text-vert-400 border-none font-bold text-[9px] mt-3">
+                     {nextOpenTuitionInstallment?.overdue ? 'Retard' : 'À venir'}
+            </Badge>
          </Card>
       </div>
+
+      {tuitionStatus && (
+         <Card className="p-0 border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50 overflow-hidden">
+            <div className="p-5 border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5 flex items-center justify-between gap-3">
+               <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">État des frais de scolarité</h2>
+                  <p className="text-[11px] font-semibold text-gray-500 mt-1">
+                     Suivi par enfant, avec les montants réglés, restants et les retards éventuels.
+                  </p>
+               </div>
+               {tuitionStatus.hasOverdue && (
+                  <Badge className="bg-rouge-50 text-rouge-600 dark:bg-rouge-900/20 dark:text-rouge-400 border-none font-bold text-[10px]">
+                     <AlertCircle size={10} className="mr-1" /> {tuitionStatus.overdueCount} retard(s)
+                  </Badge>
+               )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+               <Card className="border border-gray-100 p-4 shadow-none dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Attendu</p>
+                  <p className="mt-2 text-xl font-black text-gray-900 dark:text-white">
+                     {formatCurrency(Number(tuitionStatus.totalExpected))}
+                  </p>
+               </Card>
+               <Card className="border border-gray-100 p-4 shadow-none dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Payé</p>
+                  <p className="mt-2 text-xl font-black text-vert-600 dark:text-vert-400">
+                     {formatCurrency(Number(tuitionStatus.totalPaid))}
+                  </p>
+               </Card>
+               <Card className="border border-gray-100 p-4 shadow-none dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Restant</p>
+                  <p className="mt-2 text-xl font-black text-rouge-600 dark:text-rouge-400">
+                     {formatCurrency(Number(tuitionStatus.totalRemaining))}
+                  </p>
+               </Card>
+            </div>
+
+            <div className="space-y-4 px-5 pb-5">
+               {tuitionStatus.students.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm font-semibold text-gray-500 dark:border-white/10 dark:text-gray-400">
+                     Aucun enfant lié à ce compte parent pour la scolarité.
+                  </div>
+               ) : (
+                  tuitionStatus.students.map((studentStatus) => (
+                     <div
+                        key={studentStatus.studentId}
+                        className="rounded-3xl border border-gray-100 bg-white p-5 dark:border-white/10 dark:bg-white/5"
+                     >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                           <div>
+                              <h3 className="text-base font-black text-gray-900 dark:text-white">
+                                 {studentStatus.studentName}
+                              </h3>
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                                 {studentStatus.className} · {studentStatus.academicYearName}
+                              </p>
+                           </div>
+                           {studentStatus.hasOverdue ? (
+                              <Badge className="bg-rouge-50 text-rouge-600 dark:bg-rouge-900/20 dark:text-rouge-400 border-none font-bold text-[10px]">
+                                 <AlertCircle size={10} className="mr-1" /> {studentStatus.overdueCount} retard(s)
+                              </Badge>
+                           ) : (
+                              <Badge className="bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400 border-none font-bold text-[10px]">
+                                 <CheckCircle2 size={10} className="mr-1" /> À jour
+                              </Badge>
+                           )}
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/60">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Attendu</p>
+                              <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">{formatCurrency(Number(studentStatus.totalExpected))}</p>
+                           </div>
+                           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/60">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Payé</p>
+                              <p className="mt-1 text-sm font-black text-vert-600 dark:text-vert-400">{formatCurrency(Number(studentStatus.totalPaid))}</p>
+                           </div>
+                           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/60">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Restant</p>
+                              <p className="mt-1 text-sm font-black text-rouge-600 dark:text-rouge-400">{formatCurrency(Number(studentStatus.totalRemaining))}</p>
+                           </div>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                           {studentStatus.installments.map((installment) => (
+                              <div
+                                 key={installment.installmentId}
+                                 className="flex flex-col gap-3 rounded-2xl border border-gray-100 px-4 py-3 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between"
+                              >
+                                 <div>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                       {installment.installmentLabel}
+                                    </p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                                       {installment.tuitionFeeName} · échéance {formatDate(installment.dueDate)}
+                                    </p>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:items-center">
+                                    <div>
+                                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Attendu</p>
+                                       <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">{formatCurrency(Number(installment.installmentAmount))}</p>
+                                    </div>
+                                    <div>
+                                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Payé</p>
+                                       <p className="mt-1 text-sm font-black text-vert-600 dark:text-vert-400">{formatCurrency(Number(installment.paidAmount))}</p>
+                                    </div>
+                                    <div>
+                                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Restant</p>
+                                       <p className="mt-1 text-sm font-black text-rouge-600 dark:text-rouge-400">{formatCurrency(Number(installment.remainingAmount))}</p>
+                                    </div>
+                                    <div className="flex items-center lg:justify-end">
+                                       {getInstallmentBadge(installment)}
+                                    </div>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                  ))
+               )}
+            </div>
+         </Card>
+      )}
 
       {error && (
          <Card className="p-4 border border-rouge-100 bg-rouge-50 dark:bg-rouge-900/10">
@@ -233,19 +451,9 @@ const ParentPaiements: React.FC = () => {
                         <td className="px-6 py-4 text-[12px] font-semibold text-gray-500">{trx.date}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-700 dark:text-gray-300">{trx.type}</td>
                         <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white">{trx.amount}</td>
-                        <td className="px-6 py-4">
-                           {trx.status === 'payé' ? (
-                              <Badge className="bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400 border-none font-bold text-[10px]">
-                                 <CheckCircle2 size={10} className="mr-1" /> Payé
-                              </Badge>
-                           ) : (
-                              <Badge className="bg-rouge-50 text-rouge-600 dark:bg-rouge-900/20 dark:text-rouge-400 border-none font-bold text-[10px]">
-                                 <AlertCircle size={10} className="mr-1" /> En attente
-                              </Badge>
-                           )}
-                        </td>
+                        <td className="px-6 py-4">{getPaymentBadge(trx.status)}</td>
                         <td className="px-6 py-4 text-right">
-                           {trx.status === 'payé' ? (
+                           {trx.status === 'PAID' ? (
                               <button className="p-2 bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-bleu-600 rounded-lg transition-colors" title="Télécharger le reçu">
                                  <Download size={16} />
                               </button>
@@ -254,7 +462,7 @@ const ParentPaiements: React.FC = () => {
                                  onClick={() => openPayForOverdue(
                                     trx.type.toLowerCase().includes('mamadou') ? 'mamadou' : trx.type.toLowerCase().includes('aïssatou') ? 'aissatou' : 'famille',
                                     trx.type.toLowerCase().includes('transport') ? 'transport' : trx.type.toLowerCase().includes('cantine') ? 'cantine' : 'scolarite',
-                                    trx.amount.replace(/[^0-9]/g, '')
+                                    String(trx.amountValue)
                                  )}
                                  className="px-3 py-1.5 bg-rouge-600 hover:bg-rouge-700 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1.5"
                               >

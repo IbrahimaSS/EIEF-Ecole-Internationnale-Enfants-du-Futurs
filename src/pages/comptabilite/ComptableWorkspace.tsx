@@ -236,10 +236,17 @@ const ComptableWorkspace: React.FC<Props> = ({ section }) => {
           )}
           {section === 'tuition' && (
             <TuitionSection
+              tuitionFees={finance.tuitionFees}
+              academicYears={finance.academicYears}
+              classes={finance.schoolClasses}
               students={finance.students}
               status={finance.selectedStudentStatus}
+              catalogLoading={finance.tuitionCatalogLoading}
               loading={finance.tuitionLoading}
               actionLoading={finance.actionLoading}
+              onCreateTuitionFee={finance.createTuitionFee}
+              onUpdateTuitionFee={finance.updateTuitionFee}
+              onDeleteTuitionFee={finance.deleteTuitionFee}
               onSearchStatus={finance.fetchStudentTuitionStatus}
               onSubmitPayment={finance.registerTuitionPayment}
             />

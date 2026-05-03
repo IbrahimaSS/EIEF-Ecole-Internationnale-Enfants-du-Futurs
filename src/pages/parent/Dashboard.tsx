@@ -17,22 +17,14 @@ import {
 import { Card, Button, Avatar, Badge } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { userService, StudentResponse } from '../../services/userService';
+import { StudentResponse } from '../../services/userService';
 import { studentService, StudentDashboardResponse } from '../../services/studentService';
-import { apiRequest } from '../../services/api';
-
-type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
-
-interface PaymentResponse {
-   id: string;
-   amount: number;
-   method: string;
-   reference: string;
-   studentName: string;
-   categoryName: string;
-   status: PaymentStatus;
-   paidAt: string | null;
-}
+import {
+  isOpenParentPaymentStatus,
+  ParentPaymentResponse,
+  parentFinanceService,
+  ParentTuitionStatusResponse,
+} from '../../services/parentFinanceService';
 
 const ParentDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +33,8 @@ const ParentDashboard: React.FC = () => {
 
    const [students, setStudents] = useState<StudentResponse[]>([]);
    const [studentDashboards, setStudentDashboards] = useState<Record<string, StudentDashboardResponse>>({});
-   const [payments, setPayments] = useState<PaymentResponse[]>([]);
+   const [payments, setPayments] = useState<ParentPaymentResponse[]>([]);
+   const [tuitionStatus, setTuitionStatus] = useState<ParentTuitionStatusResponse | null>(null);
 
    useEffect(() => {
       const loadData = async () => {
@@ -50,49 +43,57 @@ const ParentDashboard: React.FC = () => {
          }
 
          try {
-            const linkedStudents = await userService.getStudentsByParent(token, user.id);
-            setStudents(linkedStudents);
-
-            const [dashboards, paymentGroups] = await Promise.all([
-               Promise.all(
-                  linkedStudents.map((student) => studentService.getDashboard(student.id)),
-               ),
-               Promise.all(
-                  linkedStudents.map((student) =>
-                     apiRequest<PaymentResponse[]>(`/payments/student/${student.id}`, { method: 'GET', token }),
-                  ),
-               ),
-            ]);
+            const overview = await parentFinanceService.getOverview(token, user.id);
+            const linkedStudents = overview.students;
+            const dashboards = await Promise.all(
+               linkedStudents.map((student) => studentService.getDashboard(student.id)),
+            );
 
             const dashboardMap: Record<string, StudentDashboardResponse> = {};
             linkedStudents.forEach((student, index) => {
                dashboardMap[student.id] = dashboards[index];
             });
 
+            setStudents(linkedStudents);
             setStudentDashboards(dashboardMap);
-            setPayments(paymentGroups.flat());
+            setPayments(overview.payments);
+            setTuitionStatus(overview.tuitionStatus);
          } catch (_error) {
             setStudents([]);
             setStudentDashboards({});
             setPayments([]);
+            setTuitionStatus(null);
          }
       };
 
       loadData();
    }, [token, user?.id]);
 
-   const totalPaid = useMemo(
+   const openGenericPayments = useMemo(
+      () => payments.filter((payment) => isOpenParentPaymentStatus(payment.status)),
+      [payments],
+   );
+
+   const totalGenericPaid = useMemo(
       () => payments.filter((payment) => payment.status === 'PAID').reduce((sum, payment) => sum + Number(payment.amount), 0),
       [payments],
    );
 
-   const totalPending = useMemo(
-      () =>
-         payments
-            .filter((payment) => payment.status === 'PENDING' || payment.status === 'OVERDUE' || payment.status === 'PARTIAL')
-            .reduce((sum, payment) => sum + Number(payment.amount), 0),
+   const totalGenericPending = useMemo(
+      () => openGenericPayments.reduce((sum, payment) => sum + Number(payment.amount), 0),
+      [openGenericPayments],
+   );
+
+   const tuitionPending = Number(tuitionStatus?.totalRemaining || 0);
+   const tuitionPaid = Number(tuitionStatus?.totalPaid || 0);
+   const totalPaid = totalGenericPaid + tuitionPaid;
+   const totalPending = totalGenericPending + tuitionPending;
+   const genericOverdueCount = useMemo(
+      () => payments.filter((payment) => payment.status === 'OVERDUE').length,
       [payments],
    );
+   const totalOverdueCount = genericOverdueCount + Number(tuitionStatus?.overdueCount || 0);
+   const hasFinancialAlert = totalPending > 0 || totalOverdueCount > 0;
 
   return (
     <motion.div
@@ -127,7 +128,7 @@ const ParentDashboard: React.FC = () => {
                   <p className="text-[11px] font-bold text-white mt-1">Enfants inscrits</p>
                </Card>
                <Card className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl text-center min-w-[120px]">
-                  <p className="text-3xl font-black text-vert-400">{totalPending > 0 ? 'Alerte' : 'A jour'}</p>
+                  <p className="text-3xl font-black text-vert-400">{hasFinancialAlert ? 'Alerte' : 'A jour'}</p>
                   <p className="text-[11px] font-bold text-white mt-1">Scolarité</p>
                </Card>
             </div>
@@ -237,9 +238,9 @@ const ParentDashboard: React.FC = () => {
                
                <div className="p-6">
                   <div className="mb-6">
-                     <p className="text-[11px] font-bold text-gray-500 mb-1">Tranche en cours (Avril)</p>
+                     <p className="text-[11px] font-bold text-gray-500 mb-1">État global des paiements</p>
                      <p className="text-2xl font-black text-vert-600 dark:text-vert-400 flex items-center gap-2">
-                        {totalPending > 0 ? 'En attente' : 'Reglee'} <CheckCircle2 size={24} className="text-vert-500" />
+                        {totalOverdueCount > 0 ? 'Retards' : totalPending > 0 ? 'En attente' : 'Réglée'} <CheckCircle2 size={24} className="text-vert-500" />
                      </p>
                   </div>
                   
@@ -249,6 +250,18 @@ const ParentDashboard: React.FC = () => {
                         <span className="font-bold text-gray-900 dark:text-white">{new Intl.NumberFormat('fr-FR').format(totalPaid)} GNF</span>
                      </div>
                      <div className="flex justify-between items-center text-[12px] font-semibold text-gray-600 dark:text-gray-400 pb-3 border-b border-gray-100 dark:border-white/5">
+                        <span>Scolarité restante</span>
+                        <span className="font-bold text-rouge-500">{new Intl.NumberFormat('fr-FR').format(tuitionPending)} GNF</span>
+                     </div>
+                     <div className="flex justify-between items-center text-[12px] font-semibold text-gray-600 dark:text-gray-400 pb-3 border-b border-gray-100 dark:border-white/5">
+                        <span>Autres paiements ouverts</span>
+                        <span className="font-bold text-rouge-500">{new Intl.NumberFormat('fr-FR').format(totalGenericPending)} GNF</span>
+                     </div>
+                     <div className="flex justify-between items-center text-[12px] font-semibold text-gray-600 dark:text-gray-400 pb-3 border-b border-gray-100 dark:border-white/5">
+                        <span>Retards détectés</span>
+                        <span className="font-bold text-rouge-500">{totalOverdueCount}</span>
+                     </div>
+                     <div className="flex justify-between items-center text-[12px] font-semibold text-gray-600 dark:text-gray-400">
                         <span>Reste à payer</span>
                         <span className="font-bold text-rouge-500">{new Intl.NumberFormat('fr-FR').format(totalPending)} GNF</span>
                      </div>

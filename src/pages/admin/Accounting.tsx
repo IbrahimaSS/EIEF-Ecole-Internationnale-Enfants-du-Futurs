@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
 import { apiRequest } from '../../services/api';
+import TuitionModalityManager from '../comptabilite/components/TuitionModalityManager';
+import { AcademicYearOption, ClassOption, TuitionFeePayload } from '../comptabilite/types';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -232,7 +234,10 @@ const AdminAccounting: React.FC = () => {
 
   // Tuition fees state
   const [tuitionFees, setTuitionFees] = useState<TuitionFeeResponse[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
+  const [schoolClasses, setSchoolClasses] = useState<ClassOption[]>([]);
   const [tuitionLoading, setTuitionLoading] = useState(false);
+  const [tuitionActionLoading, setTuitionActionLoading] = useState(false);
   const [selectedStudentStatus, setSelectedStudentStatus] = useState<TuitionFeeStudentStatusResponse | null>(null);
   const [statusStudentId, setStatusStudentId] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
@@ -378,16 +383,32 @@ const AdminAccounting: React.FC = () => {
   }, [filterCategory, searchQuery]);
 
   const fetchTuitionFees = useCallback(async () => {
+    const data = await apiRequest<TuitionFeeResponse[]>('/tuition-fees/modalities', { method: 'GET' });
+    setTuitionFees(data);
+  }, []);
+
+  const fetchAcademicYears = useCallback(async () => {
+    const data = await apiRequest<AcademicYearOption[]>('/courses/academic-years', { method: 'GET' });
+    setAcademicYears(data);
+  }, []);
+
+  const fetchSchoolClasses = useCallback(async () => {
+    const data = await apiRequest<ClassOption[]>('/courses/classes', { method: 'GET' });
+    setSchoolClasses(data);
+  }, []);
+
+  const refreshTuitionCatalog = useCallback(async () => {
     try {
       setTuitionLoading(true);
-      const data = await apiRequest<TuitionFeeResponse[]>('/tuition-fees/modalities', { method: 'GET' });
-      setTuitionFees(data);
+      await Promise.all([fetchTuitionFees(), fetchAcademicYears(), fetchSchoolClasses()]);
+      setError(null);
     } catch (err: any) {
-      console.error('Erreur chargement scolarité:', err);
+      setError(err.message || 'Erreur lors du chargement des modalités de scolarité');
+      throw err;
     } finally {
       setTuitionLoading(false);
     }
-  }, []);
+  }, [fetchAcademicYears, fetchSchoolClasses, fetchTuitionFees]);
 
   const fetchStudentTuitionStatus = async (studentId: string) => {
     if (!studentId) return;
@@ -431,8 +452,10 @@ const AdminAccounting: React.FC = () => {
   }, [fetchExpenseSummary]);
 
   useEffect(() => {
-    if (activeTab === 'tuition') fetchTuitionFees();
-  }, [activeTab, fetchTuitionFees]);
+    if (activeTab === 'tuition') {
+      void refreshTuitionCatalog();
+    }
+  }, [activeTab, refreshTuitionCatalog]);
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
 
@@ -650,6 +673,70 @@ const AdminAccounting: React.FC = () => {
       setError(err.message || 'Erreur lors de l\'enregistrement du versement');
     } finally {
       setTuitionSubmitting(false);
+    }
+  };
+
+  const createTuitionFee = async (payload: TuitionFeePayload) => {
+    try {
+      setTuitionActionLoading(true);
+      setError(null);
+      const created = await apiRequest<TuitionFeeResponse>('/tuition-fees/modalities', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      showSuccess('Modalité de scolarité créée');
+      await refreshTuitionCatalog();
+      if (statusStudentId) {
+        await fetchStudentTuitionStatus(statusStudentId);
+      }
+      return created;
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la création de la modalité de scolarité');
+      throw err;
+    } finally {
+      setTuitionActionLoading(false);
+    }
+  };
+
+  const updateTuitionFee = async (tuitionFeeId: string, payload: TuitionFeePayload) => {
+    try {
+      setTuitionActionLoading(true);
+      setError(null);
+      const updated = await apiRequest<TuitionFeeResponse>(`/tuition-fees/modalities/${tuitionFeeId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      showSuccess('Modalité de scolarité mise à jour');
+      await refreshTuitionCatalog();
+      if (statusStudentId) {
+        await fetchStudentTuitionStatus(statusStudentId);
+      }
+      return updated;
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la mise à jour de la modalité de scolarité');
+      throw err;
+    } finally {
+      setTuitionActionLoading(false);
+    }
+  };
+
+  const deleteTuitionFee = async (tuitionFeeId: string) => {
+    try {
+      setTuitionActionLoading(true);
+      setError(null);
+      await apiRequest<void>(`/tuition-fees/modalities/${tuitionFeeId}`, {
+        method: 'DELETE',
+      });
+      showSuccess('Modalité de scolarité supprimée');
+      await refreshTuitionCatalog();
+      if (statusStudentId) {
+        await fetchStudentTuitionStatus(statusStudentId);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la suppression de la modalité de scolarité');
+      throw err;
+    } finally {
+      setTuitionActionLoading(false);
     }
   };
 
@@ -1347,6 +1434,17 @@ const AdminAccounting: React.FC = () => {
 
       {activeTab === 'tuition' && (
         <div className="space-y-6">
+          <TuitionModalityManager
+            tuitionFees={tuitionFees}
+            academicYears={academicYears}
+            classes={schoolClasses}
+            loading={tuitionLoading}
+            actionLoading={tuitionActionLoading}
+            onCreate={createTuitionFee}
+            onUpdate={updateTuitionFee}
+            onDelete={deleteTuitionFee}
+          />
+
           {/* Recherche statut élève */}
           <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50">
             <div className="flex items-center gap-3 mb-4">

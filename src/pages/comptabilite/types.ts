@@ -1,9 +1,17 @@
-export type ComptableSection = 'dashboard' | 'payments' | 'expenses' | 'tuition';
+export type ComptableSection =
+  | "dashboard"
+  | "payments"
+  | "expenses"
+  | "tuition";
 
-export type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
-export type TuitionFeePayerType = 'PARENT' | 'STUDENT' | 'OTHER';
-export type PaymentServiceOption = 'inscription' | 'reinscription' | 'scolarite' | 'autres';
+export type PaymentMethod = "MOBILE_MONEY" | "CASH" | "BANK_TRANSFER" | "CHECK";
+export type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "OVERDUE";
+export type TuitionFeePayerType = "PARENT" | "STUDENT" | "OTHER";
+export type PaymentServiceOption =
+  | "inscription"
+  | "reinscription"
+  | "scolarite"
+  | "autres";
 
 export interface PaymentResponse {
   id: string;
@@ -67,6 +75,62 @@ export interface ExpenseStatsSummaryResponse {
   currentMonthCount: number;
   maxAmount: number;
   latestExpenseDate: string | null;
+}
+
+export interface AcademicYearOption {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}
+
+export interface ClassOption {
+  id: string;
+  name: string;
+  level: string;
+  academicYearName: string;
+  mainTeacherName: string | null;
+  maxStudents: number;
+  studentCount: number;
+}
+
+export interface TuitionFeeInstallmentResponse {
+  id: string;
+  label: string;
+  amount: number;
+  dueDate: string;
+  installmentOrder: number;
+}
+
+export interface TuitionFeeResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  academicYearId: string;
+  academicYearName: string;
+  totalAmount: number;
+  isActive: boolean;
+  classIds: string[];
+  classNames: string[];
+  installments: TuitionFeeInstallmentResponse[];
+}
+
+export interface TuitionFeeInstallmentPayload {
+  label: string;
+  amount: number;
+  dueDate: string;
+  installmentOrder: number;
+}
+
+export interface TuitionFeePayload {
+  name: string;
+  description: string;
+  academicYearId: string;
+  totalAmount: number;
+  classIds: string[];
+  installments: TuitionFeeInstallmentPayload[];
+  active: boolean;
 }
 
 export interface TuitionFeeInstallmentStatusResponse {

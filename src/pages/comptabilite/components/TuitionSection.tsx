@@ -1,30 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Loader2, Users } from 'lucide-react';
 import { Avatar, Badge, Button, Card, Input } from '../../../components/ui';
+import TuitionModalityManager from './TuitionModalityManager';
 import {
+  AcademicYearOption,
+  ClassOption,
   PaymentMethod,
   Student,
+  TuitionFeePayload,
+  TuitionFeeResponse,
   TuitionFeePaymentPayload,
   TuitionFeeStudentStatusResponse,
 } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 
 interface Props {
+  tuitionFees: TuitionFeeResponse[];
+  academicYears: AcademicYearOption[];
+  classes: ClassOption[];
   students: Student[];
   status: TuitionFeeStudentStatusResponse | null;
+  catalogLoading: boolean;
   loading: boolean;
   actionLoading: boolean;
+  onCreateTuitionFee: (payload: TuitionFeePayload) => Promise<unknown>;
+  onUpdateTuitionFee: (tuitionFeeId: string, payload: TuitionFeePayload) => Promise<unknown>;
+  onDeleteTuitionFee: (tuitionFeeId: string) => Promise<unknown>;
   onSearchStatus: (studentId: string) => void;
   onSubmitPayment: (payload: TuitionFeePaymentPayload) => Promise<unknown>;
 }
 
 const TuitionSection: React.FC<Props> = ({
   actionLoading,
+  academicYears,
+  catalogLoading,
+  classes,
   loading,
+  onCreateTuitionFee,
+  onDeleteTuitionFee,
   onSearchStatus,
   onSubmitPayment,
+  onUpdateTuitionFee,
   status,
   students,
+  tuitionFees,
 }) => {
   const [studentId, setStudentId] = useState('');
   const [selectedInstallmentId, setSelectedInstallmentId] = useState('');
@@ -54,8 +73,20 @@ const TuitionSection: React.FC<Props> = ({
   );
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-      <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
+    <div className="space-y-6">
+      <TuitionModalityManager
+        tuitionFees={tuitionFees}
+        academicYears={academicYears}
+        classes={classes}
+        loading={catalogLoading}
+        actionLoading={actionLoading}
+        onCreate={onCreateTuitionFee}
+        onUpdate={onUpdateTuitionFee}
+        onDelete={onDeleteTuitionFee}
+      />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-2xl bg-bleu-50 p-3 text-bleu-700 dark:bg-bleu-900/20 dark:text-bleu-300">
             <Users size={18} />
@@ -196,84 +227,85 @@ const TuitionSection: React.FC<Props> = ({
             </>
           )}
         </div>
-      </Card>
+        </Card>
 
-      <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
-        <h3 className="text-lg font-black text-gray-900 dark:text-white">Échéances détaillées</h3>
-        <p className="mt-1 text-sm font-medium text-gray-500 dark:text-gray-400">
-          Suivez les échéances, les montants payés et les retards éventuels.
-        </p>
+        <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
+          <h3 className="text-lg font-black text-gray-900 dark:text-white">Échéances détaillées</h3>
+          <p className="mt-1 text-sm font-medium text-gray-500 dark:text-gray-400">
+            Suivez les échéances, les montants payés et les retards éventuels.
+          </p>
 
-        {!status ? (
-          <div className="flex min-h-[280px] items-center justify-center text-center text-gray-400">
-            <div>
-              <AlertTriangle size={34} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-semibold">
-                Sélectionnez un élève pour afficher ses échéances.
-              </p>
+          {!status ? (
+            <div className="flex min-h-[280px] items-center justify-center text-center text-gray-400">
+              <div>
+                <AlertTriangle size={34} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-semibold">
+                  Sélectionnez un élève pour afficher ses échéances.
+                </p>
+              </div>
             </div>
-          </div>
-        ) : loading ? (
-          <div className="flex min-h-[280px] items-center justify-center gap-2 text-gray-400">
-            <Loader2 size={18} className="animate-spin" />
-            <span className="text-sm font-semibold">Chargement du détail...</span>
-          </div>
-        ) : (
-          <div className="mt-6 space-y-3">
-            {status.installments.map((installment) => (
-              <div
-                key={installment.installmentId}
-                className={`rounded-3xl border p-4 ${
-                  installment.overdue
-                    ? 'border-rouge-200 bg-rouge-50 dark:border-rouge-900/30 dark:bg-rouge-900/10'
-                    : Number(installment.remainingAmount) <= 0
-                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/30 dark:bg-emerald-900/10'
-                    : 'border-gray-100 bg-white dark:border-white/10 dark:bg-white/5'
-                }`}
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-gray-900 dark:text-white">
-                        {installment.installmentLabel}
+          ) : loading ? (
+            <div className="flex min-h-[280px] items-center justify-center gap-2 text-gray-400">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-sm font-semibold">Chargement du détail...</span>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {status.installments.map((installment) => (
+                <div
+                  key={installment.installmentId}
+                  className={`rounded-3xl border p-4 ${
+                    installment.overdue
+                      ? 'border-rouge-200 bg-rouge-50 dark:border-rouge-900/30 dark:bg-rouge-900/10'
+                      : Number(installment.remainingAmount) <= 0
+                      ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/30 dark:bg-emerald-900/10'
+                      : 'border-gray-100 bg-white dark:border-white/10 dark:bg-white/5'
+                  }`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-gray-900 dark:text-white">
+                          {installment.installmentLabel}
+                        </p>
+                        {installment.overdue && (
+                          <Badge variant="error" className="text-[9px] px-3 font-bold uppercase tracking-widest">
+                            En retard
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                        Échéance · {formatDate(installment.dueDate)}
                       </p>
-                      {installment.overdue && (
-                        <Badge variant="error" className="text-[9px] px-3 font-bold uppercase tracking-widest">
-                          En retard
-                        </Badge>
-                      )}
                     </div>
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">
-                      Échéance · {formatDate(installment.dueDate)}
-                    </p>
-                  </div>
 
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Attendu</p>
-                      <p className="mt-1 text-xs font-black text-gray-900 dark:text-white">
-                        {formatCurrency(Number(installment.installmentAmount))}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Payé</p>
-                      <p className="mt-1 text-xs font-black text-emerald-600">
-                        {formatCurrency(Number(installment.paidAmount))}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Restant</p>
-                      <p className="mt-1 text-xs font-black text-rouge-600">
-                        {formatCurrency(Number(installment.remainingAmount))}
-                      </p>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Attendu</p>
+                        <p className="mt-1 text-xs font-black text-gray-900 dark:text-white">
+                          {formatCurrency(Number(installment.installmentAmount))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Payé</p>
+                        <p className="mt-1 text-xs font-black text-emerald-600">
+                          {formatCurrency(Number(installment.paidAmount))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Restant</p>
+                        <p className="mt-1 text-xs font-black text-rouge-600">
+                          {formatCurrency(Number(installment.remainingAmount))}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 };
