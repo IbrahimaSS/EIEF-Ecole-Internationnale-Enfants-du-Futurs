@@ -1,8 +1,8 @@
 export type UUID = string;
 
-export type UserRole = "admin" | "enseignant" | "parent" | "eleve" | "manager";
+export type UserRole = "admin" | "enseignant" | "parent" | "eleve" | "manager" | "comptable";
 
-export type BackendRole = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT" | "STAFF";
+export type BackendRole = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT" | "STAFF" | "COMPTABLE";
 
 export interface LoginCredentials {
   email: string;
@@ -91,6 +91,7 @@ const backendRoleMap: Record<string, UserRole> = {
   PARENT: "parent",
   STUDENT: "eleve",
   STAFF: "manager",
+  COMPTABLE: "comptable",
 };
 
 export const mapBackendRoleToUserRole = (role: string): UserRole => {

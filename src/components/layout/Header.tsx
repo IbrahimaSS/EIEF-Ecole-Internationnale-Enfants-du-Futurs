@@ -121,7 +121,7 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="px-5 py-4 border-b border-gray-50 dark:border-white/5">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white  truncate">{userName}</p>
                   <p className="text-[10px] font-semibold text-gray-400 capitalize mt-0.5">
-                    {user?.role === 'admin' ? 'Administrateur' : user?.role || 'Utilisateur'}
+                    {user?.role === 'admin' ? 'Administrateur' : user?.role === 'comptable' ? 'Comptable' : user?.role || 'Utilisateur'}
                   </p>
                 </div>
 

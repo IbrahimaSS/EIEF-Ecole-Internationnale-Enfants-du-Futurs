@@ -43,6 +43,7 @@ const Login: React.FC = () => {
 
   const roles = [
     { value: 'admin' as UserRole, label: 'Administration', icon: Users, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
+    { value: 'comptable' as UserRole, label: 'Comptable', icon: CheckCircle2, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
     { value: 'enseignant' as UserRole, label: 'Enseignant', icon: BookOpen, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
     { value: 'parent' as UserRole, label: 'Espace Parent', icon: UserCheck, color: 'bg-gradient-to-r from-bleu-700 to-indigo-900', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' },
     { value: 'eleve' as UserRole, label: 'Espace Élève', icon: GraduationCap, color: 'bg-gradient-to-r from-bleu-600 to-indigo-800', glow: 'bg-bleu-500/20', bg: 'bg-or-50', text: 'text-or-600', ring: 'ring-or-400/20' }

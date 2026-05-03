@@ -4,7 +4,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 
 interface LayoutProps {
-  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager';
+  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager' | 'comptable';
   userName: string;
   currentPage: string;
   title: string;

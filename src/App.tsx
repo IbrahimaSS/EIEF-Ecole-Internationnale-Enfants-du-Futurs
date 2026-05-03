@@ -17,6 +17,11 @@ import AdminSettings from './pages/admin/Settings';
 import AdminProfile from './pages/admin/Profile';
 import ManagerScolarite from './pages/manager/Scolarite';
 import ManagerUsers from './pages/manager/Users';
+import ComptableDashboard from './pages/comptabilite/Dashboard';
+import ComptableEncaissements from './pages/comptabilite/Encaissements';
+import ComptableDepenses from './pages/comptabilite/Depenses';
+import ComptableScolarite from './pages/comptabilite/Scolarite';
+import ComptablePreferences from './pages/comptabilite/Preferences';
 
 import Login from './pages/auth/Login';
 import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
@@ -122,6 +127,20 @@ function App() {
           </Route>
           
           {/* Routes protégées - Enseignant */}
+          <Route path="/comptable" element={
+            <ProtectedRoute allowedRoles={['comptable']}>
+              <LayoutRoutes role="comptable" />
+            </ProtectedRoute>
+          }>
+            <Route index element={<ComptableDashboard />} />
+            <Route path="dashboard" element={<ComptableDashboard />} />
+            <Route path="encaissements" element={<ComptableEncaissements />} />
+            <Route path="depenses" element={<ComptableDepenses />} />
+            <Route path="scolarite" element={<ComptableScolarite />} />
+            <Route path="profil" element={<AdminProfile />} />
+            <Route path="preferences" element={<ComptablePreferences />} />
+          </Route>
+
           <Route path="/enseignant" element={
             <ProtectedRoute allowedRoles={['enseignant']}>
               <LayoutRoutes role="enseignant" />
@@ -183,7 +202,7 @@ function App() {
 
 // Composant interne pour gérer les routes avec layout
 interface LayoutRoutesProps {
-  role: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager';
+  role: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager' | 'comptable';
 }
 
 const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
@@ -221,6 +240,17 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         };
         return managerPages[currentPage] || managerPages['dashboard'];
       
+      case 'comptable':
+        const comptablePages: Record<string, { title: string; subtitle: string }> = {
+          'dashboard': { title: 'Espace Comptable', subtitle: `Bienvenue, ${user?.firstName} !` },
+          'encaissements': { title: 'Encaissements', subtitle: 'Suivi des paiements et émission des reçus' },
+          'depenses': { title: 'Dépenses', subtitle: 'Gestion des sorties d’argent et des catégories' },
+          'scolarite': { title: 'Scolarité', subtitle: 'Versements et échéances des élèves' },
+          'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
+          'preferences': { title: 'Préférences', subtitle: 'Paramètres métier et réglages de l’espace comptable' },
+        };
+        return comptablePages[currentPage] || comptablePages['dashboard'];
+
       case 'enseignant':
         const teacherPages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Enseignant', subtitle: `Bonjour, ${user?.firstName} !` },

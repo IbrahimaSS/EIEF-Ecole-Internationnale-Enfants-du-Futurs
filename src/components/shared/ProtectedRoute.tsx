@@ -44,7 +44,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       enseignant: '/enseignant/dashboard',
       parent: '/parent/dashboard',
       eleve: '/eleve/dashboard',
-      manager: '/manager/dashboard'
+      manager: '/manager/dashboard',
+      comptable: '/comptable/dashboard',
     };
     
     return (

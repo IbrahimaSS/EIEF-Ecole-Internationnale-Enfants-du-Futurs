@@ -29,7 +29,7 @@ type TabId = 'eleves' | 'enseignants' | 'parents' | 'employes';
 const EMPLOYEE_ROLES = [
   { value: 'ADMIN',      label: 'Administrateur' },
   { value: 'STAFF',      label: 'Manager' },
-  { value: 'ACCOUNTANT', label: 'Comptable' },
+  { value: 'COMPTABLE', label: 'Comptable' },
 ];
 
 const getToken = (): string | null => {

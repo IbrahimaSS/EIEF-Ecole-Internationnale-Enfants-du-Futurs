@@ -35,7 +35,7 @@ interface SidebarItem {
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager';
+  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager' | 'comptable';
   userName: string;
   currentPage: string;
 }
@@ -58,8 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       id: 'comptabilite',
       label: 'Comptabilité',
       icon: <Wallet size={20} />,
-      href: '/admin/comptabilite',
-      badge: { count: 5, color: 'red' }
+      href: '/admin/comptabilite'
     },
     { id: 'cantine', label: 'Cantine', icon: <Utensils size={20} />, href: '/admin/cantine' },
     {
@@ -109,6 +108,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'utilisateurs', label: 'Utilisateurs', icon: <Users size={20} />, href: '/manager/utilisateurs' },
   ];
 
+  const comptableItems: SidebarItem[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/comptable/dashboard' },
+    { id: 'encaissements', label: 'Encaissements', icon: <Wallet size={20} />, href: '/comptable/encaissements' },
+    { id: 'depenses', label: 'Dépenses', icon: <ShoppingBag size={20} />, href: '/comptable/depenses' },
+    { id: 'scolarite', label: 'Scolarité', icon: <GraduationCap size={20} />, href: '/comptable/scolarite' },
+  ];
+
   const getItemsByRole = () => {
     switch (userRole) {
       case 'admin': return adminItems;
@@ -116,6 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       case 'parent': return parentItems;
       case 'eleve': return eleveItems;
       case 'manager': return managerItems;
+      case 'comptable': return comptableItems;
       default: return [];
     }
   };
