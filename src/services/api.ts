@@ -89,6 +89,7 @@ export const apiRequest = async <T>(
     response.status === 204 ||
     response.headers.get("content-length") === "0";
 
+  
   if (isNoContent) {
     if (!response.ok) {
       throw new ApiError(
