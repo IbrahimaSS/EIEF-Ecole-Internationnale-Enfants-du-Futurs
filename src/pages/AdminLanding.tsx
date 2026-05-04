@@ -1,271 +1,152 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowRight, 
-  ChevronLeft,
+import { motion } from 'framer-motion';
+import {
+  ArrowRight,
   ShieldAlert,
   Lock,
   Globe,
   Database,
   Activity,
   Cpu,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
+import { Badge, Button } from '../components/ui';
+import { cn } from '../utils/cn';
+import PublicNav from '../components/shared/PublicNav';
+import PageHero from '../components/shared/PageHero';
+import PublicFooter from '../components/shared/PublicFooter';
 
 const AdminLanding: React.FC = () => {
   const navigate = useNavigate();
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const modules = [
-    {
-      title: 'Contrôle Global',
-      desc: 'Vue panoramique sur tous les campus, les flux financiers et les statistiques démographiques en temps réel.',
-      icon: Globe
-    },
-    {
-      title: 'Sécurité Maximale',
-      desc: 'Gestion granulaire des rôles et permissions. Audit logs intégrés pour tracer la moindre modification système.',
-      icon: Lock
-    },
-    {
-      title: 'Architecture Données',
-      desc: 'Gérez les bases de données, les sauvegardes planifiées et la conformité des données personnelles.',
-      icon: Database
-    },
-    {
-      title: 'Monitoring Technique',
-      desc: 'État des serveurs, logs d\'erreurs, et gestion des intégrations. Anticipation des congestions réseau.',
-      icon: Cpu
-    }
+    { title: 'Contrôle Global', desc: 'Vue panoramique sur tous les campus, les flux financiers et les statistiques démographiques en temps réel.', icon: Globe, color: 'text-bleu-600', bg: 'bg-bleu-500/10' },
+    { title: 'Sécurité Maximale', desc: 'Gestion granulaire des rôles et permissions. Audit logs intégrés pour tracer la moindre modification.', icon: Lock, color: 'text-rouge-500', bg: 'bg-rouge-500/10' },
+    { title: 'Architecture Données', desc: 'Gérez les bases de données, les sauvegardes planifiées et la conformité des données personnelles.', icon: Database, color: 'text-or-600', bg: 'bg-or-500/10' },
+    { title: 'Monitoring Technique', desc: "État des serveurs, logs d'erreurs, gestion des intégrations. Anticipation des congestions réseau.", icon: Cpu, color: 'text-vert-600', bg: 'bg-vert-500/10' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] text-neutral-800 font-sans overflow-x-hidden selection:bg-or-500/30">
-      
-      {/* 🛑 HEADER STICKY */}
-      <nav className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 ${scrolled
-          ? 'bg-[#091A33]/95 backdrop-blur-2xl border-b border-or-500/20 shadow-lg'
-          : 'bg-transparent'
-        }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="h-16 sm:h-20 flex items-center justify-between">
-            
-            {/* Logo & Retour */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-semibold ${scrolled ? 'text-white/80 hover:text-white' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
-              >
-                <ChevronLeft size={20} />
-                <span className="hidden sm:inline">Accueil Principal</span>
-              </button>
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white font-sans selection:bg-vert-500/30 overflow-x-hidden transition-colors duration-500">
+      <PublicNav />
 
-              <div className="h-6 w-px bg-white/20 hidden sm:block" />
+      <PageHero
+        imageSrc="/smartboard.jpg"
+        imageFallback="/Img7.jpeg"
+        badge="Réseau Administration"
+        title={
+          <>
+            Système de pilotage{' '}
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-or-300 via-or-400 to-or-500">
+              centralisé
+            </span>
+            .
+          </>
+        }
+        subtitle="Interface de supervision stratégique. Gérez l'infrastructure, attribuez les privilèges et supervisez l'activité réseau en temps réel."
+        tagline="Contrôle. Sécurité. Performance."
+        actions={[
+          { label: 'Authentification', onClick: () => navigate('/login'), variant: 'primary', icon: <ShieldAlert size={18} /> },
+          { label: 'Architecture', onClick: () => { document.getElementById('modules')?.scrollIntoView({ behavior: 'smooth' }); }, variant: 'secondary' },
+        ]}
+      />
 
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-or-400 to-or-600 rounded-xl p-0.5 shadow-lg">
-                  <img src="/logo_eief.jpeg" alt="EIEF Logo" className="w-full h-full object-contain rounded-[10px] bg-white" />
-                </div>
-                <div className="hidden md:flex flex-col">
-                  <h1 className="text-sm font-[900]   leading-none text-white">Espace Admin</h1>
-                </div>
-              </div>
-            </div>
-
-            {/* Login Button */}
-            <button
-              onClick={() => navigate('/login')}
-              className={`flex items-center gap-2 px-6 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-lg transition-all duration-300 ${scrolled ? 'bg-or-500 text-[#091A33] hover:scale-105 hover:bg-or-400' : 'bg-white/10 border border-white/20 text-white hover:bg-or-500 hover:text-[#091A33] hover:border-or-500 hover:scale-105'}`}
-            >
-              <ShieldAlert size={18} />
-              Identification
-            </button>
-            
-          </div>
-        </div>
-      </nav>
-
-      {/* 🌟 HERO SECTION (DEGRADÉ BLEU NUIT + OR) */}
-      <section className="relative pt-24 pb-16 lg:pt-36 lg:pb-20 overflow-hidden flex flex-col justify-center min-h-[90vh] bg-gradient-to-br from-[#0a192f] via-[#091A33] via-50% to-or-500">
-        
-        {/* Glows */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-or-500/20 rounded-full blur-[120px] opacity-70" />
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#0a192f] rounded-full blur-[120px]" />
-        
-        <div className="relative z-10 max-w-7xl mx-auto px-6 w-full flex flex-col lg:flex-row items-center gap-16">
-          
-          {/* Left Side: Text */}
-          <div className="w-full lg:w-1/2 text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 px-6 py-2 bg-or-500/10 border border-or-500/20 rounded-full mb-8 animate-fade-in-up">
-              <Lock className="text-or-400" size={14} />
-              <span className="text-xs font-semibold text-or-400 tracking-[0.3em] ">Réseau d'Administration EIEF</span>
-            </div>
-            
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-[900] text-white leading-[1.1] mb-6  animate-fade-in-up delay-100 ">
-              Système de pilotage <br />
-              <span className="text-or-400">Centralisé.</span>
-            </h1>
-            
-            <p className="text-base md:text-lg text-white/80 font-medium max-w-xl mx-auto lg:mx-0 mb-10 leading-relaxed animate-fade-in-up delay-200">
-              Interface de supervision stratégique. Assurez la gestion intégrale des infrastructures, attribuez les privilèges utilisateurs et supervisez l'activité réseau en temps réel.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6 animate-fade-in-up delay-300">
-              <button
-                onClick={() => navigate('/login')}
-                className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 bg-transparent border-2 border-or-500 text-or-400 rounded-full font-black text-lg shadow-[0_0_30px_rgba(255,184,0,0.15)] hover:shadow-[0_0_50px_rgba(255,184,0,0.4)] hover:bg-or-500 hover:text-[#091A33] transition-all duration-300  tracking-wide"
-              >
-                Authentification <ArrowRight size={20} />
-              </button>
-            </div>
-          </div>
-
-          {/* Right Side: Abstract Tropical/UI Circles */}
-          <div className="w-full lg:w-1/2 relative flex justify-center items-center min-h-[400px]">
-            {/* Outer dotted spinning ring */}
-            <div className="absolute w-[350px] h-[350px] sm:w-[450px] sm:h-[450px] border-2 border-dashed border-or-500/30 rounded-full animate-[spin_40s_linear_infinite]" />
-            {/* Middle glowing ring */}
-            <div className="absolute w-[250px] h-[250px] sm:w-[320px] sm:h-[320px] border border-white/10 rounded-full bg-gradient-to-tr from-or-500/10 to-transparent backdrop-blur-sm animate-[spin_20s_linear_infinite_reverse]" />
-            {/* Inner solid ring */}
-            <div className="absolute w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] border-4 border-or-500/40 rounded-full" />
-            
-            {/* Center Lock / Core */}
-            <div className="relative z-10 w-24 h-24 sm:w-32 sm:h-32 bg-[#091A33] border border-or-500/50 shadow-[0_0_50px_rgba(255,184,0,0.5)] rounded-full flex flex-col items-center justify-center gap-2">
-              <ShieldAlert className="text-or-400" size={28} />
-              <div className="text-[9px] sm:text-[10px] font-semibold text-white  ">Sécurisé</div>
-            </div>
-
-            {/* Orbiting particles */}
-            <div className="absolute w-[350px] h-[350px] sm:w-[450px] sm:h-[450px] animate-[spin_12s_linear_infinite]">
-              <div className="absolute top-[10%] left-[50%] -ml-2 w-4 h-4 bg-or-400 rounded-full shadow-[0_0_15px_#FFB800]" />
-              <div className="absolute bottom-[20%] right-[15%] w-3 h-3 bg-white rounded-full shadow-[0_0_10px_white]" />
-            </div>
-          </div>
-
-        </div>
-
-        {/* Bottom wave matching F0F4F8 */}
-        <div className="absolute bottom-0 left-0 right-0 z-20">
-          <svg viewBox="0 0 1440 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0,40 C360,100 1080,0 1440,60 L1440,100 L0,100 Z" fill="#F0F4F8"/>
-          </svg>
-        </div>
-      </section>
-
-      {/* 🧩 PANNEAU CENTRAL - METRICS & MODULES */}
-      <section className="py-24 px-6 relative z-20 bg-[#F0F4F8]">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col lg:flex-row items-end justify-between mb-16 gap-8">
-            <div>
-              <h2 className="text-3xl sm:text-5xl font-[900] text-[#091A33]  mb-4">
-                Architecture Système
+      {/* MODULES */}
+      <section id="modules" className="py-20 md:py-24 bg-white dark:bg-gray-950 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6">
+          <div className="flex flex-col lg:flex-row items-end justify-between mb-14 gap-8">
+            <div className="text-left">
+              <Badge className="mb-4 bg-or-600/10 text-or-700 dark:text-or-400 border border-or-600/20 font-black text-[9px] uppercase tracking-[0.3em] px-4 h-8 rounded-full">
+                Architecture
+              </Badge>
+              <h2 className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight">
+                Modules de pilotage
               </h2>
-              <p className="text-neutral-500 font-medium max-w-xl text-lg">
-                Supervision intégrale des modules de gestion de l'infrastructure scolaire. Un pilotage basé sur la donnée.
+              <p className="text-gray-500 dark:text-gray-400 font-medium mt-3 max-w-xl">
+                Supervision intégrale des modules de gestion de l'infrastructure scolaire.
               </p>
             </div>
-            <div className="flex items-center gap-4 text-sm font-semibold text-or-600 bg-or-50 px-6 py-3 rounded-full border border-or-100">
-              <Activity className="text-or-500 animate-pulse" size={18} />
-              Système Opérationnel
+            <div className="flex items-center gap-3 text-sm font-bold text-vert-700 dark:text-vert-400 bg-vert-50 dark:bg-vert-950/30 px-5 py-2.5 rounded-full border border-vert-200 dark:border-vert-500/20">
+              <Activity className="text-vert-500 animate-pulse" size={16} />
+              Système opérationnel
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {modules.map((mod, i) => (
-              <div
+            {modules.map((m, i) => (
+              <motion.div
                 key={i}
-                className="group relative bg-white rounded-3xl p-8 shadow-sm hover:shadow-xl hover:-translate-y-2 border border-neutral-100 transition-all duration-500"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="group relative bg-gradient-to-br from-gray-50 to-white dark:from-gray-900/60 dark:to-gray-900/30 rounded-3xl p-8 shadow-soft hover:shadow-2xl hover:-translate-y-1 border border-gray-100 dark:border-white/5 hover:border-or-300 dark:hover:border-or-500/30 transition-all duration-500"
               >
-                <div className="w-14 h-14 bg-[#091A33]/5 rounded-2xl flex items-center justify-center text-[#091A33] mb-8 group-hover:scale-110 group-hover:bg-or-500 group-hover:text-white transition-all duration-300">
-                  <mod.icon size={28} />
+                <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform', m.bg, m.color)}>
+                  <m.icon size={26} />
                 </div>
-                
-                <h3 className="text-xl font-[800] text-[#091A33] mb-3">{mod.title}</h3>
-                <p className="text-neutral-500 font-medium text-sm leading-relaxed">
-                  {mod.desc}
-                </p>
-
-                <div className="mt-8 flex justify-end opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                <h3 className="text-xl font-black text-gray-900 dark:text-white mb-3">{m.title}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed">{m.desc}</p>
+                <div className="mt-6 flex justify-end opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                   <ArrowRight className="text-or-500" size={20} />
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 📊 SÉCURITÉ & AUDIT COMPLIANCE */}
-      <section className="py-32 px-6 relative bg-white border-y border-neutral-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-or-500 rounded-[3rem] p-1 shadow-2xl overflow-hidden">
-            <div className="bg-[#091A33] rounded-[2.5rem] p-10 md:p-16 lg:p-20 relative">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-[#091A33] rounded-full blur-[100px]" />
-              <div className="absolute bottom-0 left-0 w-96 h-96 bg-or-500/10 rounded-full blur-[100px]" />
-              
-              <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-16">
-                <div className="flex-1">
-                  <h2 className="text-4xl md:text-5xl font-[900] text-white mb-6  ">
-                    Audit Log & <br/> <span className="text-or-400">Traçabilité</span>
-                  </h2>
-                  <p className="text-xl text-white/70 mb-8 font-medium">
-                    Ne perdez jamais de vue ce qui se passe sur la plateforme. Chaque connexion, modification de note ou paiement est horodaté et sécurisé.
-                  </p>
-                  
-                  <ul className="space-y-4">
-                    {['Rapports financiers croisés automatiquement', 'Blocage dynamique des tentatives d\'intrusion', 'Sauvegardes chiffrées quotidiennes'].map((item, i) => (
-                      <li key={i} className="flex items-center gap-4 text-white font-medium">
-                        <CheckCircle2 className="text-or-400" size={20} />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+      {/* AUDIT LOG */}
+      <section className="py-20 md:py-24 bg-[#fafafa] dark:bg-gray-900/50 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6">
+          <div className="bg-gradient-to-br from-bleu-800 via-vert-700 to-vert-800 rounded-[2.5rem] p-10 md:p-16 lg:p-20 relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-or-500/20 rounded-full blur-[100px]" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-vert-500/20 rounded-full blur-[100px]" />
 
-                <div className="w-full lg:w-[400px] flex-shrink-0">
-                  <div className="bg-[#0B1E3E] rounded-3xl border border-white/5 p-8 shadow-2xl">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="w-3 h-3 rounded-full bg-or-400 animate-pulse" />
-                      <span className="font-semibold text-sm   text-[#6B8BB4]">Monitoring Actif</span>
-                    </div>
+            <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-12">
+              <div className="flex-1 text-left">
+                <Badge className="mb-4 bg-white/10 backdrop-blur-md text-or-300 border border-white/20 font-black text-[9px] uppercase tracking-[0.3em] px-4 h-8 rounded-full">
+                  Sécurité
+                </Badge>
+                <h2 className="text-3xl md:text-5xl font-black text-white mb-6 italic tracking-tight">
+                  Audit Log & <br />
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-or-300 to-or-500">Traçabilité</span>
+                </h2>
+                <p className="text-base md:text-lg text-white/80 font-medium mb-8 leading-relaxed max-w-xl">
+                  Chaque connexion, modification de note ou paiement est horodaté et sécurisé.
+                </p>
+                <ul className="space-y-3">
+                  {['Rapports financiers croisés automatiquement', "Blocage dynamique des tentatives d'intrusion", 'Sauvegardes chiffrées quotidiennes'].map((item, i) => (
+                    <li key={i} className="flex items-center gap-3 text-white font-medium">
+                      <CheckCircle2 className="text-or-300 flex-shrink-0" size={20} />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-                    <div className="space-y-6">
-                      <div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-[#6B8BB4]">Charge Serveur</span>
-                          <span className="text-white font-semibold">12%</span>
-                        </div>
-                        <div className="w-full h-2 bg-[#1B3254] rounded-full overflow-hidden">
-                          <div className="w-[12%] h-full bg-blue-400 rounded-full" />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-[#6B8BB4]">Taux de Requêtes</span>
-                          <span className="text-white font-semibold">450 req/s</span>
-                        </div>
-                        <div className="w-full h-2 bg-[#1B3254] rounded-full overflow-hidden">
-                          <div className="w-[30%] h-full bg-or-400 rounded-full" />
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-[#6B8BB4]">Intégrité DB</span>
-                          <span className="text-white font-semibold">Stable</span>
-                        </div>
-                        <div className="w-full h-2 bg-[#1B3254] rounded-full overflow-hidden">
-                          <div className="w-full h-full bg-blue-400 rounded-full" />
-                        </div>
-                      </div>
-                    </div>
+              <div className="w-full lg:w-[400px] flex-shrink-0">
+                <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 p-8 shadow-2xl">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-2.5 h-2.5 rounded-full bg-or-300 animate-pulse" />
+                    <span className="font-black text-[10px] uppercase tracking-widest text-or-300">Monitoring actif</span>
                   </div>
+                  {[
+                    { label: 'Charge serveur', value: '12%', bar: 'w-[12%]', color: 'bg-vert-400' },
+                    { label: 'Taux de requêtes', value: '450 req/s', bar: 'w-[30%]', color: 'bg-or-400' },
+                    { label: 'Intégrité DB', value: 'Stable', bar: 'w-full', color: 'bg-vert-400' },
+                  ].map((s, i) => (
+                    <div key={i} className="mb-5 last:mb-0">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-white/70 font-semibold">{s.label}</span>
+                        <span className="text-white font-black">{s.value}</span>
+                      </div>
+                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className={cn('h-full rounded-full', s.bar, s.color)} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -273,26 +154,27 @@ const AdminLanding: React.FC = () => {
         </div>
       </section>
 
-      {/* 🚀 BOTTOM CTA FULL WIDTH */}
-      <section className="bg-white border-t border-neutral-100">
-        <div className="max-w-7xl mx-auto px-6 py-12 text-center flex flex-col sm:flex-row items-center justify-between gap-8">
+      {/* CTA */}
+      <section className="py-16 bg-white dark:bg-gray-950">
+        <div className="max-w-[1400px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="text-left">
-            <h2 className="text-2xl md:text-3xl font-[900] text-[#091A33]   mb-2">
+            <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight mb-2">
               L'excellence requiert le contrôle
-            </h2>
-            <p className="text-neutral-500 font-semibold text-sm">
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">
               Authentification stricte requise pour accéder aux modules d'administration.
             </p>
           </div>
-          <button
+          <Button
             onClick={() => navigate('/login')}
-            className="inline-flex items-center gap-3 px-8 py-4 bg-or-500 text-[#091A33] hover:bg-or-600 rounded-2xl font-black shadow-xl hover:scale-105 transition-all duration-300   text-sm"
+            className="h-14 px-10 bg-gradient-to-r from-or-500 to-or-600 text-gray-950 rounded-xl font-black text-xs uppercase tracking-widest hover:from-or-400 hover:to-or-500 transition-all flex items-center gap-2 shadow-gold hover:scale-105"
           >
-            Se Connecter <Lock size={18} />
-          </button>
+            Se connecter <Lock size={16} />
+          </Button>
         </div>
       </section>
 
+      <PublicFooter variant="compact" pageName="Admin" />
     </div>
   );
 };
