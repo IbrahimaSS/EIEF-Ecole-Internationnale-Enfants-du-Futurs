@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { useAuthStore } from './store/authStore';
 
 // Pages Admin
@@ -21,6 +22,7 @@ import ComptableDashboard from './pages/comptabilite/Dashboard';
 import ComptableEncaissements from './pages/comptabilite/Encaissements';
 import ComptableDepenses from './pages/comptabilite/Depenses';
 import ComptableScolarite from './pages/comptabilite/Scolarite';
+import ComptableRapport from './pages/comptabilite/Rapport';
 import ComptablePreferences from './pages/comptabilite/Preferences';
 
 import Login from './pages/auth/Login';
@@ -90,6 +92,18 @@ function App() {
   return (
     <Router>
       <div className="App">
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: 'rounded-2xl border border-gray-100 dark:border-white/10 shadow-2xl',
+              title: 'font-black text-sm',
+              description: 'font-medium text-xs',
+            },
+          }}
+        />
         <Routes>
           {/* Route publique - Login */}
           <Route path="/login" element={<Login />} />
@@ -142,6 +156,7 @@ function App() {
             <Route path="encaissements" element={<ComptableEncaissements />} />
             <Route path="depenses" element={<ComptableDepenses />} />
             <Route path="scolarite" element={<ComptableScolarite />} />
+            <Route path="rapport" element={<ComptableRapport />} />
             <Route path="profil" element={<AdminProfile />} />
             <Route path="preferences" element={<ComptablePreferences />} />
           </Route>
@@ -256,6 +271,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'encaissements': { title: 'Encaissements', subtitle: 'Suivi des paiements et émission des reçus' },
           'depenses': { title: 'Dépenses', subtitle: 'Gestion des sorties d’argent et des catégories' },
           'scolarite': { title: 'Scolarité', subtitle: 'Versements et échéances des élèves' },
+          'rapport': { title: 'Rapport Mensuel', subtitle: 'Synthèse financière imprimable du mois' },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
           'preferences': { title: 'Préférences', subtitle: 'Paramètres métier et réglages de l’espace comptable' },
         };

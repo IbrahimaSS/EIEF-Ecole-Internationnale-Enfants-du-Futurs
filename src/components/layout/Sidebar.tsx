@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Calendar,
   Gamepad2,
+  FileBarChart,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
@@ -92,6 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     { id: 'encaissements', label: 'Encaissements', icon: <Wallet size={20} />, href: '/comptable/encaissements' },
     { id: 'depenses', label: 'Dépenses', icon: <ShoppingBag size={20} />, href: '/comptable/depenses' },
     { id: 'scolarite', label: 'Scolarité', icon: <GraduationCap size={20} />, href: '/comptable/scolarite' },
+    { id: 'rapport', label: 'Rapport Mensuel', icon: <FileBarChart size={20} />, href: '/comptable/rapport' },
   ];
 
   const getItemsByRole = () => {

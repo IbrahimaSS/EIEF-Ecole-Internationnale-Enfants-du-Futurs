@@ -2,7 +2,8 @@ export type ComptableSection =
   | "dashboard"
   | "payments"
   | "expenses"
-  | "tuition";
+  | "tuition"
+  | "report";
 
 export type PaymentMethod = "MOBILE_MONEY" | "CASH" | "BANK_TRANSFER" | "CHECK";
 export type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "OVERDUE";

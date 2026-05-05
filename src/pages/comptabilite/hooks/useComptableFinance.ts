@@ -417,6 +417,77 @@ export function useComptableFinance(options: UseComptableFinanceOptions = {}) {
     };
   }, [overduePayments, payments]);
 
+  /**
+   * Statistiques du mois en cours et des 6 derniers mois.
+   * Utilisé par le Dashboard pour afficher les KPIs et le mini-graphique.
+   */
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const isInCurrentMonth = (dateStr: string | null | undefined) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    };
+
+    const monthRevenue = payments
+      .filter(
+        (p) => p.status === "PAID" && isInCurrentMonth(p.paidAt),
+      )
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const monthExpenses = expenses
+      .filter((e) => isInCurrentMonth(e.expenseDate))
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const totalExpenses = expenses.reduce(
+      (sum, e) => sum + Number(e.amount),
+      0,
+    );
+    const totalRevenue = payments
+      .filter((p) => p.status === "PAID")
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    // Série des 6 derniers mois (pour le mini-graphique)
+    const series: Array<{ month: string; revenue: number; expense: number }> =
+      [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      const monthIdx = d.getMonth();
+      const yearIdx = d.getFullYear();
+      const label = d.toLocaleDateString("fr-FR", { month: "short" });
+
+      const revenue = payments
+        .filter((p) => {
+          if (p.status !== "PAID" || !p.paidAt) return false;
+          const pd = new Date(p.paidAt);
+          return pd.getMonth() === monthIdx && pd.getFullYear() === yearIdx;
+        })
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+
+      const expense = expenses
+        .filter((e) => {
+          if (!e.expenseDate) return false;
+          const ed = new Date(e.expenseDate);
+          return ed.getMonth() === monthIdx && ed.getFullYear() === yearIdx;
+        })
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+
+      series.push({ month: label, revenue, expense });
+    }
+
+    return {
+      monthRevenue,
+      monthExpenses,
+      monthBalance: monthRevenue - monthExpenses,
+      totalBalance: totalRevenue - totalExpenses,
+      totalExpenses,
+      series,
+    };
+  }, [payments, expenses]);
+
   return {
     payments,
     overduePayments,
@@ -437,6 +508,7 @@ export function useComptableFinance(options: UseComptableFinanceOptions = {}) {
     error,
     setError,
     totals,
+    monthlyStats,
     refreshAll,
     refreshPayments,
     refreshExpenses,

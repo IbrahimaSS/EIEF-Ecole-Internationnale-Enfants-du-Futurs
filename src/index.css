@@ -160,3 +160,73 @@
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #1E4D8C, #C77E0A);
 }
+
+/* ===== STYLES D'IMPRESSION ===== */
+/*
+ * Pendant l'impression, on cache TOUTE l'interface (sidebar, header, modaux, etc.)
+ * sauf le contenu marqué `.print-area`. Voir PaymentReceipt / ExpenseReceipt /
+ * MonthlyReport pour l'usage.
+ */
+@media print {
+  /* Reset taille A5 paysage par défaut pour reçus */
+  @page {
+    size: A5 portrait;
+    margin: 10mm;
+  }
+
+  /* Cacher l'UI globale */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Réafficher uniquement la zone à imprimer et ses descendants */
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  /* Repositionner la zone d'impression en haut de la page */
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Cacher explicitement les boutons / overlays au sein de la zone */
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Format A4 pour le rapport mensuel (override sur la zone) */
+  .print-area-a4 {
+    page-break-after: avoid;
+  }
+
+  /* Forcer noir sur blanc, sans dégradés agressifs */
+  .print-area .print-text-black {
+    color: black !important;
+  }
+  .print-area .print-bg-white {
+    background: white !important;
+  }
+}
+
+/* ===== Format A4 paysage pour le rapport mensuel ===== */
+@media print {
+  body.print-report-a4 {
+    /* override taille de page quand le rapport est imprimé */
+  }
+}
+@page report-a4 {
+  size: A4 portrait;
+  margin: 15mm;
+}
+.print-area-a4 {
+  page: report-a4;
+}

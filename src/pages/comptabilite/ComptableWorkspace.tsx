@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Receipt, Wallet } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge, Button, Card } from '../../components/ui';
 import SectionHero from './components/SectionHero';
 import OverviewStats from './components/OverviewStats';
@@ -7,12 +8,15 @@ import ExpensesSection from './components/ExpensesSection';
 import PaymentsSection from './components/PaymentsSection';
 import TuitionSection from './components/TuitionSection';
 import ExpenseModal from './components/modals/ExpenseModal';
+import ExpenseReceiptModal from './components/modals/ExpenseReceiptModal';
 import PaymentModal from './components/modals/PaymentModal';
 import ReceiptModal from './components/modals/ReceiptModal';
+import MonthlyReport from './components/MonthlyReport';
 import { useComptableFinance } from './hooks/useComptableFinance';
 import {
   ComptableSection,
   ExpensePayload,
+  ExpenseResponse,
   PaymentPayload,
   PaymentResponse,
   PaymentServiceOption,
@@ -29,6 +33,7 @@ const ComptableWorkspace: React.FC<Props> = ({ section }) => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [receiptPayment, setReceiptPayment] = useState<PaymentResponse | null>(null);
   const [receiptServiceOverride, setReceiptServiceOverride] = useState<string | null>(null);
+  const [receiptExpense, setReceiptExpense] = useState<ExpenseResponse | null>(null);
   const [paymentService, setPaymentService] = useState<PaymentServiceOption>('scolarite');
   const [customPaymentServiceLabel, setCustomPaymentServiceLabel] = useState('');
   const [paymentForm, setPaymentForm] = useState<PaymentPayload>({
@@ -64,30 +69,48 @@ const ComptableWorkspace: React.FC<Props> = ({ section }) => {
       paymentService,
       customPaymentServiceLabel,
     );
-    const created = await finance.createPayment(paymentForm);
-    setReceiptPayment(created);
-    setReceiptServiceOverride(receiptService);
-    setIsPaymentModalOpen(false);
-    setPaymentService('scolarite');
-    setCustomPaymentServiceLabel('');
-    setPaymentForm({
-      amount: 0,
-      reference: '',
-      method: 'CASH',
-      studentId: '',
-      categoryId: null,
-    });
+    try {
+      const created = await finance.createPayment(paymentForm);
+      toast.success('Encaissement enregistré', {
+        description: `${formatCurrency(paymentForm.amount)} · ${created.studentName}`,
+      });
+      setReceiptPayment(created);
+      setReceiptServiceOverride(receiptService);
+      setIsPaymentModalOpen(false);
+      setPaymentService('scolarite');
+      setCustomPaymentServiceLabel('');
+      setPaymentForm({
+        amount: 0,
+        reference: '',
+        method: 'CASH',
+        studentId: '',
+        categoryId: null,
+      });
+    } catch (err: any) {
+      toast.error("Échec de l'encaissement", {
+        description: err?.message || "Impossible d'enregistrer l'encaissement.",
+      });
+    }
   };
 
   const handleCreateExpense = async () => {
-    await finance.createExpense(expenseForm);
-    setIsExpenseModalOpen(false);
-    setExpenseForm({
-      amount: 0,
-      description: '',
-      expenseDate: new Date().toISOString().split('T')[0],
-      categoryId: null,
-    });
+    try {
+      await finance.createExpense(expenseForm);
+      toast.success('Dépense enregistrée', {
+        description: `${formatCurrency(expenseForm.amount)} · ${expenseForm.description || 'Sans description'}`,
+      });
+      setIsExpenseModalOpen(false);
+      setExpenseForm({
+        amount: 0,
+        description: '',
+        expenseDate: new Date().toISOString().split('T')[0],
+        categoryId: null,
+      });
+    } catch (err: any) {
+      toast.error('Échec de la dépense', {
+        description: err?.message || "Impossible d'enregistrer la dépense.",
+      });
+    }
   };
 
   const dashboard = (
@@ -99,6 +122,11 @@ const ComptableWorkspace: React.FC<Props> = ({ section }) => {
         collectionRate={finance.totals.collectionRate}
         overdueCount={finance.overduePayments.length}
         expenseSummary={finance.expenseSummary}
+        monthRevenue={finance.monthlyStats.monthRevenue}
+        monthExpenses={finance.monthlyStats.monthExpenses}
+        monthBalance={finance.monthlyStats.monthBalance}
+        totalBalance={finance.monthlyStats.totalBalance}
+        series={finance.monthlyStats.series}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -232,6 +260,14 @@ const ComptableWorkspace: React.FC<Props> = ({ section }) => {
               expenses={finance.expenses}
               loading={finance.expensesLoading}
               onDelete={finance.deleteExpense}
+              onOpenReceipt={(expense) => setReceiptExpense(expense)}
+            />
+          )}
+          {section === 'report' && (
+            <MonthlyReport
+              payments={finance.payments}
+              expenses={finance.expenses}
+              loading={finance.paymentsLoading || finance.expensesLoading}
             />
           )}
           {section === 'tuition' && (
@@ -287,6 +323,12 @@ const ComptableWorkspace: React.FC<Props> = ({ section }) => {
         payment={receiptPayment}
         student={selectedReceiptStudent}
         serviceOverride={receiptServiceOverride}
+      />
+
+      <ExpenseReceiptModal
+        isOpen={!!receiptExpense}
+        onClose={() => setReceiptExpense(null)}
+        expense={receiptExpense}
       />
 
       {section === 'dashboard' && (
