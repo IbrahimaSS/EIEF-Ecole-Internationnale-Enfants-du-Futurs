@@ -52,10 +52,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     { id: 'scolarite', label: 'Scolarité', icon: <GraduationCap size={20} />, href: '/admin/scolarite' },
     { id: 'comptabilite', label: 'Comptabilité', icon: <Wallet size={20} />, href: '/admin/comptabilite' },
     { id: 'cantine', label: 'Cantine', icon: <Utensils size={20} />, href: '/admin/cantine' },
-    { id: 'superette', label: 'Supérette', icon: <ShoppingBag size={20} />, href: '/admin/superette', badge: { count: 3, color: 'or' } },
+    { id: 'superette', label: 'Supérette', icon: <ShoppingBag size={20} />, href: '/admin/superette' },
     { id: 'bibliotheque', label: 'Bibliothèque', icon: <BookOpen size={20} />, href: '/admin/bibliotheque' },
     { id: 'transport', label: 'Transport', icon: <Bus size={20} />, href: '/admin/transport' },
-    { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/admin/communication', badge: { count: 12, color: 'vert' } },
+    { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/admin/communication' },
     { id: 'administration', label: 'Administration', icon: <Settings size={20} />, href: '/admin/administration' },
   ];
 
@@ -88,12 +88,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     { id: 'utilisateurs', label: 'Utilisateurs', icon: <Users size={20} />, href: '/manager/utilisateurs' },
   ];
 
+  // Mêmes items que l'admin — le comptable accède aux mêmes pages, sous /comptable
   const comptableItems: SidebarItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/comptable/dashboard' },
-    { id: 'encaissements', label: 'Encaissements', icon: <Wallet size={20} />, href: '/comptable/encaissements' },
-    { id: 'depenses', label: 'Dépenses', icon: <ShoppingBag size={20} />, href: '/comptable/depenses' },
+    { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, href: '/comptable/utilisateurs' },
     { id: 'scolarite', label: 'Scolarité', icon: <GraduationCap size={20} />, href: '/comptable/scolarite' },
-    { id: 'rapport', label: 'Rapport Mensuel', icon: <FileBarChart size={20} />, href: '/comptable/rapport' },
+    { id: 'comptabilite', label: 'Comptabilité', icon: <Wallet size={20} />, href: '/comptable/comptabilite' },
+    { id: 'cantine', label: 'Cantine', icon: <Utensils size={20} />, href: '/comptable/cantine' },
+    { id: 'superette', label: 'Supérette', icon: <ShoppingBag size={20} />, href: '/comptable/superette' },
+    { id: 'bibliotheque', label: 'Bibliothèque', icon: <BookOpen size={20} />, href: '/comptable/bibliotheque' },
+    { id: 'transport', label: 'Transport', icon: <Bus size={20} />, href: '/comptable/transport' },
+    { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/comptable/communication' },
+    { id: 'administration', label: 'Administration', icon: <Settings size={20} />, href: '/comptable/administration' },
   ];
 
   const getItemsByRole = () => {

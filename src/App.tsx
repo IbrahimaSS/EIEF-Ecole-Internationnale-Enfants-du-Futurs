@@ -19,11 +19,7 @@ import AdminProfile from './pages/admin/Profile';
 import ManagerScolarite from './pages/manager/Scolarite';
 import ManagerUsers from './pages/manager/Users';
 import ComptableDashboard from './pages/comptabilite/Dashboard';
-import ComptableEncaissements from './pages/comptabilite/Encaissements';
-import ComptableDepenses from './pages/comptabilite/Depenses';
-import ComptableScolarite from './pages/comptabilite/Scolarite';
-import ComptableRapport from './pages/comptabilite/Rapport';
-import ComptablePreferences from './pages/comptabilite/Preferences';
+import ComptableAccounting from './pages/comptabilite/Accounting';
 
 import Login from './pages/auth/Login';
 import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
@@ -145,7 +141,7 @@ function App() {
             <Route path="profil" element={<AdminProfile />} />
           </Route>
           
-          {/* Routes protégées - Enseignant */}
+          {/* Routes protégées - Comptable (mêmes pages que l'admin) */}
           <Route path="/comptable" element={
             <ProtectedRoute allowedRoles={['comptable']}>
               <LayoutRoutes role="comptable" />
@@ -153,12 +149,16 @@ function App() {
           }>
             <Route index element={<ComptableDashboard />} />
             <Route path="dashboard" element={<ComptableDashboard />} />
-            <Route path="encaissements" element={<ComptableEncaissements />} />
-            <Route path="depenses" element={<ComptableDepenses />} />
-            <Route path="scolarite" element={<ComptableScolarite />} />
-            <Route path="rapport" element={<ComptableRapport />} />
+            <Route path="utilisateurs" element={<AdminUsers />} />
+            <Route path="scolarite" element={<AdminScolarite />} />
+            <Route path="comptabilite" element={<ComptableAccounting />} />
+            <Route path="cantine" element={<AdminCanteen />} />
+            <Route path="superette" element={<AdminStore />} />
+            <Route path="bibliotheque" element={<AdminLibrary />} />
+            <Route path="transport" element={<AdminTransport />} />
+            <Route path="communication" element={<AdminCommunication />} />
+            <Route path="administration" element={<AdminSettings />} />
             <Route path="profil" element={<AdminProfile />} />
-            <Route path="preferences" element={<ComptablePreferences />} />
           </Route>
 
           <Route path="/enseignant" element={
@@ -268,12 +268,16 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
       case 'comptable':
         const comptablePages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Comptable', subtitle: `Bienvenue, ${user?.firstName} !` },
-          'encaissements': { title: 'Encaissements', subtitle: 'Suivi des paiements et émission des reçus' },
-          'depenses': { title: 'Dépenses', subtitle: 'Gestion des sorties d’argent et des catégories' },
-          'scolarite': { title: 'Scolarité', subtitle: 'Versements et échéances des élèves' },
-          'rapport': { title: 'Rapport Mensuel', subtitle: 'Synthèse financière imprimable du mois' },
+          'utilisateurs': { title: 'Gestion des Utilisateurs', subtitle: 'Gérez les élèves, enseignants et le personnel' },
+          'scolarite': { title: 'Scolarité', subtitle: 'Organisation des classes et inscriptions' },
+          'comptabilite': { title: 'Comptabilité', subtitle: 'Suivi financier et encaissements' },
+          'cantine': { title: 'Cantine Scolaire', subtitle: 'Gestion des menus et planification' },
+          'superette': { title: 'Supérette', subtitle: 'Inventaire et ventes de fournitures' },
+          'bibliotheque': { title: 'Bibliothèque', subtitle: 'Catalogue et gestion des emprunts' },
+          'transport': { title: 'Transport Scolaire', subtitle: 'Gestion des lignes et des bus' },
+          'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
+          'administration': { title: 'Administration', subtitle: 'Configuration système et sécurité' },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
-          'preferences': { title: 'Préférences', subtitle: 'Paramètres métier et réglages de l’espace comptable' },
         };
         return comptablePages[currentPage] || comptablePages['dashboard'];
 

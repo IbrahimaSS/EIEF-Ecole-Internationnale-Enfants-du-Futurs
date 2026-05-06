@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
@@ -14,7 +14,7 @@ import {
   Trash2,
   CornerDownRight,
 } from 'lucide-react';
-import { Card, StatCard, Button, Avatar, Modal, Input, Badge } from '../../components/ui';
+import { Avatar, Card, StatCard, Button, Modal, Input, Badge } from '../../components/ui';
 import { cn } from '../../utils/cn';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -25,22 +25,10 @@ import {
   createForumTopic,
   addForumReply,
   deleteForumTopic,
-  getInbox,
-  getSentMessages,
-  sendMessage,
-  markMessageAsRead,
   AnnouncementResponse,
   ForumPostResponse,
-  MessageResponse,
 } from '../../services/communicationApi';
-import { AdminUserResponse, userService } from '../../services/userService';
-
-interface Conversation {
-  interlocutorId: string;
-  interlocutorName: string;
-  messages: MessageResponse[];
-  hasUnread: boolean;
-}
+import MessagingPanel from '../../components/shared/MessagingPanel';
 
 const formatDate = (iso: string): string => {
   const date = new Date(iso);
@@ -71,45 +59,8 @@ const audienceToRole = (audience: string): string | undefined => {
   return map[audience];
 };
 
-const buildConversations = (inbox: MessageResponse[], sent: MessageResponse[]): Map<string, Conversation> => {
-  const map = new Map<string, Conversation>();
-
-  const upsert = (message: MessageResponse, isIncoming: boolean) => {
-    const key = isIncoming ? message.senderId : message.recipientId;
-    const interlocutorName = isIncoming ? message.senderName : message.recipientName;
-    const existing = map.get(key);
-
-    if (existing) {
-      existing.messages.push(message);
-      if (isIncoming && !message.readAt) {
-        existing.hasUnread = true;
-      }
-      return;
-    }
-
-    map.set(key, {
-      interlocutorId: key,
-      interlocutorName,
-      messages: [message],
-      hasUnread: isIncoming && !message.readAt,
-    });
-  };
-
-  inbox.forEach((message) => upsert(message, true));
-  sent.forEach((message) => upsert(message, false));
-
-  map.forEach((conversation) => {
-    conversation.messages.sort(
-      (left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime(),
-    );
-  });
-
-  return map;
-};
-
 const AdminCommunication: React.FC = () => {
   const user = useAuthStore((state) => state.user);
-  const token = useAuthStore((state) => state.token);
 
   const [activeMainTab, setActiveMainTab] = useState<'messagerie' | 'forum'>('messagerie');
   const [isAddAnnouncementOpen, setIsAddAnnouncementOpen] = useState(false);
@@ -129,14 +80,6 @@ const AdminCommunication: React.FC = () => {
 
   const [announcements, setAnnouncements] = useState<AnnouncementResponse[]>([]);
   const [forumTopics, setForumTopics] = useState<ForumPostResponse[]>([]);
-  const [inbox, setInbox] = useState<MessageResponse[]>([]);
-  const [sent, setSent] = useState<MessageResponse[]>([]);
-  const [contacts, setContacts] = useState<AdminUserResponse[]>([]);
-
-  const [selectedInterlocutorId, setSelectedInterlocutorId] = useState<string | null>(null);
-  const [recipientId, setRecipientId] = useState('');
-  const [newMessage, setNewMessage] = useState('');
-  const [searchConversation, setSearchConversation] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -149,62 +92,29 @@ const AdminCommunication: React.FC = () => {
   };
 
   const loadData = useCallback(async () => {
-    if (!user?.id || !token) {
-      return;
-    }
+    if (!user?.id) return;
 
     setLoading(true);
     setError(null);
     try {
-      const [nextAnnouncements, nextTopics, nextInbox, nextSent, nextUsers] = await Promise.all([
+      const [nextAnnouncements, nextTopics] = await Promise.all([
         getAnnouncements(),
         getForumTopics(),
-        getInbox(user.id),
-        getSentMessages(user.id),
-        userService.getAllUsers(token),
       ]);
 
       setAnnouncements(nextAnnouncements);
       setForumTopics(nextTopics);
-      setInbox(nextInbox);
-      setSent(nextSent);
-      setContacts(
-        nextUsers.filter((contact) => {
-          const isSelf = contact.id === user.id;
-          const isActive = contact.active ?? contact.isActive ?? true;
-          return !isSelf && isActive;
-        }),
-      );
     } catch (err: any) {
       setError(err?.message ?? 'Erreur de chargement des donnees.');
     } finally {
       setLoading(false);
     }
-  }, [token, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const conversations = useMemo(() => buildConversations(inbox, sent), [inbox, sent]);
-
-  const filteredConversations = useMemo(
-    () => Array.from(conversations.values()).filter((conversation) =>
-      conversation.interlocutorName.toLowerCase().includes(searchConversation.toLowerCase()),
-    ),
-    [conversations, searchConversation],
-  );
-
-  const selectedConversation = selectedInterlocutorId
-    ? conversations.get(selectedInterlocutorId) ?? null
-    : null;
-
-  const isRecipientAllowed = useMemo(
-    () => contacts.some((contact) => contact.id === recipientId.trim()),
-    [contacts, recipientId],
-  );
-
-  const unreadCount = inbox.filter((message) => !message.readAt).length;
   const urgentAnnouncements = announcements.filter((announcement) =>
     /urgent|alerte/i.test(announcement.title) || /urgent|alerte/i.test(announcement.content),
   ).length;
@@ -302,45 +212,6 @@ const AdminCommunication: React.FC = () => {
     }
   };
 
-  const handleSelectConversation = async (conversation: Conversation) => {
-    setSelectedInterlocutorId(conversation.interlocutorId);
-    setRecipientId(conversation.interlocutorId);
-
-    const unread = inbox.filter((message) => message.senderId === conversation.interlocutorId && !message.readAt);
-    if (unread.length === 0) {
-      return;
-    }
-
-    await Promise.all(unread.map((message) => markMessageAsRead(message.id))).catch(console.error);
-    await loadData();
-  };
-
-  const handleSendMessage = async () => {
-    if (!user?.id || !recipientId.trim() || !newMessage.trim()) {
-      return;
-    }
-
-    if (!isRecipientAllowed) {
-      setError('Destinataire invalide. Choisissez un utilisateur autorise.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await sendMessage(user.id, {
-        recipientId: recipientId.trim(),
-        content: newMessage.trim(),
-      });
-      setNewMessage('');
-      await loadData();
-      showSuccess('Message envoye');
-    } catch (err: any) {
-      setError(err?.message ?? 'Erreur lors de l envoi du message.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -409,9 +280,9 @@ const AdminCommunication: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Annonces" value={loading ? '…' : String(announcements.length)} subtitle="Diffusion active" icon={<Megaphone />} color="bleu" />
-        <StatCard title="Messages recus" value={loading ? '…' : String(inbox.length)} subtitle="Boite de reception" icon={<MessageSquare />} color="or" />
-        <StatCard title="Non lus" value={loading ? '…' : String(unreadCount)} subtitle="Actions requises" icon={<AlertCircle />} color="rouge" />
-        <StatCard title="Alertes" value={loading ? '…' : String(urgentAnnouncements)} subtitle="Annonces urgentes" icon={<Bell />} color="vert" />
+        <StatCard title="Sujets forum" value={loading ? '…' : String(forumTopics.length)} subtitle="Discussions ouvertes" icon={<MessageSquare />} color="or" />
+        <StatCard title="Annonces urgentes" value={loading ? '…' : String(urgentAnnouncements)} subtitle="Alertes diffusées" icon={<AlertCircle />} color="rouge" />
+        <StatCard title="Statut" value="Actif" subtitle="Messagerie temps réel" icon={<Bell />} color="vert" />
       </div>
 
       {loading ? (
@@ -422,35 +293,57 @@ const AdminCommunication: React.FC = () => {
       ) : (
         <AnimatePresence mode="wait">
           {activeMainTab === 'messagerie' && (
-            <motion.div key="messagerie" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 xl:grid-cols-5 gap-8">
-              <div className="xl:col-span-2 space-y-4">
+            <motion.div
+              key="messagerie"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 xl:grid-cols-5 gap-6"
+            >
+              {/* Annonces — colonne latérale */}
+              <div className="xl:col-span-2 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-black text-gray-900 dark:text-white">Annonces</h2>
-                  <button onClick={loadData} className="text-bleu-600 hover:text-bleu-700">
+                  <h2 className="text-lg font-black text-gray-900 dark:text-white">Annonces diffusées</h2>
+                  <button
+                    onClick={loadData}
+                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-vert-600 dark:hover:bg-white/5 dark:hover:text-or-400"
+                    title="Actualiser"
+                  >
                     <RefreshCw size={16} />
                   </button>
                 </div>
 
-                <div className="space-y-4 max-h-[640px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[640px] overflow-y-auto pr-1">
+                  {announcements.length === 0 && (
+                    <p className="text-sm font-bold text-gray-400 text-center py-8">
+                      Aucune annonce pour le moment.
+                    </p>
+                  )}
                   {announcements.map((announcement) => {
                     const urgent = /urgent|alerte/i.test(announcement.title) || /urgent|alerte/i.test(announcement.content);
                     return (
-                      <Card key={announcement.id} className="p-5 border-none shadow-soft dark:bg-gray-900/50">
+                      <Card key={announcement.id} className="p-4 border-none shadow-soft dark:bg-gray-900/50">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="text-left">
+                          <div className="text-left flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
-                              <h3 className="text-sm font-black text-gray-900 dark:text-white">{announcement.title}</h3>
+                              <h3 className="text-sm font-black text-gray-900 dark:text-white truncate">{announcement.title}</h3>
                               {urgent && <Badge variant="error" className="border-none">URGENT</Badge>}
                             </div>
-                            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 leading-relaxed">{announcement.content}</p>
-                            <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                              <span>{targetRoleLabel(announcement.targetRole)}</span>
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 leading-relaxed">{announcement.content}</p>
+                            <div className="flex flex-wrap items-center gap-2 mt-3 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                              <span className="px-2 py-0.5 rounded-md bg-vert-50 text-vert-700 dark:bg-or-500/10 dark:text-or-400">
+                                {targetRoleLabel(announcement.targetRole)}
+                              </span>
                               <span>{formatDate(announcement.publishedAt)}</span>
                               <span>{announcement.authorName}</span>
                             </div>
                           </div>
-                          <button onClick={() => handleDeleteAnnouncement(announcement.id)} className="text-rouge-500 hover:text-rouge-700">
-                            <Trash2 size={16} />
+                          <button
+                            onClick={() => handleDeleteAnnouncement(announcement.id)}
+                            className="text-rouge-500 hover:text-rouge-700 shrink-0"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </Card>
@@ -459,129 +352,13 @@ const AdminCommunication: React.FC = () => {
                 </div>
               </div>
 
+              {/* Messagerie temps réel — colonne principale */}
               <div className="xl:col-span-3">
-                <Card className="p-0 overflow-hidden border-none shadow-soft bg-white dark:bg-gray-900/50 h-[700px] flex">
-                  <div className="w-80 border-r border-gray-100 dark:border-white/5 h-full flex flex-col">
-                    <div className="p-4 border-b border-gray-100 dark:border-white/5 space-y-3">
-                      <Input
-                        value={searchConversation}
-                        onChange={(e) => setSearchConversation(e.target.value)}
-                        placeholder="Chercher une conversation..."
-                        className="w-full"
-                      />
-                      <select
-                        value={recipientId}
-                        onChange={(e) => setRecipientId(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-white/5 text-sm font-semibold border border-gray-100 dark:border-white/10"
-                      >
-                        <option value="">Choisir un destinataire</option>
-                        {contacts.map((contact) => (
-                          <option key={contact.id} value={contact.id}>
-                            {contact.firstName} {contact.lastName} · {targetRoleLabel(contact.roleName)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-white/5">
-                      {filteredConversations.length === 0 && (
-                        <p className="p-6 text-center text-xs font-bold text-gray-400">Aucune conversation</p>
-                      )}
-                      {filteredConversations.map((conversation) => {
-                        const lastMessage = conversation.messages[conversation.messages.length - 1];
-                        return (
-                          <button
-                            key={conversation.interlocutorId}
-                            onClick={() => handleSelectConversation(conversation)}
-                            className={cn(
-                              'w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-all relative overflow-hidden',
-                              selectedInterlocutorId === conversation.interlocutorId && 'bg-bleu-50/50 dark:bg-bleu-900/10',
-                            )}
-                          >
-                            {selectedInterlocutorId === conversation.interlocutorId && (
-                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-bleu-600" />
-                            )}
-                            <div className="flex gap-3">
-                              <Avatar name={conversation.interlocutorName} size="md" />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-xs font-black text-gray-900 dark:text-white">{conversation.interlocutorName}</p>
-                                  {conversation.hasUnread && <div className="w-2 h-2 bg-bleu-500 rounded-full" />}
-                                </div>
-                                <p className="text-[11px] font-semibold text-gray-500 line-clamp-1">{lastMessage?.content}</p>
-                                <p className="text-[9px] text-gray-400 font-bold mt-1">{lastMessage ? formatDate(lastMessage.sentAt) : ''}</p>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="flex-1 h-full flex flex-col relative">
-                    {selectedConversation ? (
-                      <>
-                        <div className="p-4 border-b border-gray-50 dark:border-white/5 flex items-center gap-3">
-                          <Avatar name={selectedConversation.interlocutorName} size="md" />
-                          <div className="text-left font-bold">
-                            <p className="text-sm text-gray-900 dark:text-white">{selectedConversation.interlocutorName}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex-1 p-6 overflow-y-auto space-y-6">
-                          {selectedConversation.messages.map((message) => {
-                            const isMine = message.senderId === user?.id;
-                            return (
-                              <div key={message.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
-                                <div
-                                  className={cn(
-                                    'max-w-[75%] p-4 rounded-3xl text-sm font-semibold shadow-sm',
-                                    isMine
-                                      ? 'bg-bleu-600 text-white rounded-br-md text-right'
-                                      : 'bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white rounded-bl-md text-left',
-                                  )}
-                                >
-                                  <p className="leading-relaxed">{message.content}</p>
-                                  <p className={cn('text-[9px] mt-2 font-bold opacity-60', isMine ? 'text-white' : 'text-gray-400')}>
-                                    {formatDate(message.sentAt)}{message.readAt && isMine ? ' · Lu' : ''}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div className="p-4 border-t border-gray-50 dark:border-white/5 space-y-2">
-                          <div className="flex items-center gap-3">
-                            <Input
-                              value={newMessage}
-                              onChange={(e) => setNewMessage(e.target.value)}
-                              placeholder="Ecrivez un message..."
-                              className="flex-1"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleSendMessage();
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={handleSendMessage}
-                              disabled={submitting || !newMessage.trim() || !isRecipientAllowed}
-                              className="p-3 bg-bleu-600 text-white rounded-2xl hover:bg-bleu-700 shadow-lg shadow-bleu-500/30 disabled:opacity-50"
-                            >
-                              {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 opacity-40">
-                        <MessageSquare size={100} strokeWidth={0.5} />
-                        <p className="mt-4 font-black">Choisissez une conversation</p>
-                      </div>
-                    )}
-                  </div>
-                </Card>
+                <MessagingPanel
+                  title="Messagerie"
+                  subtitle="Échangez avec n'importe quel utilisateur EIEF"
+                  height={700}
+                />
               </div>
             </motion.div>
           )}
@@ -725,19 +502,22 @@ const AdminCommunication: React.FC = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} title="Historique recent">
-        <div className="space-y-4 max-h-[420px] overflow-y-auto">
-          {sent.length === 0 ? (
-            <p className="text-sm text-gray-400 font-semibold">Aucun message envoye recemment.</p>
-          ) : (
-            sent.slice().reverse().map((message) => (
-              <Card key={message.id} className="p-4 border-none shadow-soft">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">Vers {message.recipientName}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{message.content}</p>
-                <p className="text-[10px] text-gray-400 font-bold mt-2">{formatDate(message.sentAt)}</p>
-              </Card>
-            ))
-          )}
+      <Modal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} title="Historique des messages">
+        <div className="space-y-3 p-2">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            L'historique complet est accessible directement dans l'onglet{' '}
+            <span className="font-black text-vert-700 dark:text-or-400">Messagerie & Annonces</span>{' '}
+            — chaque conversation conserve l'intégralité des échanges, triés par date.
+          </p>
+          <Button
+            onClick={() => {
+              setActiveMainTab('messagerie');
+              setIsHistoryOpen(false);
+            }}
+            className="w-full bg-gradient-to-r from-vert-600 to-vert-700 text-white"
+          >
+            Ouvrir la messagerie
+          </Button>
         </div>
       </Modal>
 

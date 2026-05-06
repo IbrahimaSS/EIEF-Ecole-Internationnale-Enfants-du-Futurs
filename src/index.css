@@ -130,6 +130,24 @@
   animation: shimmer 3s linear infinite;
 }
 
+/* Marquee horizontal — défilement infini de droite à gauche
+ * Utilisé pour la galerie d'images de l'accueil. Le track contient
+ * la liste des images dupliquée 2x ; le translateX(-50%) est donc
+ * le point exact où la 2e copie occupe la position de départ.
+ * Pause au survol pour permettre à l'utilisateur de regarder.
+ */
+@keyframes marqueeRTL {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee-rtl {
+  animation: marqueeRTL 50s linear infinite;
+}
+.animate-marquee-rtl:hover {
+  animation-play-state: paused;
+}
+
 /* Hero overlay for background image */
 .hero-overlay {
   position: relative;
