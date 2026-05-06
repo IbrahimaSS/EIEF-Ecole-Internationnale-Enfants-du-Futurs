@@ -52,6 +52,7 @@ import AdminLanding from './pages/AdminLanding';
 import Accueil from './pages/Accueil';
 import Programmes from './pages/Programmes';
 import Admission from './pages/Admission';
+import PreInscription from './pages/PreInscription';
 import Contact from './pages/Contact';
 import Jeux from './pages/eleve/Jeux';
 
@@ -214,6 +215,7 @@ function App() {
           <Route path="/" element={<Accueil />} />
           <Route path="/programmes" element={<Programmes />} />
           <Route path="/admission" element={<Admission />} />
+          <Route path="/preinscription" element={<PreInscription />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/jeux" element={<Jeux />} />
           

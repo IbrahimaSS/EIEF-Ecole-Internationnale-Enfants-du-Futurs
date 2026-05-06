@@ -11,6 +11,24 @@ interface PublicNavProps {
   forceSolid?: boolean;
 }
 
+/** Mapping label affiché → route URL */
+const LINK_PATHS: Record<string, string> = {
+  Accueil: '/',
+  Programmes: '/programmes',
+  Admission: '/preinscription',
+  Contact: '/contact',
+  Jeux: '/jeux',
+};
+
+/** Label affiché dans la navbar (différent de la "key" interne) */
+const LINK_LABELS: Record<string, string> = {
+  Accueil: 'Accueil',
+  Programmes: 'Programmes',
+  Admission: 'Pré-inscription',
+  Contact: 'Contact',
+  Jeux: 'Jeux',
+};
+
 /**
  * Navbar public partagée — transparente sur les heros plein écran,
  * passe en glass blanc/or au scroll. Utilisée sur Accueil, Programmes, Admission, Contact, Jeux.
@@ -89,7 +107,7 @@ const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = 
                 return (
                   <button
                     key={link}
-                    onClick={() => navigate(link === 'Accueil' ? '/' : `/${link.toLowerCase()}`)}
+                    onClick={() => navigate(LINK_PATHS[link as string] ?? '/')}
                     className={cn(
                       'text-[10px] font-black uppercase tracking-widest transition-colors',
                       isActive
@@ -101,7 +119,7 @@ const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = 
                         : 'text-white/80 hover:text-or-300'
                     )}
                   >
-                    {link}
+                    {LINK_LABELS[link as string] ?? link}
                   </button>
                 );
               })}
@@ -145,12 +163,12 @@ const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = 
               <button
                 key={link}
                 onClick={() => {
-                  navigate(link === 'Accueil' ? '/' : `/${link.toLowerCase()}`);
+                  navigate(LINK_PATHS[link as string] ?? '/');
                   setIsMenuOpen(false);
                 }}
                 className="w-full text-left px-4 py-3 text-gray-900 dark:text-white font-bold text-sm rounded-lg hover:bg-vert-600 dark:hover:bg-or-600 hover:text-white transition-all"
               >
-                {link}
+                {LINK_LABELS[link as string] ?? link}
               </button>
             ))}
             <div className="border-t border-gray-100 dark:border-white/5 pt-4 space-y-3">

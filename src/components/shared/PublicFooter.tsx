@@ -30,7 +30,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
           <p className="text-[10px] font-black uppercase tracking-widest flex gap-6 text-gray-400">
             <span className="cursor-pointer hover:text-or-400 transition-colors" onClick={() => navigate('/')}>Accueil</span>
             <span className="cursor-pointer hover:text-or-400 transition-colors" onClick={() => navigate('/programmes')}>Programmes</span>
-            <span className="cursor-pointer hover:text-or-400 transition-colors" onClick={() => navigate('/admission')}>Admission</span>
+            <span className="cursor-pointer hover:text-or-400 transition-colors" onClick={() => navigate('/preinscription')}>Pré-inscription</span>
             <span className="cursor-pointer hover:text-or-400 transition-colors" onClick={() => navigate('/contact')}>Contact</span>
           </p>
           <p className="text-[10px] font-black uppercase tracking-widest text-or-400 italic">Faisons Plus !</p>
@@ -87,7 +87,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
           <h5 className="font-black uppercase tracking-widest text-[10px] mb-6 text-or-400 italic">Liens</h5>
           <ul className="space-y-3 text-sm font-bold text-gray-300">
             <li className="hover:text-or-400 cursor-pointer transition-colors" onClick={() => navigate('/programmes')}>Programmes</li>
-            <li className="hover:text-or-400 cursor-pointer transition-colors" onClick={() => navigate('/admission')}>Admission</li>
+            <li className="hover:text-or-400 cursor-pointer transition-colors" onClick={() => navigate('/preinscription')}>Pré-inscription</li>
             <li className="hover:text-or-400 cursor-pointer transition-colors" onClick={() => navigate('/contact')}>Contact</li>
             <li
               className="hover:text-purple-400 cursor-pointer transition-colors flex items-center gap-2"

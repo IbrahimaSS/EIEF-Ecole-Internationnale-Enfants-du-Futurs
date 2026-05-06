@@ -64,6 +64,7 @@ const Accueil: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [tarifsTab, setTarifsTab] = useState<'inscription' | 'reinscription'>('inscription');
   const [selectedNiveau, setSelectedNiveau] = useState<string>('');
+  const [fichesOpen, setFichesOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -289,7 +290,7 @@ const Accueil: React.FC = () => {
           {/* Piste de défilement — dupliquée pour l'effet boucle infinie */}
           <div
             className="flex gap-5 w-max"
-            style={{ animation: 'scrollLeft 35s linear infinite' }}
+            style={{ animation: 'scrollLeft 24s ease-in-out infinite' }}
           >
             {[...galerie, ...galerie].map((img, i) => (
               <div
@@ -311,9 +312,21 @@ const Accueil: React.FC = () => {
         </div>
 
         <style>{`
+          /* 6 images uniques → 6 paliers. Chaque palier : ~1s de glissement + ~3s de pause */
           @keyframes scrollLeft {
-            0%   { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
+            0%        { transform: translateX(0); }
+            4.167%    { transform: translateX(-8.333%); }
+            16.667%   { transform: translateX(-8.333%); }
+            20.833%   { transform: translateX(-16.667%); }
+            33.333%   { transform: translateX(-16.667%); }
+            37.5%     { transform: translateX(-25%); }
+            50%       { transform: translateX(-25%); }
+            54.167%   { transform: translateX(-33.333%); }
+            66.667%   { transform: translateX(-33.333%); }
+            70.833%   { transform: translateX(-41.667%); }
+            83.333%   { transform: translateX(-41.667%); }
+            87.5%     { transform: translateX(-50%); }
+            100%      { transform: translateX(-50%); }
           }
         `}</style>
       </section>
@@ -561,7 +574,43 @@ const Accueil: React.FC = () => {
               <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2" onClick={() => navigate('/admin/dashboard')}><ChevronRightIcon size={14} /> Espace Admin</li>
               <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2" onClick={() => navigate('/login')}><ChevronRightIcon size={14} /> Portail Employé</li>
               <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2"><ChevronRightIcon size={14} /> Télécharger l'Appli</li>
-              <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2" onClick={() => navigate('/admission')}><ChevronRightIcon size={14} /> Fiches de renseignements</li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setFichesOpen((v) => !v)}
+                  aria-expanded={fichesOpen}
+                  className="w-full text-left hover:text-or-400 transition-colors flex items-center gap-2 font-medium"
+                >
+                  <ChevronRightIcon
+                    size={14}
+                    className={cn('transition-transform', fichesOpen && 'rotate-90')}
+                  />
+                  Fiches de renseignements
+                </button>
+
+                {fichesOpen && (
+                  <ul className="mt-3 ml-6 space-y-2 border-l border-white/10 pl-3 animate-in fade-in slide-in-from-top-1">
+                    <li>
+                      <a
+                        href="/fichederenseignements.pdf"
+                        download="FICHE DE RENSEIGNEMENT 2026-2027.pdf"
+                        className="hover:text-or-400 transition-colors flex items-center gap-2 text-xs"
+                      >
+                        <Download size={12} className="text-or-400" /> Fiche 2026 — 2027
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="/2026-2027EXAMEN.pdf"
+                        download="FICHE DE RENSEIGNEMENT 2026-2027 - EXAMEN.pdf"
+                        className="hover:text-or-400 transition-colors flex items-center gap-2 text-xs"
+                      >
+                        <Download size={12} className="text-or-400" /> Fiche Classes d'Examen
+                      </a>
+                    </li>
+                  </ul>
+                )}
+              </li>
             </ul>
           </div>
 
