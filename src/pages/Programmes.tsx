@@ -99,7 +99,7 @@ const Programmes: React.FC = () => {
         tagline="De la Maternelle au Lycée"
         actions={[
           { label: 'Voir nos cycles', onClick: () => { document.getElementById('cycles')?.scrollIntoView({ behavior: 'smooth' }); }, variant: 'primary' },
-          { label: "S'inscrire", onClick: () => navigate('/admission'), variant: 'secondary' },
+          { label: "S'inscrire", onClick: () => navigate('/preinscription'), variant: 'secondary' },
         ]}
       />
 
@@ -153,7 +153,7 @@ const Programmes: React.FC = () => {
                   </div>
 
                   <Button
-                    onClick={() => navigate('/admission')}
+                    onClick={() => navigate('/preinscription')}
                     className="h-12 px-8 bg-gradient-to-r from-vert-600 to-vert-700 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:from-vert-500 hover:to-vert-600 transition-all flex items-center gap-2 shadow-lg"
                   >
                     Découvrir le cursus <ArrowRight size={16} />
@@ -220,7 +220,7 @@ const Programmes: React.FC = () => {
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Button
-              onClick={() => navigate('/admission')}
+              onClick={() => navigate('/preinscription')}
               className="h-14 px-10 bg-or-500 hover:bg-or-400 text-gray-950 rounded-xl font-black text-xs uppercase tracking-widest shadow-gold transition-all hover:scale-105 flex items-center gap-2"
             >
               S'inscrire <ArrowRightCircle size={18} />

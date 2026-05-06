@@ -16,7 +16,10 @@ export interface StudentResponse {
   birthDate: string;
   gender: string;
   className: string;
-  parentName: string;
+  /** UUID de la famille — backend renvoie familyId */
+  familyId?: string;
+  /** @deprecated conservé pour rétrocompat, alimenté manuellement côté UI */
+  parentName?: string;
   isActive: boolean;
 }
 
@@ -30,7 +33,78 @@ export interface StudentRequest {
   birthDate?: string;
   gender?: string;
   classId?: string;
+  /** Backend : Student rattaché à une Family (et non plus à un parent unique) */
+  familyId?: string;
+  /** @deprecated kept for legacy callers — préférer familyId */
   parentId?: string;
+}
+
+// ── Réinscription ─────────────────────────────────────────────────────────────
+
+export interface StudentReenrollmentRequest {
+  classId: string;
+  enrollmentDate?: string;
+}
+
+// ── Pré-inscription publique (PreEnrollmentApplication) ───────────────────────
+
+export type PreEnrollmentStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface PreEnrollmentRequest {
+  studentFirstName: string;
+  studentLastName: string;
+  studentBirthDate: string; // ISO YYYY-MM-DD
+  studentGender: string;
+  targetClassId: string;
+  guardianFirstName: string;
+  guardianLastName: string;
+  guardianEmail: string;
+  guardianPhone: string;
+  guardianRelationship: string;
+  guardianAddress: string;
+}
+
+export interface PreEnrollmentResponse {
+  id: string;
+  referenceNumber: string;
+  status: PreEnrollmentStatus;
+  studentFirstName: string;
+  studentLastName: string;
+  studentBirthDate: string;
+  studentGender: string;
+  guardianFirstName: string;
+  guardianLastName: string;
+  guardianEmail: string;
+  guardianPhone: string;
+  guardianRelationship: string;
+  guardianAddress: string;
+  targetClassId: string;
+  targetClassName: string;
+  targetLevel: string;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  approvedFamilyId: string | null;
+  approvedParentUserId: string | null;
+  approvedStudentUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PreEnrollmentApprovalRequest {
+  studentEmail: string;
+  studentPassword: string;
+  parentTemporaryPassword?: string;
+}
+
+export interface PreEnrollmentDecisionRequest {
+  reason: string;
+}
+
+// ── Familles ──────────────────────────────────────────────────────────────────
+
+export interface FamilySummaryResponse {
+  familyId: string;
 }
 
 // ── Enseignants ───────────────────────────────────────────────────────────────
@@ -199,6 +273,66 @@ export const userService = {
 
   deleteStudent: (token: string, id: string) =>
     apiRequest<void>(`/users/students/${id}`, { method: "DELETE", token }),
+
+  /** Réinscription — réaffectation d'un élève existant à une nouvelle classe (nouvelle année). */
+  reenrollStudent: (
+    token: string,
+    studentId: string,
+    payload: StudentReenrollmentRequest,
+  ) =>
+    apiRequest<StudentResponse>(`/users/students/${studentId}/reenroll`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      token,
+    }),
+
+  /** Liste des élèves rattachés à une famille (admin/staff/parent). */
+  getStudentsByFamily: (token: string, familyId: string) =>
+    apiRequest<StudentResponse[]>(`/users/families/${familyId}/students`, {
+      token,
+    }),
+
+  // ── Pré-inscription (PreEnrollmentApplication) ──────────────────────────────
+
+  /** Création publique d'une demande de pré-inscription (formulaire en ligne). */
+  submitPreEnrollment: (payload: PreEnrollmentRequest) =>
+    apiRequest<PreEnrollmentResponse>("/pre-enrollments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /** Liste des demandes de pré-inscription côté admin (filtre optionnel par statut). */
+  getAllPreEnrollments: (token: string, status?: PreEnrollmentStatus) => {
+    const query = status ? `?status=${status}` : "";
+    return apiRequest<PreEnrollmentResponse[]>(`/pre-enrollments${query}`, {
+      token,
+    });
+  },
+
+  getPreEnrollmentById: (token: string, id: string) =>
+    apiRequest<PreEnrollmentResponse>(`/pre-enrollments/${id}`, { token }),
+
+  approvePreEnrollment: (
+    token: string,
+    id: string,
+    payload: PreEnrollmentApprovalRequest,
+  ) =>
+    apiRequest<PreEnrollmentResponse>(`/pre-enrollments/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      token,
+    }),
+
+  rejectPreEnrollment: (
+    token: string,
+    id: string,
+    payload: PreEnrollmentDecisionRequest,
+  ) =>
+    apiRequest<PreEnrollmentResponse>(`/pre-enrollments/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      token,
+    }),
 
   // ── Enseignants ─────────────────────────────────────────────────────────────
 

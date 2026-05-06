@@ -194,7 +194,7 @@ const PreInscription: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f5f7fa] dark:bg-gray-950 text-gray-900 dark:text-white font-sans selection:bg-vert-500/30 transition-colors duration-500">
-      <PublicNav active="Admission" forceSolid />
+      <PublicNav active="PreInscription" forceSolid />
 
       {/* HEADER */}
       <section className="pt-32 pb-10 px-4 text-center">

@@ -5,7 +5,8 @@ import {
   Users as UsersIcon, GraduationCap, UserPlus, Search,
   MoreVertical, Eye, Edit, Trash2, AlertCircle,
   Loader2, UserCheck, Briefcase, Phone, Mail, Calendar, Hash,
-  BookOpen, Shield, User,
+  BookOpen, Shield, User, FileText, CheckCircle2, XCircle,
+  RefreshCw, ClipboardList,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import NotificationToast from '../../components/shared/NotificationToast';
@@ -18,11 +19,17 @@ import type {
   StudentRequest, TeacherRequest,
   ParentRequest, ParentResponse,
   EmployeeRequest, EmployeeResponse,
+  PreEnrollmentResponse, PreEnrollmentStatus,
+  StudentResponse,
 } from '../../services/userService';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type TabId = 'eleves' | 'enseignants' | 'parents' | 'employes';
+/** Familles remplace l'ancien onglet "parents" pour s'aligner sur le modèle backend Family. */
+type TabId = 'eleves' | 'enseignants' | 'familles' | 'employes';
+
+/** Sous-onglets dédiés aux élèves : pré-inscription publique, réinscription, inscription directe. */
+type EleveSubTab = 'preinscription' | 'reinscription' | 'inscription';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
@@ -40,7 +47,7 @@ const getToken = (): string | null => {
   } catch { return null; }
 };
 
-const emptyStudent  = (): StudentRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', registrationNumber: '', birthDate: '', gender: '', classId: '', parentId: '' });
+const emptyStudent  = (): StudentRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', registrationNumber: '', birthDate: '', gender: '', classId: '', familyId: '' });
 const emptyTeacher  = (): TeacherRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', employeeNumber: '', specialty: '', hireDate: '' });
 const emptyParent   = (): ParentRequest   => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT' });
 const emptyEmployee = (): EmployeeRequest => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'STAFF' });
@@ -75,13 +82,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
   const tabColorMap: Record<TabId, string> = {
     eleves:      'from-bleu-500 to-bleu-600',
     enseignants: 'from-or-500 to-or-600',
-    parents:     'from-vert-500 to-vert-600',
+    familles:    'from-vert-500 to-vert-600',
     employes:    'from-purple-500 to-purple-600',
   };
   const tabLabelMap: Record<TabId, string> = {
     eleves:      'Élève',
     enseignants: 'Enseignant',
-    parents:     'Parent',
+    familles:    'Famille',
     employes:    'Employé',
   };
 
@@ -142,7 +149,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
             </p>
             <DetailRow icon={<Hash size={14} />}      label="Matricule"       value={row.registrationNumber} />
             <DetailRow icon={<BookOpen size={14} />}  label="Classe"          value={row.className} />
-            <DetailRow icon={<UserCheck size={14} />} label="Parent / Tuteur" value={row.parentName} />
+            <DetailRow icon={<UserCheck size={14} />} label="Famille"         value={row.familyId ?? row.parentName} />
             <DetailRow icon={<Calendar size={14} />}  label="Date de naissance" value={row.birthDate} />
             <DetailRow icon={<User size={14} />}      label="Genre"           value={row.gender === 'M' ? 'Masculin' : row.gender === 'F' ? 'Féminin' : row.gender} />
           </div>
@@ -213,7 +220,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     refetch: refetchUT,
   } = useUsers(refetchDashboard);
 
-  // ── State parents ──────────────────────────────────────────────────────────
+  // ── State familles (parents = chefs de famille côté backend) ──────────────
   const [parents,   setParents]   = useState<ParentResponse[]>([]);
   const [loadingP,  setLoadingP]  = useState(false);
   const [errorP,    setErrorP]    = useState<string | null>(null);
@@ -223,11 +230,29 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const [loadingE,  setLoadingE]  = useState(false);
   const [errorE,    setErrorE]    = useState<string | null>(null);
 
+  // ── State pré-inscriptions ────────────────────────────────────────────────
+  const [preEnrollments,    setPreEnrollments]    = useState<PreEnrollmentResponse[]>([]);
+  const [loadingPre,        setLoadingPre]        = useState(false);
+  const [errorPre,          setErrorPre]          = useState<string | null>(null);
+  const [preStatusFilter,   setPreStatusFilter]   = useState<PreEnrollmentStatus | 'ALL'>('PENDING');
+  const [approveTarget,     setApproveTarget]     = useState<PreEnrollmentResponse | null>(null);
+  const [approveForm,       setApproveForm]       = useState({ studentEmail: '', studentPassword: '', parentTemporaryPassword: '' });
+  const [rejectTarget,      setRejectTarget]      = useState<PreEnrollmentResponse | null>(null);
+  const [rejectReason,      setRejectReason]      = useState('');
+  const [pendingPreAction,  setPendingPreAction]  = useState(false);
+  const [preDetail,         setPreDetail]         = useState<PreEnrollmentResponse | null>(null);
+
+  // ── State réinscription ────────────────────────────────────────────────────
+  const [reenrollTarget, setReenrollTarget] = useState<StudentResponse | null>(null);
+  const [reenrollForm,   setReenrollForm]   = useState({ classId: '', enrollmentDate: '' });
+  const [reenrolling,    setReenrolling]    = useState(false);
+
   // ── State classes ──────────────────────────────────────────────────────────
   const [classes, setClasses] = useState<{ id: string; name: string; level: string }[]>([]);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [activeTab,        setActiveTab]        = useState<TabId>('eleves');
+  const [eleveSubTab,      setEleveSubTab]      = useState<EleveSubTab>('inscription');
   const [searchQuery,      setSearchQuery]      = useState('');
   const [isAddModalOpen,   setIsAddModalOpen]   = useState(false);
   const [openMenuRowId,    setOpenMenuRowId]    = useState<string | null>(null);
@@ -290,11 +315,35 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     } catch {}
   }, []);
 
+  // ── Fetch pré-inscriptions ────────────────────────────────────────────────
+  const fetchPreEnrollments = useCallback(async () => {
+    const token = getToken();
+    if (!token) { setErrorPre('Token manquant.'); return; }
+    setLoadingPre(true);
+    try {
+      const data = await userService.getAllPreEnrollments(
+        token,
+        preStatusFilter === 'ALL' ? undefined : preStatusFilter,
+      );
+      setPreEnrollments(data);
+      setErrorPre(null);
+    } catch (err: any) {
+      setErrorPre(err?.message ?? 'Erreur chargement pré-inscriptions.');
+    } finally { setLoadingPre(false); }
+  }, [preStatusFilter]);
+
   useEffect(() => {
     fetchParents();
     if (!hideEmployeesTab) fetchEmployees();
     fetchClasses();
   }, [fetchParents, fetchEmployees, fetchClasses, hideEmployeesTab]);
+
+  // Recharge les pré-inscriptions à chaque changement de filtre, ou à l'arrivée sur l'onglet
+  useEffect(() => {
+    if (activeTab === 'eleves' && eleveSubTab === 'preinscription') {
+      fetchPreEnrollments();
+    }
+  }, [activeTab, eleveSubTab, fetchPreEnrollments]);
 
   // ── Recherche (debounce 350ms) ─────────────────────────────────────────────
   const searchTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -303,7 +352,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       if (q.trim()) {
-        if (activeTab === 'eleves')      searchStudents(q);
+        if (activeTab === 'eleves')           searchStudents(q);
         else if (activeTab === 'enseignants') searchTeachers(q);
       } else {
         refetchUT();
@@ -317,11 +366,17 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
     e.registrationNumber.toLowerCase().includes(q)
   );
+  const filteredPreEnrollments = preEnrollments.filter(p =>
+    `${p.studentFirstName} ${p.studentLastName}`.toLowerCase().includes(q) ||
+    `${p.guardianFirstName} ${p.guardianLastName}`.toLowerCase().includes(q) ||
+    p.referenceNumber.toLowerCase().includes(q) ||
+    (p.targetClassName ?? '').toLowerCase().includes(q),
+  );
   const filteredTeachers  = teachers.filter(e =>
     `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
     (e.specialty ?? '').toLowerCase().includes(q)
   );
-  const filteredParents   = parents.filter(e =>
+  const filteredFamilies = parents.filter(e =>
     `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
     e.email.toLowerCase().includes(q)
   );
@@ -360,7 +415,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         birthDate:          row.birthDate ?? '',
         gender:             row.gender ?? '',
         classId:            '',
-        parentId:           '',
+        familyId:           row.familyId ?? '',
       });
     } else if (activeTab === 'enseignants') {
       setTeacherForm({
@@ -373,7 +428,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         specialty:      row.specialty ?? '',
         hireDate:       row.hireDate ?? '',
       });
-    } else if (activeTab === 'parents') {
+    } else if (activeTab === 'familles') {
       setParentForm({
         email:     row.email,
         password:  '',
@@ -407,7 +462,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
       } else if (activeTab === 'enseignants') {
         if (editingId) await editTeacher(editingId, teacherForm);
         else           await addTeacher(teacherForm);
-      } else if (activeTab === 'parents') {
+      } else if (activeTab === 'familles') {
         if (editingId) await userService.updateParent(token, editingId, parentForm);
         else           await userService.createParent(token, parentForm);
         await fetchParents();
@@ -436,7 +491,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     try {
       if (activeTab === 'eleves')           await removeStudent(deleteTarget.id);
       else if (activeTab === 'enseignants') await removeTeacher(deleteTarget.id);
-      else if (activeTab === 'parents') {
+      else if (activeTab === 'familles') {
         await userService.deleteParent(token, deleteTarget.id);
         await fetchParents();
       } else {
@@ -548,10 +603,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     { key: 'className', label: 'Classe', sortable: true },
     { key: 'isActive', label: 'Statut', render: (val: boolean) => <Badge variant={val ? 'success' : 'default'}>{val ? 'Actif' : 'Inactif'}</Badge> },
     {
-      key: 'parentName', label: 'Parent / Contact',
+      key: 'familyId', label: 'Famille / Contact',
       render: (_: any, row: any) => (
         <div className="text-sm">
-          <div className="font-medium text-gray-700 dark:text-gray-300">{row.parentName}</div>
+          <div className="font-medium text-gray-700 dark:text-gray-300">
+            {row.familyId ? `Fam. ${String(row.familyId).slice(0, 8)}…` : row.parentName ?? '—'}
+          </div>
           <div className="text-gray-400 text-[10px]">{row.phone}</div>
         </div>
       ),
@@ -578,15 +635,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     { key: 'actions', label: '', render: renderActions },
   ];
 
-  const parentColumns = [
+  const familyColumns = [
     {
-      key: 'lastName', label: 'Parent', sortable: true,
+      key: 'lastName', label: 'Famille', sortable: true,
       render: (_: any, row: any) => (
         <div className="flex items-center gap-3">
           <Avatar name={`${row.firstName} ${row.lastName}`} size="sm" />
           <div>
-            <div className="font-semibold text-gray-900 dark:text-white leading-none mb-1">{row.firstName} {row.lastName}</div>
-            <div className="text-[10px] text-gray-400 font-medium">{row.email}</div>
+            <div className="font-semibold text-gray-900 dark:text-white leading-none mb-1">Famille {row.lastName}</div>
+            <div className="text-[10px] text-gray-400 font-medium">Contact : {row.firstName} {row.lastName} · {row.email}</div>
           </div>
         </div>
       ),
@@ -594,6 +651,94 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     { key: 'phone', label: 'Téléphone', render: (val: string) => <span className="text-sm text-gray-500">{val || '—'}</span> },
     { key: 'isActive', label: 'Statut', render: (val: boolean) => <Badge variant={val ? 'success' : 'default'}>{val ? 'Actif' : 'Inactif'}</Badge> },
     { key: 'actions', label: '', render: renderActions },
+  ];
+
+  // ─── Colonnes pré-inscriptions ────────────────────────────────────────────
+  const preEnrollmentColumns = [
+    {
+      key: 'studentLastName', label: 'Élève', sortable: true,
+      render: (_: any, row: PreEnrollmentResponse) => (
+        <div className="flex items-center gap-3">
+          <Avatar name={`${row.studentFirstName} ${row.studentLastName}`} size="sm" />
+          <div>
+            <div className="font-semibold text-gray-900 dark:text-white leading-none mb-1">
+              {row.studentFirstName} {row.studentLastName}
+            </div>
+            <div className="text-[10px] text-gray-400 font-medium">Réf. {row.referenceNumber}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'targetClassName', label: 'Niveau / Classe', sortable: true,
+      render: (_: any, row: PreEnrollmentResponse) => (
+        <div className="text-sm">
+          <div className="font-medium text-gray-700 dark:text-gray-300">{row.targetClassName}</div>
+          <div className="text-gray-400 text-[10px]">{row.targetLevel}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'guardianLastName', label: 'Parent / Tuteur',
+      render: (_: any, row: PreEnrollmentResponse) => (
+        <div className="text-sm">
+          <div className="font-medium text-gray-700 dark:text-gray-300">{row.guardianFirstName} {row.guardianLastName}</div>
+          <div className="text-gray-400 text-[10px]">{row.guardianPhone} · {row.guardianRelationship}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'status', label: 'Statut',
+      render: (val: PreEnrollmentStatus) => {
+        const map: Record<PreEnrollmentStatus, { variant: any; label: string }> = {
+          PENDING:  { variant: 'warning', label: 'En attente' },
+          APPROVED: { variant: 'success', label: 'Approuvée' },
+          REJECTED: { variant: 'error',   label: 'Rejetée'   },
+        };
+        const m = map[val] ?? map.PENDING;
+        return <Badge variant={m.variant}>{m.label}</Badge>;
+      },
+    },
+    {
+      key: 'actions', label: '',
+      render: (_: any, row: PreEnrollmentResponse) => (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); setPreDetail(row); }}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-400 hover:text-bleu-600 transition-colors"
+            title="Voir le détail"
+          >
+            <Eye size={16} />
+          </button>
+          {row.status === 'PENDING' && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setApproveTarget(row);
+                  setApproveForm({
+                    studentEmail: `${row.studentFirstName}.${row.studentLastName}`.toLowerCase().replace(/\s+/g, '') + '@eief.edu.gn',
+                    studentPassword: '',
+                    parentTemporaryPassword: '',
+                  });
+                }}
+                className="p-2 hover:bg-vert-50 dark:hover:bg-vert-900/30 rounded-xl text-gray-400 hover:text-vert-600 transition-colors"
+                title="Approuver"
+              >
+                <CheckCircle2 size={16} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setRejectTarget(row); setRejectReason(''); }}
+                className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl text-gray-400 hover:text-red-600 transition-colors"
+                title="Rejeter"
+              >
+                <XCircle size={16} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    },
   ];
 
   const employeeColumns = [
@@ -623,12 +768,19 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   ];
 
   const allTabs = [
-    { id: 'eleves',      label: 'Élèves',     icon: GraduationCap, count: students.length  },
+    { id: 'eleves',      label: 'Élèves',      icon: GraduationCap, count: students.length  },
     { id: 'enseignants', label: 'Enseignants', icon: UsersIcon,     count: teachers.length  },
-    { id: 'parents',     label: 'Parents',     icon: UserCheck,     count: parents.length   },
+    { id: 'familles',    label: 'Familles',    icon: UserCheck,     count: parents.length   },
     { id: 'employes',    label: 'Employés',    icon: Briefcase,     count: employees.length },
   ] as const;
   const tabs = hideEmployeesTab ? allTabs.filter(t => t.id !== 'employes') : allTabs;
+
+  /** Sous-onglets pour la gestion des élèves (Pré-inscription / Réinscription / Inscription). */
+  const eleveSubTabs: { id: EleveSubTab; label: string; icon: any; count?: number }[] = [
+    { id: 'preinscription', label: 'Pré-inscription', icon: ClipboardList, count: preEnrollments.length },
+    { id: 'reinscription',  label: 'Réinscription',   icon: RefreshCw,     count: students.length },
+    { id: 'inscription',    label: 'Inscription',     icon: UserPlus,      count: students.length },
+  ];
 
   // Sécurité : si on cache l'onglet Employés alors qu'il était sélectionné,
   // bascule sur l'onglet Élèves.
@@ -638,37 +790,133 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     }
   }, [hideEmployeesTab, activeTab]);
 
-  const isLoading = activeTab === 'eleves' || activeTab === 'enseignants' ? loadingUT
-                  : activeTab === 'parents' ? loadingP : loadingE;
+  /** Quand on est sur l'onglet Élèves > Pré-inscription, on dévie vers les pré-inscriptions. */
+  const isPreEnrollmentView = activeTab === 'eleves' && eleveSubTab === 'preinscription';
 
-  const currentError = activeTab === 'eleves' || activeTab === 'enseignants' ? errorUT
-                     : activeTab === 'parents' ? errorP : errorE;
+  const isLoading = isPreEnrollmentView                                         ? loadingPre
+                  : activeTab === 'eleves' || activeTab === 'enseignants'       ? loadingUT
+                  : activeTab === 'familles'                                    ? loadingP
+                  : loadingE;
 
-  const currentRefetch = activeTab === 'parents'  ? fetchParents
-                       : activeTab === 'employes' ? fetchEmployees : refetchUT;
+  const currentError = isPreEnrollmentView                                       ? errorPre
+                     : activeTab === 'eleves' || activeTab === 'enseignants'     ? errorUT
+                     : activeTab === 'familles'                                  ? errorP
+                     : errorE;
 
-  const currentData = activeTab === 'eleves'      ? filteredStudents
+  const currentRefetch = isPreEnrollmentView         ? fetchPreEnrollments
+                       : activeTab === 'familles'    ? fetchParents
+                       : activeTab === 'employes'    ? fetchEmployees
+                       : refetchUT;
+
+  const currentData = isPreEnrollmentView         ? filteredPreEnrollments
+                    : activeTab === 'eleves'      ? filteredStudents
                     : activeTab === 'enseignants' ? filteredTeachers
-                    : activeTab === 'parents'     ? filteredParents
+                    : activeTab === 'familles'    ? filteredFamilies
                     : filteredEmployees;
 
-  const currentColumns = activeTab === 'eleves'      ? eleveColumns
-                       : activeTab === 'enseignants' ? enseignantColumns
-                       : activeTab === 'parents'     ? parentColumns
+  /** Colonnes "Réinscrire" : on réutilise eleveColumns mais on remplace le menu d'actions. */
+  const reenrollmentColumns = [
+    ...eleveColumns.slice(0, -1),
+    {
+      key: 'actions', label: '',
+      render: (_: any, row: StudentResponse) => (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setReenrollTarget(row);
+              setReenrollForm({ classId: '', enrollmentDate: new Date().toISOString().slice(0, 10) });
+            }}
+            className="px-3 h-8 rounded-lg bg-or-50 dark:bg-or-900/20 hover:bg-or-100 dark:hover:bg-or-900/40 text-or-700 dark:text-or-300 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+            title="Réinscrire pour l'année prochaine"
+          >
+            <RefreshCw size={13} /> Réinscrire
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const currentColumns = isPreEnrollmentView                                ? preEnrollmentColumns
+                       : activeTab === 'eleves' && eleveSubTab === 'reinscription' ? reenrollmentColumns
+                       : activeTab === 'eleves'                             ? eleveColumns
+                       : activeTab === 'enseignants'                        ? enseignantColumns
+                       : activeTab === 'familles'                           ? familyColumns
                        : employeeColumns;
 
   // ── Titre modale ajout/édition ─────────────────────────────────────────────
   const modalIconMap: Record<TabId, { Icon: any; color: string }> = {
     eleves:      { Icon: GraduationCap, color: 'bg-bleu-100 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-300' },
     enseignants: { Icon: UsersIcon,     color: 'bg-or-100 dark:bg-or-900/30 text-or-600 dark:text-or-300' },
-    parents:     { Icon: UserCheck,     color: 'bg-vert-100 dark:bg-vert-900/30 text-vert-600 dark:text-vert-300' },
+    familles:    { Icon: UserCheck,     color: 'bg-vert-100 dark:bg-vert-900/30 text-vert-600 dark:text-vert-300' },
     employes:    { Icon: Briefcase,     color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300' },
   };
   const modalLabels: Record<TabId, [string, string]> = {
     eleves:      ["Modifier l'Élève",      'Nouvel Élève'],
     enseignants: ["Modifier l'Enseignant", 'Nouvel Enseignant'],
-    parents:     ["Modifier le Parent",    'Nouveau Parent'],
+    familles:    ["Modifier la Famille",   'Nouvelle Famille'],
     employes:    ["Modifier l'Employé",    'Nouvel Employé'],
+  };
+
+  /* -------- Approuver / rejeter une pré-inscription -------- */
+  const handleApprove = async () => {
+    if (!approveTarget) return;
+    if (!approveForm.studentEmail.trim() || approveForm.studentPassword.length < 8) {
+      showNotif('error', 'Email élève + mot de passe (min. 8 caractères) requis.');
+      return;
+    }
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    setPendingPreAction(true);
+    try {
+      await userService.approvePreEnrollment(token, approveTarget.id, {
+        studentEmail: approveForm.studentEmail.trim(),
+        studentPassword: approveForm.studentPassword,
+        parentTemporaryPassword: approveForm.parentTemporaryPassword?.trim() || undefined,
+      });
+      setApproveTarget(null);
+      await fetchPreEnrollments();
+      await refetchUT();
+      showNotif('success', 'Pré-inscription approuvée. Comptes parent et élève créés.');
+    } catch (err: any) {
+      showNotif('error', err?.message ?? "L'approbation a échoué.");
+    } finally { setPendingPreAction(false); }
+  };
+
+  const handleReject = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) { showNotif('error', 'Veuillez préciser un motif.'); return; }
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    setPendingPreAction(true);
+    try {
+      await userService.rejectPreEnrollment(token, rejectTarget.id, { reason: rejectReason.trim() });
+      setRejectTarget(null); setRejectReason('');
+      await fetchPreEnrollments();
+      showNotif('success', 'Pré-inscription rejetée.');
+    } catch (err: any) {
+      showNotif('error', err?.message ?? 'Le rejet a échoué.');
+    } finally { setPendingPreAction(false); }
+  };
+
+  /* -------- Réinscription -------- */
+  const handleReenroll = async () => {
+    if (!reenrollTarget) return;
+    if (!reenrollForm.classId) { showNotif('error', 'Veuillez choisir une classe.'); return; }
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    setReenrolling(true);
+    try {
+      await userService.reenrollStudent(token, reenrollTarget.id, {
+        classId: reenrollForm.classId,
+        enrollmentDate: reenrollForm.enrollmentDate || undefined,
+      });
+      setReenrollTarget(null);
+      await refetchUT();
+      showNotif('success', `${reenrollTarget.firstName} ${reenrollTarget.lastName} a été réinscrit(e).`);
+    } catch (err: any) {
+      showNotif('error', err?.message ?? 'La réinscription a échoué.');
+    } finally { setReenrolling(false); }
   };
 
   // ─── Rendu ─────────────────────────────────────────────────────────────────
@@ -688,20 +936,23 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             <h1 className="text-xl font-semibold gradient-bleu-or-text">Annuaire des Utilisateurs</h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">
-            Gérez les élèves, enseignants, parents et les managers
+            Gérez les élèves (pré-inscriptions, réinscriptions, inscriptions), enseignants, familles et le personnel.
           </p>
         </div>
-        <Button
-          onClick={e => {
-            e.stopPropagation();
-            setEditingId(null);
-            resetForms();
-            setIsAddModalOpen(true);
-          }}
-          className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
-        >
-          <UserPlus size={18} /> Ajouter
-        </Button>
+        {/* Bouton "Ajouter" masqué sur la vue Pré-inscription (création publique uniquement) et Réinscription (action par ligne). */}
+        {!(activeTab === 'eleves' && (eleveSubTab === 'preinscription' || eleveSubTab === 'reinscription')) && (
+          <Button
+            onClick={e => {
+              e.stopPropagation();
+              setEditingId(null);
+              resetForms();
+              setIsAddModalOpen(true);
+            }}
+            className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
+          >
+            <UserPlus size={18} /> Ajouter
+          </Button>
+        )}
       </div>
 
       {/* TABS & SEARCH */}
@@ -744,6 +995,55 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         </div>
       </Card>
 
+      {/* SOUS-ONGLETS ÉLÈVES (Pré-inscription / Réinscription / Inscription) */}
+      {activeTab === 'eleves' && (
+        <Card className="p-3 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
+              {eleveSubTabs.map(sub => {
+                const Icon = sub.icon;
+                const isActive = eleveSubTab === sub.id;
+                return (
+                  <button
+                    key={sub.id}
+                    onClick={e => { e.stopPropagation(); setEleveSubTab(sub.id); setSearchQuery(''); }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
+                      isActive
+                        ? 'bg-white dark:bg-bleu-600 text-bleu-700 dark:text-white shadow-sm'
+                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <Icon size={14} />
+                    {sub.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filtre statut pour la pré-inscription */}
+            {eleveSubTab === 'preinscription' && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Statut :</span>
+                {(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setPreStatusFilter(s)}
+                    className={cn(
+                      'px-3 h-8 rounded-lg text-[10px] font-bold transition-colors',
+                      preStatusFilter === s
+                        ? 'bg-bleu-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10',
+                    )}
+                  >
+                    {s === 'PENDING' ? 'En attente' : s === 'APPROVED' ? 'Approuvées' : s === 'REJECTED' ? 'Rejetées' : 'Toutes'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* ERREUR */}
       {currentError && (
         <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400 text-sm font-semibold">
@@ -755,7 +1055,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
       {/* TABLEAU */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={activeTab}
+          key={`${activeTab}-${activeTab === 'eleves' ? eleveSubTab : ''}`}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
@@ -769,8 +1069,14 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
               </div>
             ) : currentData.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-                <UsersIcon size={40} className="opacity-20" />
-                <span className="text-sm font-medium">Aucun utilisateur trouvé</span>
+                {isPreEnrollmentView
+                  ? <ClipboardList size={40} className="opacity-20" />
+                  : <UsersIcon size={40} className="opacity-20" />}
+                <span className="text-sm font-medium">
+                  {isPreEnrollmentView
+                    ? `Aucune pré-inscription ${preStatusFilter === 'PENDING' ? 'en attente' : preStatusFilter === 'APPROVED' ? 'approuvée' : preStatusFilter === 'REJECTED' ? 'rejetée' : ''}`
+                    : 'Aucun utilisateur trouvé'}
+                </span>
               </div>
             ) : (
               <Table data={currentData as any} columns={currentColumns as any} />
@@ -785,7 +1091,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
           <Card key={t.id} className="p-6 border-none bg-gradient-to-br from-bleu-500/5 to-or-500/5 dark:from-bleu-900/10 dark:to-or-900/10 backdrop-blur-sm relative overflow-hidden">
             <p className="text-gray-400 text-[10px] font-semibold mb-1">{t.label}</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t.id === 'eleves' ? students.length : t.id === 'enseignants' ? teachers.length : t.id === 'parents' ? parents.length : employees.length}
+              {t.id === 'eleves' ? students.length : t.id === 'enseignants' ? teachers.length : t.id === 'familles' ? parents.length : employees.length}
             </p>
           </Card>
         ))}
@@ -826,22 +1132,22 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Input label="Prénom" placeholder="ex: Mamadou Sory"
-                value={activeTab === 'eleves' ? studentForm.firstName : activeTab === 'enseignants' ? teacherForm.firstName : activeTab === 'parents' ? parentForm.firstName : employeeForm.firstName}
+                value={activeTab === 'eleves' ? studentForm.firstName : activeTab === 'enseignants' ? teacherForm.firstName : activeTab === 'familles' ? parentForm.firstName : employeeForm.firstName}
                 onChange={e => {
                   const v = e.target.value;
                   if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, firstName: v }));
                   else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, firstName: v }));
-                  else if (activeTab === 'parents')     setParentForm(f => ({ ...f, firstName: v }));
+                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, firstName: v }));
                   else                                  setEmployeeForm(f => ({ ...f, firstName: v }));
                 }}
               />
               <Input label="Nom de famille" placeholder="ex: Diallo"
-                value={activeTab === 'eleves' ? studentForm.lastName : activeTab === 'enseignants' ? teacherForm.lastName : activeTab === 'parents' ? parentForm.lastName : employeeForm.lastName}
+                value={activeTab === 'eleves' ? studentForm.lastName : activeTab === 'enseignants' ? teacherForm.lastName : activeTab === 'familles' ? parentForm.lastName : employeeForm.lastName}
                 onChange={e => {
                   const v = e.target.value;
                   if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, lastName: v }));
                   else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, lastName: v }));
-                  else if (activeTab === 'parents')     setParentForm(f => ({ ...f, lastName: v }));
+                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, lastName: v }));
                   else                                  setEmployeeForm(f => ({ ...f, lastName: v }));
                 }}
               />
@@ -855,22 +1161,22 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Input label="Adresse Email" placeholder="utilisateur@eief.edu.gn" type="email"
-                value={activeTab === 'eleves' ? studentForm.email : activeTab === 'enseignants' ? teacherForm.email : activeTab === 'parents' ? parentForm.email : employeeForm.email}
+                value={activeTab === 'eleves' ? studentForm.email : activeTab === 'enseignants' ? teacherForm.email : activeTab === 'familles' ? parentForm.email : employeeForm.email}
                 onChange={e => {
                   const v = e.target.value;
                   if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, email: v }));
                   else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, email: v }));
-                  else if (activeTab === 'parents')     setParentForm(f => ({ ...f, email: v }));
+                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, email: v }));
                   else                                  setEmployeeForm(f => ({ ...f, email: v }));
                 }}
               />
               <Input label={editingId ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'} placeholder="Min. 8 caractères" type="password"
-                value={activeTab === 'eleves' ? studentForm.password : activeTab === 'enseignants' ? teacherForm.password : activeTab === 'parents' ? parentForm.password : employeeForm.password}
+                value={activeTab === 'eleves' ? studentForm.password : activeTab === 'enseignants' ? teacherForm.password : activeTab === 'familles' ? parentForm.password : employeeForm.password}
                 onChange={e => {
                   const v = e.target.value;
                   if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, password: v }));
                   else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, password: v }));
-                  else if (activeTab === 'parents')     setParentForm(f => ({ ...f, password: v }));
+                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, password: v }));
                   else                                  setEmployeeForm(f => ({ ...f, password: v }));
                 }}
               />
@@ -918,16 +1224,16 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                   onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
                 />
                 <Select
-                  label="Parent / Tuteur"
+                  label="Famille (rattachement)"
                   options={[
-                    { value: '', label: parents.length === 0 ? 'Aucun parent disponible' : 'Sélectionner un parent...' },
+                    { value: '', label: parents.length === 0 ? 'Aucune famille disponible' : 'Sélectionner une famille...' },
                     ...parents.map(p => ({
                       value: p.id,
-                      label: `${p.firstName} ${p.lastName}`,
+                      label: `Famille ${p.lastName} (${p.firstName})`,
                     })),
                   ]}
-                  value={studentForm.parentId ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, parentId: e.target.value }))}
+                  value={studentForm.familyId ?? ''}
+                  onChange={e => setStudentForm(f => ({ ...f, familyId: e.target.value }))}
                 />
               </div>
             </div>
@@ -960,16 +1266,19 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             </div>
           )}
 
-          {/* ─ Champs spécifiques parents ─ */}
-          {activeTab === 'parents' && (
+          {/* ─ Champs spécifiques familles (chef de famille = parent référent) ─ */}
+          {activeTab === 'familles' && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1 h-3 bg-vert-500 rounded-full" /> Contact
+                <span className="w-1 h-3 bg-vert-500 rounded-full" /> Contact du parent référent
               </p>
               <Input label="Téléphone" placeholder="+224 ..."
                 value={parentForm.phone ?? ''}
                 onChange={e => setParentForm(f => ({ ...f, phone: e.target.value }))}
               />
+              <p className="text-[10px] text-gray-400 italic mt-3">
+                Une famille est représentée par un parent référent. Les enfants seront rattachés à cette famille via leur fiche élève.
+              </p>
             </div>
           )}
 
@@ -1063,6 +1372,249 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* ── MODALE DÉTAIL PRÉ-INSCRIPTION ─────────────────────────────────────── */}
+      <Modal
+        isOpen={!!preDetail}
+        onClose={() => setPreDetail(null)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600">
+              <ClipboardList size={22} />
+            </div>
+            <span className="font-bold gradient-bleu-or-text">Détail de la pré-inscription</span>
+          </div>
+        }
+        size="lg"
+      >
+        {preDetail && (
+          <div className="space-y-5 text-left py-2">
+            <div className="bg-gradient-to-br from-bleu-500 to-bleu-600 text-white rounded-2xl p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-75">Référence</p>
+              <p className="text-lg font-bold">{preDetail.referenceNumber}</p>
+              <p className="text-xs opacity-80 mt-1">Soumise le {new Date(preDetail.createdAt).toLocaleDateString('fr-FR')}</p>
+            </div>
+
+            {/* Élève */}
+            <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-1 h-3 rounded-full bg-bleu-500" /> Informations de l'élève
+              </p>
+              <DetailRow icon={<User size={14} />}     label="Nom & Prénom"      value={`${preDetail.studentFirstName} ${preDetail.studentLastName}`} />
+              <DetailRow icon={<Calendar size={14} />} label="Date de naissance" value={preDetail.studentBirthDate} />
+              <DetailRow icon={<User size={14} />}     label="Sexe"              value={preDetail.studentGender === 'M' ? 'Masculin' : preDetail.studentGender === 'F' ? 'Féminin' : preDetail.studentGender} />
+              <DetailRow icon={<BookOpen size={14} />} label="Niveau souhaité"   value={preDetail.targetLevel} />
+              <DetailRow icon={<BookOpen size={14} />} label="Classe souhaitée"  value={preDetail.targetClassName} />
+            </div>
+
+            {/* Parent / Tuteur */}
+            <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-1 h-3 rounded-full bg-vert-500" /> Parent / Tuteur
+              </p>
+              <DetailRow icon={<User size={14} />}      label="Nom & Prénom" value={`${preDetail.guardianFirstName} ${preDetail.guardianLastName}`} />
+              <DetailRow icon={<Mail size={14} />}      label="Email"        value={preDetail.guardianEmail} />
+              <DetailRow icon={<Phone size={14} />}     label="Téléphone"    value={preDetail.guardianPhone} />
+              <DetailRow icon={<UserCheck size={14} />} label="Lien"         value={preDetail.guardianRelationship} />
+              <DetailRow icon={<FileText size={14} />}  label="Adresse"      value={preDetail.guardianAddress} />
+            </div>
+
+            {/* Statut & décision */}
+            <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-1 h-3 rounded-full bg-or-500" /> Décision administrative
+              </p>
+              <DetailRow icon={<Shield size={14} />} label="Statut" value={preDetail.status} />
+              {preDetail.reviewedAt  && <DetailRow icon={<Calendar size={14} />} label="Décidé le"   value={new Date(preDetail.reviewedAt).toLocaleString('fr-FR')} />}
+              {preDetail.reviewedBy  && <DetailRow icon={<User size={14} />}     label="Décidé par"  value={preDetail.reviewedBy} />}
+              {preDetail.rejectionReason && <DetailRow icon={<XCircle size={14} />} label="Motif rejet" value={preDetail.rejectionReason} />}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={() => setPreDetail(null)} className="flex-1 h-11">Fermer</Button>
+              {preDetail.status === 'PENDING' && (
+                <>
+                  <Button
+                    onClick={() => {
+                      const r = preDetail;
+                      setPreDetail(null);
+                      setApproveTarget(r);
+                      setApproveForm({
+                        studentEmail: `${r.studentFirstName}.${r.studentLastName}`.toLowerCase().replace(/\s+/g, '') + '@eief.edu.gn',
+                        studentPassword: '',
+                        parentTemporaryPassword: '',
+                      });
+                    }}
+                    className="flex-1 h-11 bg-vert-600 hover:bg-vert-700 border-none flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 size={15} /> Approuver
+                  </Button>
+                  <Button
+                    onClick={() => { const r = preDetail; setPreDetail(null); setRejectTarget(r); setRejectReason(''); }}
+                    className="flex-1 h-11 bg-red-600 hover:bg-red-700 border-none flex items-center justify-center gap-2"
+                  >
+                    <XCircle size={15} /> Rejeter
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODALE APPROUVER PRÉ-INSCRIPTION ──────────────────────────────────── */}
+      <Modal
+        isOpen={!!approveTarget}
+        onClose={() => !pendingPreAction && setApproveTarget(null)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-vert-100 dark:bg-vert-900/30 rounded-xl text-vert-600">
+              <CheckCircle2 size={22} />
+            </div>
+            <span className="font-bold text-vert-700 dark:text-vert-400">Approuver la pré-inscription</span>
+          </div>
+        }
+        size="md"
+      >
+        {approveTarget && (
+          <div className="space-y-5 text-left py-2">
+            <div className="text-xs text-gray-500 dark:text-gray-400 bg-vert-50 dark:bg-vert-900/20 rounded-xl p-3">
+              L'approbation crée automatiquement <strong>une famille</strong>, le compte <strong>parent</strong>
+              ({approveTarget.guardianEmail}) et le compte <strong>élève</strong> rattachés à la classe « {approveTarget.targetClassName} ».
+            </div>
+            <Input
+              label="Email du futur compte élève"
+              type="email"
+              value={approveForm.studentEmail}
+              onChange={e => setApproveForm(f => ({ ...f, studentEmail: e.target.value }))}
+              placeholder="prenom.nom@eief.edu.gn"
+            />
+            <Input
+              label="Mot de passe initial de l'élève (min. 8 caractères)"
+              type="password"
+              value={approveForm.studentPassword}
+              onChange={e => setApproveForm(f => ({ ...f, studentPassword: e.target.value }))}
+              placeholder="••••••••"
+            />
+            <Input
+              label="Mot de passe temporaire du parent (optionnel — sinon généré)"
+              type="password"
+              value={approveForm.parentTemporaryPassword ?? ''}
+              onChange={e => setApproveForm(f => ({ ...f, parentTemporaryPassword: e.target.value }))}
+              placeholder="Laisser vide pour génération automatique"
+            />
+            <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+              <Button variant="outline" onClick={() => setApproveTarget(null)} disabled={pendingPreAction} className="flex-1 h-12">Annuler</Button>
+              <Button
+                onClick={handleApprove}
+                disabled={pendingPreAction}
+                className="flex-1 h-12 bg-vert-600 hover:bg-vert-700 border-none flex items-center justify-center gap-2"
+              >
+                {pendingPreAction && <Loader2 size={16} className="animate-spin" />}
+                Confirmer l'approbation
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODALE REJETER PRÉ-INSCRIPTION ────────────────────────────────────── */}
+      <Modal
+        isOpen={!!rejectTarget}
+        onClose={() => !pendingPreAction && setRejectTarget(null)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-600">
+              <XCircle size={22} />
+            </div>
+            <span className="font-bold text-red-600">Rejeter la pré-inscription</span>
+          </div>
+        }
+        size="md"
+      >
+        {rejectTarget && (
+          <div className="space-y-5 text-left py-2">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Vous êtes sur le point de rejeter la demande pour <strong>{rejectTarget.studentFirstName} {rejectTarget.studentLastName}</strong> (Réf. {rejectTarget.referenceNumber}).
+            </p>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 block">Motif du rejet *</label>
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="Précisez les raisons (dossier incomplet, classe pleine, etc.)"
+                className="w-full min-h-[100px] p-3 bg-gray-50 dark:bg-white/5 border-2 border-transparent focus:border-red-400 rounded-xl outline-none text-sm font-medium resize-y"
+              />
+            </div>
+            <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+              <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={pendingPreAction} className="flex-1 h-12">Annuler</Button>
+              <Button
+                onClick={handleReject}
+                disabled={pendingPreAction}
+                className="flex-1 h-12 bg-red-600 hover:bg-red-700 border-none flex items-center justify-center gap-2"
+              >
+                {pendingPreAction && <Loader2 size={16} className="animate-spin" />}
+                Confirmer le rejet
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODALE RÉINSCRIPTION ──────────────────────────────────────────────── */}
+      <Modal
+        isOpen={!!reenrollTarget}
+        onClose={() => !reenrolling && setReenrollTarget(null)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600">
+              <RefreshCw size={22} />
+            </div>
+            <span className="font-bold gradient-bleu-or-text">Réinscrire l'élève</span>
+          </div>
+        }
+        size="md"
+      >
+        {reenrollTarget && (
+          <div className="space-y-5 text-left py-2">
+            <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 flex items-center gap-3">
+              <Avatar name={`${reenrollTarget.firstName} ${reenrollTarget.lastName}`} size="sm" />
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white text-sm">{reenrollTarget.firstName} {reenrollTarget.lastName}</p>
+                <p className="text-[11px] text-gray-400">Matricule : {reenrollTarget.registrationNumber} · Classe actuelle : {reenrollTarget.className}</p>
+              </div>
+            </div>
+
+            <Select
+              label="Nouvelle classe"
+              options={[
+                { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
+                ...classes.map(c => ({ value: c.id, label: c.level ? `${c.name} — ${c.level}` : c.name })),
+              ]}
+              value={reenrollForm.classId}
+              onChange={e => setReenrollForm(f => ({ ...f, classId: e.target.value }))}
+            />
+            <Input
+              label="Date d'inscription (optionnel)"
+              type="date"
+              value={reenrollForm.enrollmentDate}
+              onChange={e => setReenrollForm(f => ({ ...f, enrollmentDate: e.target.value }))}
+            />
+
+            <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+              <Button variant="outline" onClick={() => setReenrollTarget(null)} disabled={reenrolling} className="flex-1 h-12">Annuler</Button>
+              <Button
+                onClick={handleReenroll}
+                disabled={reenrolling}
+                className="flex-1 h-12 bg-or-600 hover:bg-or-500 border-none text-gray-950 flex items-center justify-center gap-2"
+              >
+                {reenrolling && <Loader2 size={16} className="animate-spin" />}
+                Confirmer la réinscription
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* ── TOAST NOTIFICATION (composant partagé) ─────────────────────────── */}

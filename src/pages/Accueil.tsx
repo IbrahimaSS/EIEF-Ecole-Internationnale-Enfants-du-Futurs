@@ -146,13 +146,19 @@ const Accueil: React.FC = () => {
 
           <div className="hidden lg:flex items-center gap-8">
             <div className="flex items-center gap-6">
-              {['Accueil', 'Programmes', 'Admission', 'Contact', 'Jeux'].map((link) => (
+              {[
+                { label: 'Accueil', path: '/' },
+                { label: 'Programmes', path: '/programmes' },
+                { label: 'Pré-inscription', path: '/preinscription' },
+                { label: 'Contact', path: '/contact' },
+                { label: 'Jeux', path: '/jeux' },
+              ].map((link) => (
                 <button
-                  key={link}
-                  onClick={() => navigate(link === 'Accueil' ? '/' : `/${link.toLowerCase()}`)}
+                  key={link.label}
+                  onClick={() => navigate(link.path)}
                   className={cn('text-[10px] font-black uppercase tracking-widest transition-colors', scrolled ? 'text-gray-500 dark:text-gray-400 hover:text-vert-600 dark:hover:text-white' : 'text-white/80 hover:text-or-300')}
                 >
-                  {link}
+                  {link.label}
                 </button>
               ))}
             </div>
@@ -175,9 +181,15 @@ const Accueil: React.FC = () => {
       {isMenuOpen && (
         <div className="lg:hidden fixed top-20 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-white/5 shadow-2xl">
           <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-4">
-            {['Accueil', 'Programmes', 'Admission', 'Contact', 'Jeux'].map((link) => (
-              <button key={link} onClick={() => { navigate(link === 'Accueil' ? '/' : `/${link.toLowerCase()}`); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-gray-900 dark:text-white font-bold text-sm rounded-lg hover:bg-vert-600 dark:hover:bg-or-600 hover:text-white transition-all">
-                {link}
+            {[
+              { label: 'Accueil', path: '/' },
+              { label: 'Programmes', path: '/programmes' },
+              { label: 'Pré-inscription', path: '/preinscription' },
+              { label: 'Contact', path: '/contact' },
+              { label: 'Jeux', path: '/jeux' },
+            ].map((link) => (
+              <button key={link.label} onClick={() => { navigate(link.path); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-gray-900 dark:text-white font-bold text-sm rounded-lg hover:bg-vert-600 dark:hover:bg-or-600 hover:text-white transition-all">
+                {link.label}
               </button>
             ))}
             <Button onClick={() => { navigate('/login'); setIsMenuOpen(false); }} className="w-full bg-gradient-to-r from-or-500 to-or-600 text-gray-950 font-bold text-sm py-3 rounded-lg">Connexion</Button>
@@ -236,7 +248,7 @@ const Accueil: React.FC = () => {
           </motion.p>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.6 }} className="flex flex-wrap gap-4">
-            <Button onClick={() => navigate('/admission')} className="h-14 px-8 bg-vert-600 hover:bg-vert-700 text-white rounded-2xl font-black text-sm shadow-2xl shadow-vert-500/40 hover:scale-105 transition-all flex items-center gap-2">
+            <Button onClick={() => navigate('/preinscription')} className="h-14 px-8 bg-vert-600 hover:bg-vert-700 text-white rounded-2xl font-black text-sm shadow-2xl shadow-vert-500/40 hover:scale-105 transition-all flex items-center gap-2">
               <GraduationCap size={20} /> Pré-inscrire mon enfant
             </Button>
             <button
@@ -486,7 +498,7 @@ const Accueil: React.FC = () => {
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable en plusieurs versements</p>
                 </div>
               </div>
-              <Button onClick={() => navigate('/admission')} className="w-full h-12 bg-vert-600 hover:bg-vert-700 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2">
+              <Button onClick={() => navigate('/preinscription')} className="w-full h-12 bg-vert-600 hover:bg-vert-700 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2">
                 <GraduationCap size={18} /> Pré-inscrire à ce niveau
               </Button>
             </motion.div>
@@ -529,7 +541,7 @@ const Accueil: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap justify-center gap-4">
-            <Button onClick={() => navigate('/admission')} className="h-14 px-8 bg-or-500 hover:bg-or-400 text-gray-950 rounded-2xl font-black text-sm shadow-2xl shadow-or-500/40 hover:scale-105 transition-all flex items-center gap-2">
+            <Button onClick={() => navigate('/preinscription')} className="h-14 px-8 bg-or-500 hover:bg-or-400 text-gray-950 rounded-2xl font-black text-sm shadow-2xl shadow-or-500/40 hover:scale-105 transition-all flex items-center gap-2">
               <GraduationCap size={20} /> Pré-inscrire mon enfant <ArrowRight size={18} />
             </Button>
             <button className="h-14 px-8 bg-white/10 backdrop-blur-md text-white rounded-2xl font-bold text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2">
