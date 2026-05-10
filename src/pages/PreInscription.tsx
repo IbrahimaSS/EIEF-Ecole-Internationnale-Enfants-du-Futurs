@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -12,10 +12,20 @@ import {
   Rocket,
   FileText,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import PublicNav from '../components/shared/PublicNav';
 import PublicFooter from '../components/shared/PublicFooter';
+import { apiRequest } from '../services/api';
+import { userService } from '../services/userService';
+
+/** Forme retournée par GET /courses/classes (backend public). */
+interface BackendClass {
+  id: string;
+  name: string;
+  level: string;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  CONSTANTES                                                                 */
@@ -65,22 +75,32 @@ interface Enfant {
   dateNaissance: string;
   sexe: '' | 'M' | 'F';
   niveau: string;
+  /** Nom de la classe (libellé affiché). */
   classe: string;
+  /** UUID backend de la classe — exigé par POST /pre-enrollments. */
+  classeId: string;
+  options: Options;
 }
 
 interface ParentInfos {
   pereNom: string;
+  perePrenom: string;
   pereProfession: string;
   perePhone: string;
+  pereEmail: string;
   mereNom: string;
+  merePrenom: string;
   mereProfession: string;
   merePhone: string;
+  mereEmail: string;
   email: string;
+  /** Adresse du foyer — requise par le backend (guardianAddress). */
+  adresse: string;
 }
 
 interface Options {
   cantine: boolean;
-  transport: boolean;
+  transport: 'NONE' | 'PETIT_TRAJET' | 'LONG_TRAJET';
   tenueScolaire: boolean;
   tenueSport: boolean;
   tenueScout: boolean;
@@ -95,6 +115,15 @@ const makeEnfant = (id: number): Enfant => ({
   sexe: '',
   niveau: '',
   classe: '',
+  classeId: '',
+  options: {
+    cantine: false,
+    transport: 'NONE',
+    tenueScolaire: false,
+    tenueSport: false,
+    tenueScout: false,
+    tenueKarate: false,
+  },
 });
 
 /* -------------------------------------------------------------------------- */
@@ -105,21 +134,53 @@ const PreInscription: React.FC = () => {
   const [enfants, setEnfants] = useState<Enfant[]>([makeEnfant(1)]);
   const [parent, setParent] = useState<ParentInfos>({
     pereNom: '',
+    perePrenom: '',
     pereProfession: '',
     perePhone: '',
+    pereEmail: '',
     mereNom: '',
+    merePrenom: '',
     mereProfession: '',
     merePhone: '',
+    mereEmail: '',
     email: '',
+    adresse: '',
   });
-  const [options, setOptions] = useState<Options>({
-    cantine: false,
-    transport: false,
-    tenueScolaire: false,
-    tenueSport: false,
-    tenueScout: false,
-    tenueKarate: false,
-  });
+
+  /** Classes récupérées du backend (GET /courses/classes — endpoint public). */
+  const [backendClasses, setBackendClasses] = useState<BackendClass[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Charge les classes au montage. En cas d'échec, on garde la liste statique
+  // de NIVEAUX comme fallback purement visuel (la soumission échouera tant
+  // qu'on n'a pas de classeId réel).
+  useEffect(() => {
+    let cancelled = false;
+    apiRequest<BackendClass[]>('/courses/classes')
+      .then(data => { if (!cancelled) setBackendClasses(data ?? []); })
+      .catch(() => { /* silencieux : fallback NIVEAUX statiques */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  /** Mappe un libellé de niveau (de NIVEAUX) → niveau backend (Crèche, Maternelle, …). */
+  const niveauLabelToBackend = (niveauValue: string): string => {
+    switch (niveauValue) {
+      case 'creche':     return 'Crèche';
+      case 'garderie':   return 'Garderie';
+      case 'maternelle': return 'Maternelle';
+      case 'primaire':   return 'Primaire';
+      case 'college':    return 'Collège';
+      case 'lycee':      return 'Lycée';
+      default:           return '';
+    }
+  };
+
+  /** Pour un niveau donné, retourne les classes backend correspondantes. */
+  const classesPourNiveau = (niveauValue: string): BackendClass[] => {
+    const target = niveauLabelToBackend(niveauValue).toLowerCase();
+    if (!target) return [];
+    return backendClasses.filter(c => (c.level ?? '').toLowerCase() === target);
+  };
 
   // Documents par enfant : { [enfantId]: { [docName]: File } }
   const [documents, setDocuments] = useState<Record<number, Record<string, File | null>>>({
@@ -154,11 +215,17 @@ const PreInscription: React.FC = () => {
           ? {
               ...e,
               [field]: value,
-              ...(field === 'niveau' ? { classe: '' } : {}),
+              // Quand le niveau change, on remet à zéro classe + classeId
+              // (sinon on garde une classe d'un autre niveau).
+              ...(field === 'niveau' ? { classe: '', classeId: '' } : {}),
             }
           : e,
       ),
     );
+  };
+
+  const updateOptions = (id: number, options: Options) => {
+    updateEnfant(id, 'options', options);
   };
 
   /* ----- Helpers documents ----------------------------------------------- */
@@ -174,22 +241,114 @@ const PreInscription: React.FC = () => {
     Object.values(documents[enfantId] ?? {}).filter(Boolean).length;
 
   /* ----- Submit ---------------------------------------------------------- */
-  const handleSubmit = () => {
+  /**
+   * Envoie une demande de pré-inscription au backend (POST /pre-enrollments)
+   * pour CHAQUE enfant. Le backend crée un enregistrement PreEnrollmentApplication
+   * avec statut PENDING, visible côté admin dans l'onglet Élèves > Pré-inscription.
+   *
+   * Le backend exige :
+   *   studentFirstName, studentLastName, studentBirthDate, studentGender,
+   *   targetClassId (UUID), guardianFirstName, guardianLastName,
+   *   guardianEmail, guardianPhone, guardianRelationship, guardianAddress.
+   */
+  const handleSubmit = async () => {
+    // ---- Validations ----
     if (enfants.some((e) => !e.prenom.trim() || !e.nom.trim())) {
       toast.error("Renseignez le nom et prénom de chaque enfant");
       return;
     }
-    if (!parent.pereNom.trim() && !parent.mereNom.trim()) {
-      toast.error('Renseignez au moins un parent (Père ou Mère)');
+    if (enfants.some((e) => !e.dateNaissance || !e.sexe)) {
+      toast.error("Renseignez la date de naissance et le sexe de chaque enfant");
       return;
     }
-    if (!parent.perePhone.trim() && !parent.merePhone.trim()) {
+    if (enfants.some((e) => !e.classeId)) {
+      toast.error("Sélectionnez une classe pour chaque enfant");
+      return;
+    }
+    // Au moins un parent renseigné, avec téléphone et email pour contact backend
+    const hasFather = parent.pereNom.trim() && parent.perePrenom.trim();
+    const hasMother = parent.mereNom.trim() && parent.merePrenom.trim();
+    if (!hasFather && !hasMother) {
+      toast.error('Renseignez les nom et prénom d\'au moins un parent');
+      return;
+    }
+    const guardianPhone = parent.perePhone.trim() || parent.merePhone.trim();
+    if (!guardianPhone) {
       toast.error('Au moins un contact téléphonique parent est requis');
       return;
     }
+    const guardianEmail = (parent.pereEmail.trim() || parent.mereEmail.trim() || parent.email.trim());
+    if (!guardianEmail) {
+      toast.error('Renseignez un email de contact (parent ou général)');
+      return;
+    }
+    if (!parent.adresse.trim()) {
+      toast.error("Renseignez l'adresse de la famille");
+      return;
+    }
+
+    // ---- Appel API : un POST /pre-enrollments par enfant ----
+    setSubmitting(true);
+    const guardianFirstName = hasFather ? parent.perePrenom.trim() : parent.merePrenom.trim();
+    const guardianLastName  = hasFather ? parent.pereNom.trim()    : parent.mereNom.trim();
+    const guardianRelationship = hasFather ? 'Père' : 'Mère';
+
+    const refs: string[] = [];
+    const errors: string[] = [];
+
+    for (const enfant of enfants) {
+      try {
+        const resp = await userService.submitPreEnrollment({
+          studentFirstName: enfant.prenom.trim(),
+          studentLastName: enfant.nom.trim(),
+          studentBirthDate: enfant.dateNaissance,
+          studentGender: enfant.sexe,
+          targetClassId: enfant.classeId,
+          guardianFirstName,
+          guardianLastName,
+          guardianEmail,
+          guardianPhone,
+          guardianRelationship,
+          guardianAddress: parent.adresse.trim(),
+          fatherFirstName: parent.perePrenom.trim() || undefined,
+          fatherLastName: parent.pereNom.trim() || undefined,
+          fatherEmail: parent.pereEmail.trim() || undefined,
+          fatherPhone: parent.perePhone.trim() || undefined,
+          fatherProfession: parent.pereProfession.trim() || undefined,
+          motherFirstName: parent.merePrenom.trim() || undefined,
+          motherLastName: parent.mereNom.trim() || undefined,
+          motherEmail: parent.mereEmail.trim() || undefined,
+          motherPhone: parent.merePhone.trim() || undefined,
+          motherProfession: parent.mereProfession.trim() || undefined,
+          familyEmail: parent.email.trim() || undefined,
+          hasCantine: enfant.options.cantine,
+          transportMode: enfant.options.transport,
+          hasTenueScolaire: enfant.options.tenueScolaire,
+          hasTenueSport: enfant.options.tenueSport,
+          hasTenueScout: enfant.options.tenueScout,
+          hasTenueKarate: enfant.options.tenueKarate,
+        });
+        refs.push(resp.referenceNumber);
+      } catch (err: any) {
+        errors.push(`${enfant.prenom} ${enfant.nom} : ${err?.message ?? 'échec'}`);
+      }
+    }
+
+    setSubmitting(false);
+
+    if (errors.length > 0 && refs.length === 0) {
+      toast.error(`Échec de la pré-inscription : ${errors.join(' | ')}`);
+      return;
+    }
+    if (errors.length > 0) {
+      toast.warning(`${refs.length} demande(s) envoyée(s) (${errors.length} échec(s)). Réf: ${refs.join(', ')}`);
+      return;
+    }
     toast.success(
-      `🎉 Pré-inscription envoyée pour ${enfants.length} enfant${enfants.length > 1 ? 's' : ''} ! Nous vous recontacterons sous 24h.`,
+      `🎉 Pré-inscription envoyée pour ${refs.length} enfant${refs.length > 1 ? 's' : ''} ! Référence(s) : ${refs.join(', ')}. Nous vous recontacterons sous 24h.`,
     );
+    // Reset minimum (on garde l'adresse / parents pour faciliter une nouvelle famille immédiate)
+    setEnfants([makeEnfant(1)]);
   };
 
   return (
@@ -235,6 +394,8 @@ const PreInscription: React.FC = () => {
             canRemove={enfants.length > 1}
             onUpdate={updateEnfant}
             onRemove={removeEnfant}
+            classesPourNiveau={classesPourNiveau}
+            onUpdateOptions={updateOptions}
           />
         ))}
 
@@ -262,17 +423,17 @@ const PreInscription: React.FC = () => {
         {/* FICHES PDF */}
         <FichesSection />
 
-        {/* OPTIONS */}
-        <OptionsSection options={options} setOptions={setOptions} />
-
         {/* SUBMIT */}
         <button
           type="button"
           onClick={handleSubmit}
-          className="w-full h-16 rounded-3xl bg-gradient-to-r from-bleu-600 to-bleu-700 hover:from-bleu-500 hover:to-bleu-600 text-white font-black text-base shadow-2xl shadow-bleu-500/30 transition-all hover:scale-[1.01] flex items-center justify-center gap-3"
+          disabled={submitting}
+          className="w-full h-16 rounded-3xl bg-gradient-to-r from-bleu-600 to-bleu-700 hover:from-bleu-500 hover:to-bleu-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-base shadow-2xl shadow-bleu-500/30 transition-all hover:scale-[1.01] flex items-center justify-center gap-3"
         >
-          <Rocket size={20} />
-          Soumettre la pré-inscription ({enfants.length} enfant{enfants.length > 1 ? 's' : ''})
+          {submitting ? <Loader2 size={20} className="animate-spin" /> : <Rocket size={20} />}
+          {submitting
+            ? 'Envoi en cours...'
+            : `Soumettre la pré-inscription (${enfants.length} enfant${enfants.length > 1 ? 's' : ''})`}
         </button>
       </main>
 
@@ -338,8 +499,12 @@ const EnfantCard: React.FC<{
   canRemove: boolean;
   onUpdate: <K extends keyof Enfant>(id: number, field: K, value: Enfant[K]) => void;
   onRemove: (id: number) => void;
-}> = ({ enfant, index, canRemove, onUpdate, onRemove }) => {
+  /** Fournit la liste des classes backend pour un niveau donné. */
+  classesPourNiveau: (niveauValue: string) => BackendClass[];
+  onUpdateOptions: (id: number, options: Options) => void;
+}> = ({ enfant, index, canRemove, onUpdate, onRemove, classesPourNiveau, onUpdateOptions }) => {
   const niveauObj = NIVEAUX.find((n) => n.value === enfant.niveau);
+  const backendClasses = classesPourNiveau(enfant.niveau);
 
   return (
     <SectionCard
@@ -358,7 +523,7 @@ const EnfantCard: React.FC<{
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         <Field label="Prénom" required>
           <input
             type="text"
@@ -410,21 +575,43 @@ const EnfantCard: React.FC<{
             ))}
           </select>
         </Field>
-        <Field label="Classe souhaitée">
+        <Field label="Classe souhaitée" required>
           <select
-            value={enfant.classe}
-            onChange={(e) => onUpdate(enfant.id, 'classe', e.target.value)}
+            value={enfant.classeId}
+            onChange={(e) => {
+              const classeId = e.target.value;
+              const klass = backendClasses.find(c => c.id === classeId);
+              // On met à jour classeId (UUID backend) ET le libellé pour l'affichage.
+              onUpdate(enfant.id, 'classeId', classeId);
+              onUpdate(enfant.id, 'classe', klass?.name ?? '');
+            }}
             disabled={!niveauObj}
             className={cn(inputClass, 'cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed')}
           >
-            <option value="">{niveauObj ? 'Choisir...' : "Niveau d'abord"}</option>
-            {niveauObj?.classes.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            <option value="">
+              {!niveauObj
+                ? "Niveau d'abord"
+                : backendClasses.length === 0
+                  ? '⚠️ Aucune classe disponible pour ce niveau'
+                  : 'Choisir une classe...'}
+            </option>
+            {backendClasses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </select>
         </Field>
+      </div>
+
+      <div className="border-t border-gray-100 dark:border-white/5 pt-8">
+        <h3 className="text-lg font-black text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+          <span>⚙️</span> Options pour cet enfant
+        </h3>
+        <OptionsSection
+          options={enfant.options}
+          setOptions={(newOptions) => onUpdateOptions(enfant.id, typeof newOptions === 'function' ? newOptions(enfant.options) : newOptions)}
+        />
       </div>
     </SectionCard>
   );
@@ -453,11 +640,36 @@ const ParentSection: React.FC<{
           <span>👨</span> Informations du Père
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-          <Field label="Nom & Prénom" required>
+          <Field label="Prénom" required>
+            <input
+              value={parent.perePrenom}
+              onChange={(e) => set('perePrenom', e.target.value)}
+              placeholder="Prénom du père"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Nom" required>
             <input
               value={parent.pereNom}
               onChange={(e) => set('pereNom', e.target.value)}
-              placeholder="Nom complet du père"
+              placeholder="Nom du père"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              type="email"
+              value={parent.pereEmail}
+              onChange={(e) => set('pereEmail', e.target.value)}
+              placeholder="papa@exemple.com"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Contact téléphonique" required>
+            <input
+              value={parent.perePhone}
+              onChange={(e) => set('perePhone', e.target.value)}
+              placeholder="+224 6XX XXX XXX"
               className={inputClass}
             />
           </Field>
@@ -470,14 +682,6 @@ const ParentSection: React.FC<{
             />
           </Field>
         </div>
-        <Field label="Contact téléphonique" required>
-          <input
-            value={parent.perePhone}
-            onChange={(e) => set('perePhone', e.target.value)}
-            placeholder="+224 6XX XXX XXX"
-            className={inputClass}
-          />
-        </Field>
       </div>
 
       {/* MÈRE */}
@@ -486,11 +690,36 @@ const ParentSection: React.FC<{
           <span>👩</span> Informations de la Mère
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-          <Field label="Nom & Prénom">
+          <Field label="Prénom">
+            <input
+              value={parent.merePrenom}
+              onChange={(e) => set('merePrenom', e.target.value)}
+              placeholder="Prénom de la mère"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Nom">
             <input
               value={parent.mereNom}
               onChange={(e) => set('mereNom', e.target.value)}
-              placeholder="Nom complet de la mère"
+              placeholder="Nom de la mère"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              type="email"
+              value={parent.mereEmail}
+              onChange={(e) => set('mereEmail', e.target.value)}
+              placeholder="maman@exemple.com"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Contact téléphonique">
+            <input
+              value={parent.merePhone}
+              onChange={(e) => set('merePhone', e.target.value)}
+              placeholder="+224 6XX XXX XXX"
               className={inputClass}
             />
           </Field>
@@ -503,25 +732,28 @@ const ParentSection: React.FC<{
             />
           </Field>
         </div>
-        <Field label="Contact téléphonique">
+      </div>
+
+      {/* ADRESSE & EMAIL FAMILIAL */}
+      <div className="grid grid-cols-1 gap-5">
+        <Field label="🏠 Adresse de la famille" required>
           <input
-            value={parent.merePhone}
-            onChange={(e) => set('merePhone', e.target.value)}
-            placeholder="+224 6XX XXX XXX"
+            value={parent.adresse}
+            onChange={(e) => set('adresse', e.target.value)}
+            placeholder="Quartier, ville, repère..."
+            className={inputClass}
+          />
+        </Field>
+        <Field label="📧 Email de contact général (optionnel)">
+          <input
+            type="email"
+            value={parent.email}
+            onChange={(e) => set('email', e.target.value)}
+            placeholder="email@exemple.com"
             className={inputClass}
           />
         </Field>
       </div>
-
-      <Field label="📧 Email de contact (optionnel)">
-        <input
-          type="email"
-          value={parent.email}
-          onChange={(e) => set('email', e.target.value)}
-          placeholder="email@exemple.com"
-          className={inputClass}
-        />
-      </Field>
     </SectionCard>
   );
 };
@@ -716,74 +948,105 @@ const OptionsSection: React.FC<{
   const toggle = (k: keyof Options) => setOptions((p) => ({ ...p, [k]: !p[k] }));
 
   return (
-    <SectionCard
-      icon={<span>⚙️</span>}
-      iconBg="bg-purple-50 dark:bg-purple-900/30"
-      title="Options souhaitées"
-    >
-      <div className="space-y-4">
-        <OptionRow
-          checked={options.cantine}
-          onToggle={() => toggle('cantine')}
-          icon="🍽️"
-          title="Cantine scolaire"
-          desc="Repas chauds et équilibrés servis chaque jour à l'école. Système de portefeuille rechargeable."
-          price="💰 400 000 GNF / mois"
-        />
-        <OptionRow
-          checked={options.transport}
-          onToggle={() => toggle('transport')}
-          icon="🚌"
-          title="Transport scolaire"
-          desc="Navette aller-retour sécurisée avec chauffeur dédié. Suivi GPS en temps réel et pointage automatique."
-          price="💰 Petit trajet : 300 000 GNF — Long trajet : 350 000 GNF / mois"
-        />
+    <div className="space-y-4">
+      <OptionRow
+        checked={options.cantine}
+        onToggle={() => toggle('cantine')}
+        icon="🍽️"
+        title="Cantine scolaire"
+        desc="Repas chauds et équilibrés servis chaque jour à l'école. Système de portefeuille rechargeable."
+        price="💰 400 000 GNF / mois"
+      />
 
-        <div className="rounded-2xl bg-bleu-50/60 dark:bg-bleu-900/10 border border-bleu-100 dark:border-bleu-900/30 p-5">
-          <div className="flex items-start gap-3 mb-4">
-            <span className="text-2xl">👔</span>
-            <div>
-              <h4 className="text-base font-black text-gray-900 dark:text-white">
-                Uniformes & Équipements
-              </h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Sélectionnez les tenues souhaitées ci-dessous
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <UniformOption
-              checked={options.tenueScolaire}
-              onToggle={() => toggle('tenueScolaire')}
-              icon="👕"
-              title="Tenue scolaire (×2)"
-              lines={['Primaire : 350 000 GNF', 'Secondaire : 450 000 GNF']}
-            />
-            <UniformOption
-              checked={options.tenueSport}
-              onToggle={() => toggle('tenueSport')}
-              icon="🤸"
-              title="Tenue de sport (EPS)"
-              lines={['100 000 GNF']}
-            />
-            <UniformOption
-              checked={options.tenueScout}
-              onToggle={() => toggle('tenueScout')}
-              icon="⚜️"
-              title="Tenue Scout"
-              lines={['250 000 GNF']}
-            />
-            <UniformOption
-              checked={options.tenueKarate}
-              onToggle={() => toggle('tenueKarate')}
-              icon="🥋"
-              title="Tenue de Karaté"
-              lines={['200 000 GNF']}
-            />
+      <div className={cn(
+        'p-5 rounded-2xl border-2 transition-all space-y-4',
+        options.transport !== 'NONE'
+          ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400'
+          : 'bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-bleu-300'
+      )}>
+        <div className="flex gap-4 items-start">
+          <Checkbox checked={options.transport !== 'NONE'} />
+          <span className="text-2xl shrink-0">🚌</span>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-base font-black text-gray-900 dark:text-white mb-1">Transport scolaire</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
+              Navette aller-retour sécurisée avec chauffeur dédié.
+            </p>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-9">
+          <button
+            type="button"
+            onClick={() => setOptions(p => ({ ...p, transport: p.transport === 'PETIT_TRAJET' ? 'NONE' : 'PETIT_TRAJET' }))}
+            className={cn(
+              'p-3 rounded-xl border text-xs font-bold transition-all',
+              options.transport === 'PETIT_TRAJET'
+                ? 'bg-bleu-600 text-white border-bleu-600'
+                : 'bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400'
+            )}
+          >
+            🚗 Petit trajet (300 000 GNF)
+          </button>
+          <button
+            type="button"
+            onClick={() => setOptions(p => ({ ...p, transport: p.transport === 'LONG_TRAJET' ? 'NONE' : 'LONG_TRAJET' }))}
+            className={cn(
+              'p-3 rounded-xl border text-xs font-bold transition-all',
+              options.transport === 'LONG_TRAJET'
+                ? 'bg-bleu-600 text-white border-bleu-600'
+                : 'bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400'
+            )}
+          >
+            🚐 Long trajet (350 000 GNF)
+          </button>
+        </div>
       </div>
-    </SectionCard>
+
+      <div className="rounded-2xl bg-bleu-50/60 dark:bg-bleu-900/10 border border-bleu-100 dark:border-bleu-900/30 p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <span className="text-2xl">👔</span>
+          <div>
+            <h4 className="text-base font-black text-gray-900 dark:text-white">
+              Uniformes & Équipements
+            </h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Sélectionnez les tenues souhaitées ci-dessous
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <UniformOption
+            checked={options.tenueScolaire}
+            onToggle={() => toggle('tenueScolaire')}
+            icon="👕"
+            title="Tenue scolaire (×2)"
+            lines={['Primaire : 350 000 GNF', 'Secondaire : 450 000 GNF']}
+          />
+          <UniformOption
+            checked={options.tenueSport}
+            onToggle={() => toggle('tenueSport')}
+            icon="🤸"
+            title="Tenue de sport (EPS)"
+            lines={['100 000 GNF']}
+          />
+          <UniformOption
+            checked={options.tenueScout}
+            onToggle={() => toggle('tenueScout')}
+            icon="⚜️"
+            title="Tenue Scout"
+            lines={['250 000 GNF']}
+          />
+          <UniformOption
+            checked={options.tenueKarate}
+            onToggle={() => toggle('tenueKarate')}
+            icon="🥋"
+            title="Tenue de Karaté"
+            lines={['200 000 GNF']}
+          />
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -859,3 +1122,4 @@ const Checkbox: React.FC<{ checked: boolean }> = ({ checked }) => (
 );
 
 export default PreInscription;
+

@@ -6,7 +6,7 @@ import {
   MoreVertical, Eye, Edit, Trash2, AlertCircle,
   Loader2, UserCheck, Briefcase, Phone, Mail, Calendar, Hash,
   BookOpen, Shield, User, FileText, CheckCircle2, XCircle,
-  RefreshCw, ClipboardList,
+  RefreshCw, ClipboardList, ChevronRight, Map as MapIcon,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import NotificationToast from '../../components/shared/NotificationToast';
@@ -47,9 +47,21 @@ const getToken = (): string | null => {
   } catch { return null; }
 };
 
-const emptyStudent  = (): StudentRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', registrationNumber: '', birthDate: '', gender: '', classId: '', familyId: '' });
+const emptyStudent  = (): StudentRequest  => ({ 
+  email: '', 
+  password: '', 
+  firstName: '', 
+  lastName: '', 
+  phone: '', 
+  registrationNumber: '', 
+  birthDate: '', 
+  arrivalDate: new Date().getFullYear().toString(), // On utilise ce champ pour stocker l'année
+  gender: '', 
+  classId: '', 
+  familyId: '' 
+});
 const emptyTeacher  = (): TeacherRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', employeeNumber: '', specialty: '', hireDate: '' });
-const emptyParent   = (): ParentRequest   => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT' });
+const emptyParent   = (): ParentRequest   => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT', address: '', relationship: '' });
 const emptyEmployee = (): EmployeeRequest => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'STAFF' });
 
 // ─── Sous-composant : panneau "Voir le profil" ─────────────────────────────────
@@ -148,10 +160,41 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
               Informations scolaires
             </p>
             <DetailRow icon={<Hash size={14} />}      label="Matricule"       value={row.registrationNumber} />
+            <DetailRow icon={<Calendar size={14} />}  label="Année d'arrivée" value={row.arrivalDate ? row.arrivalDate.substring(0, 4) : '—'} />
             <DetailRow icon={<BookOpen size={14} />}  label="Classe"          value={row.className} />
             <DetailRow icon={<UserCheck size={14} />} label="Famille"         value={row.familyId ?? row.parentName} />
             <DetailRow icon={<Calendar size={14} />}  label="Date de naissance" value={row.birthDate} />
             <DetailRow icon={<User size={14} />}      label="Genre"           value={row.gender === 'M' ? 'Masculin' : row.gender === 'F' ? 'Féminin' : row.gender} />
+          </div>
+        )}
+
+        {activeTab === 'familles' && (
+          <div className="bg-gray-50 dark:bg-white/3 rounded-2xl p-4">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span className="w-1 h-3 rounded-full bg-gradient-to-b from-vert-500 to-vert-600" />
+              Détails de la Famille
+            </p>
+            <DetailRow icon={<UserCheck size={14} />} label="Relation" value={row.relationship} />
+            <DetailRow icon={<MapIcon size={14} />}       label="Adresse"  value={row.address} />
+            
+            {row.students && row.students.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/10">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Enfants rattachés</p>
+                <div className="space-y-2">
+                  {row.students.map((s: any) => (
+                    <div key={s.id} className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 shadow-sm">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-900 dark:text-white leading-none mb-0.5">{s.firstName} {s.lastName}</span>
+                        <span className="text-[10px] text-gray-400 font-medium italic">{s.registrationNumber}</span>
+                      </div>
+                      <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-bleu-50 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-300 ring-1 ring-inset ring-bleu-600/10">
+                        {s.className || 'Non classé'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -214,11 +257,32 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const { refetch: refetchDashboard } = useAdminDashboard();
   const {
     students, teachers, loading: loadingUT, error: errorUT,
-    addStudent, editStudent, removeStudent,
+    editStudent, removeStudent,
     addTeacher, editTeacher, removeTeacher,
     searchStudents, searchTeachers,
     refetch: refetchUT,
   } = useUsers(refetchDashboard);
+
+  /** Heuristique : Génère un matricule au format EIEF_YYYY001. */
+  const generateMatricule = useCallback((arrivalYear: string): string => {
+    const year = arrivalYear || new Date().getFullYear().toString();
+    const prefix = `EIEF_${year}`;
+    
+    // On filtre les élèves existants qui ont un matricule commençant par ce préfixe
+    const sameYear = students.filter(s => (s.registrationNumber || '').startsWith(prefix));
+    
+    let max = 0;
+    sameYear.forEach(s => {
+      // On extrait la partie numérique
+      const numPart = s.registrationNumber.substring(prefix.length);
+      const num = parseInt(numPart, 10);
+      if (!isNaN(num) && num > max) max = num;
+    });
+    
+    const nextNum = (max + 1).toString().padStart(3, '0');
+    return `${prefix}${nextNum}`;
+  }, [students]);
+
 
   // ── State familles (parents = chefs de famille côté backend) ──────────────
   const [parents,   setParents]   = useState<ParentResponse[]>([]);
@@ -268,6 +332,30 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const [teacherForm,  setTeacherForm]  = useState<TeacherRequest>(emptyTeacher());
   const [parentForm,   setParentForm]   = useState<ParentRequest>(emptyParent());
   const [employeeForm, setEmployeeForm] = useState<EmployeeRequest>(emptyEmployee());
+
+  /**
+   * Champs additionnels pour l'inscription : Père obligatoire, Mère optionnelle.
+   * Au submit on appelle registerFamilyAndStudent qui crée Famille + Père + Élève
+   * en un appel atomique (pré-inscription + auto-approbation côté backend).
+   */
+  const [familyForm, setFamilyForm] = useState({
+    fatherFirstName: '', fatherLastName: '', fatherPhone: '', fatherEmail: '', fatherProfession: '', fatherAddress: '',
+    fatherTemporaryPassword: '',
+    motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
+    familyEmail: '',
+  });
+
+  const [studentOptions, setStudentOptions] = useState({
+    cantine: false,
+    transport: 'NONE' as 'NONE' | 'PETIT_TRAJET' | 'LONG_TRAJET',
+    tenueScolaire: false,
+    tenueSport: false,
+    tenueScout: false,
+    tenueKarate: false,
+  });
+
+  /** Filtre par cycle pour la vue Inscriptions (style screenshot 1). */
+  const [niveauFilter, setNiveauFilter] = useState<string>('TOUS');
 
   // ── Notification (hook partagé) ────────────────────────────────────────────
   const { notif, showNotif, closeNotif } = useNotif();
@@ -362,35 +450,168 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
 
   // ── Filtrage client-side ───────────────────────────────────────────────────
   const q = searchQuery.toLowerCase();
+  /** Helper null-safe : gère les champs nullable du backend (registrationNumber, email, etc.). */
+  const safeIncludes = (v: string | null | undefined, sub: string): boolean =>
+    typeof v === 'string' && v.toLowerCase().includes(sub);
+
   const filteredStudents  = students.filter(e =>
-    `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-    e.registrationNumber.toLowerCase().includes(q)
+    safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
+    safeIncludes(e.registrationNumber, q)
   );
   const filteredPreEnrollments = preEnrollments.filter(p =>
-    `${p.studentFirstName} ${p.studentLastName}`.toLowerCase().includes(q) ||
-    `${p.guardianFirstName} ${p.guardianLastName}`.toLowerCase().includes(q) ||
-    p.referenceNumber.toLowerCase().includes(q) ||
-    (p.targetClassName ?? '').toLowerCase().includes(q),
+    safeIncludes(`${p.studentFirstName ?? ''} ${p.studentLastName ?? ''}`, q) ||
+    safeIncludes(`${p.guardianFirstName ?? ''} ${p.guardianLastName ?? ''}`, q) ||
+    safeIncludes(p.referenceNumber, q) ||
+    safeIncludes(p.targetClassName, q),
   );
+
+  /** Map className → niveau (Crèche / Maternelle / Primaire / Collège / Lycée) à partir des classes connues. */
+  const classNameToLevel = (name: string | null | undefined): string => {
+    // Garde null-safe : un élève sans classe assignée renvoie '—'.
+    if (!name || typeof name !== 'string') return '—';
+    const safeName = name;
+    const klass = classes.find(c => {
+      if (!c?.name) return false;
+      if (c.name === safeName) return true;
+      if (c.level && typeof c.level === 'string' && safeName.includes(c.level)) return true;
+      return false;
+    });
+    if (klass?.level) return klass.level;
+    const n = safeName.toUpperCase();
+    if (n.startsWith('PS') || n.startsWith('MS') || n.startsWith('GS')) return 'Maternelle';
+    if (n.startsWith('CP') || n.startsWith('CE') || n.startsWith('CM')) return 'Primaire';
+    if (n.startsWith('6') || n.startsWith('5') || n.startsWith('4') || n.startsWith('3')) return 'Collège';
+    if (n.includes('SECONDE') || n.includes('PREMIERE') || n.includes('TERMINALE') || n.startsWith('2NDE') || n.startsWith('1ERE') || n.startsWith('TLE')) return 'Lycée';
+    if (n.includes('CRECHE')) return 'Crèche';
+    if (n.includes('GARDERIE')) return 'Garderie';
+    return '—';
+  };
+
+  /** Inscriptions filtrées par cycle (Tous/Crèche/.../Lycée). */
+  const filteredStudentsByLevel = niveauFilter === 'TOUS'
+    ? filteredStudents
+    : filteredStudents.filter(s => classNameToLevel(s.className) === niveauFilter);
+
+  // Compteurs par cycle pour les chips
+  const niveauCounts: Record<string, number> = filteredStudents.reduce((acc, s) => {
+    const lvl = classNameToLevel(s.className);
+    acc[lvl] = (acc[lvl] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Stats globales pour le bandeau Inscriptions
+  const inscriptionStats = {
+    total: filteredStudents.length,
+    garcons: filteredStudents.filter(s => s.gender === 'M').length,
+    filles:  filteredStudents.filter(s => s.gender === 'F').length,
+  };
+
+  /**
+   * Agrégation Familles : on regroupe les parents (chefs de famille) et leurs enfants
+   * par nom de famille (le backend Family est encore léger — pas d'endpoint listing).
+   * Heuristique : un parent + ses enfants partageant le lastName forment une famille.
+   * On enrichit avec les rôles Père/Mère (sur la base du prénom le plus fréquent par
+   * nom de famille — par défaut on marque le 1er parent référent comme Père).
+   */
+  type FamilyCard = {
+    key: string;            // lastName (uppercase) or familyId
+    familyId?: string;      // Actual UUID from backend
+    label: string;          // ex: "FAMILLE DIALLO"
+    parents: ParentResponse[];
+    students: StudentResponse[];
+  };
+
+  const familyCards: FamilyCard[] = (() => {
+    const map = new Map<string, FamilyCard>();
+    const upper = (s: string) => (s ?? '').trim().toUpperCase();
+
+    parents.forEach(p => {
+      const k = p.familyId || upper(p.lastName);
+      if (!k) return;
+      if (!map.has(k)) {
+        map.set(k, { key: k, familyId: p.familyId, label: `FAMILLE ${upper(p.lastName)}`, parents: [], students: [] });
+      }
+      const entry = map.get(k)!;
+      entry.parents.push(p);
+      if (!entry.familyId && p.familyId) entry.familyId = p.familyId;
+    });
+
+    students.forEach(s => {
+      const k = s.familyId || upper(s.lastName);
+      if (!k) return;
+      if (!map.has(k)) {
+        map.set(k, { key: k, familyId: s.familyId, label: `FAMILLE ${upper(s.lastName)}`, parents: [], students: [] });
+      }
+      const entry = map.get(k)!;
+      entry.students.push(s);
+      if (!entry.familyId && s.familyId) entry.familyId = s.familyId;
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  })();
+
+  const familySearchQ = q;
+  const filteredFamilyCards = familyCards.filter(fc =>
+    safeIncludes(fc.label, familySearchQ) ||
+    fc.parents.some(p => safeIncludes(`${p.firstName ?? ''} ${p.lastName ?? ''}`, familySearchQ) || safeIncludes(p.email, familySearchQ)) ||
+    fc.students.some(s => safeIncludes(`${s.firstName ?? ''} ${s.lastName ?? ''}`, familySearchQ)),
+  );
+
+  const familyStats = {
+    totalFamilles: familyCards.length,
+    totalEnfants:  familyCards.reduce((acc, f) => acc + f.students.length, 0),
+    fratries:      familyCards.filter(f => f.students.length > 1).length,
+  };
   const filteredTeachers  = teachers.filter(e =>
-    `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-    (e.specialty ?? '').toLowerCase().includes(q)
+    safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
+    safeIncludes(e.specialty, q)
   );
   const filteredFamilies = parents.filter(e =>
-    `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-    e.email.toLowerCase().includes(q)
+    safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
+    safeIncludes(e.email, q)
   );
   const filteredEmployees = employees.filter(e =>
-    `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-    e.email.toLowerCase().includes(q)
+    safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
+    safeIncludes(e.email, q)
   );
+
+  // ── Supprimer Famille ──────────────────────────────────────────────────────
+  const handleDeleteFamily = async (familyId: string, label: string) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la ${label} et tous ses membres (parents et élèves) ?`)) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      await userService.deleteFamily(token, familyId);
+      showNotif('success', `La ${label} a été supprimée.`);
+      await fetchParents();
+      await refetchUT();
+    } catch (err: any) {
+      showNotif('error', err?.message ?? 'Erreur lors de la suppression.');
+    }
+  };
 
   // ── Reset formulaires ──────────────────────────────────────────────────────
   const resetForms = () => {
-    setStudentForm(emptyStudent());
+    const s = emptyStudent();
+    s.registrationNumber = generateMatricule(s.arrivalDate!);
+    setStudentForm(s);
     setTeacherForm(emptyTeacher());
     setParentForm(emptyParent());
     setEmployeeForm(emptyEmployee());
+    setFamilyForm({
+      fatherFirstName: '', fatherLastName: '', fatherPhone: '', fatherEmail: '', fatherProfession: '', fatherAddress: '',
+      fatherTemporaryPassword: '',
+      motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
+      familyEmail: '',
+    });
+    setStudentOptions({
+      cantine: false,
+      transport: 'NONE',
+      tenueScolaire: false,
+      tenueSport: false,
+      tenueScout: false,
+      tenueKarate: false,
+    });
   };
 
   // ── Ouvrir profil ──────────────────────────────────────────────────────────
@@ -413,6 +634,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         phone:              row.phone ?? '',
         registrationNumber: row.registrationNumber,
         birthDate:          row.birthDate ?? '',
+        arrivalDate:        row.arrivalDate ? row.arrivalDate.substring(0, 4) : '',
         gender:             row.gender ?? '',
         classId:            '',
         familyId:           row.familyId ?? '',
@@ -457,8 +679,68 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     setSubmitting(true);
     try {
       if (activeTab === 'eleves') {
-        if (editingId) await editStudent(editingId, studentForm);
-        else           await addStudent(studentForm);
+        if (editingId) {
+          // Édition : on met simplement à jour la fiche élève existante.
+          await editStudent(editingId, studentForm);
+        } else {
+          // Création : inscription complète Famille + Père + Élève en une transaction.
+          if (!studentForm.classId) {
+            throw new Error('Classe obligatoire pour une inscription.');
+          }
+          if (!familyForm.fatherFirstName.trim() || !familyForm.fatherLastName.trim()) {
+            throw new Error('Renseignez le prénom et le nom du Père.');
+          }
+          if (!familyForm.fatherEmail.trim() || !familyForm.fatherPhone.trim()) {
+            throw new Error('Email et téléphone du Père obligatoires.');
+          }
+          if (!familyForm.fatherAddress.trim()) {
+            throw new Error('Adresse de la famille obligatoire.');
+          }
+          if (!familyForm.fatherTemporaryPassword.trim() || familyForm.fatherTemporaryPassword.length < 8) {
+            throw new Error('Le mot de passe du Père est obligatoire (min. 8 car.).');
+          }
+          if (!studentForm.birthDate) {
+            throw new Error('Date de naissance de l\'élève obligatoire.');
+          }
+          if (!studentForm.gender) {
+            throw new Error('Genre de l\'élève obligatoire.');
+          }
+          if (!studentForm.email.trim() || (studentForm.password ?? '').length < 8) {
+            throw new Error("Email + mot de passe (≥ 8 car.) du compte élève requis.");
+          }
+          await userService.registerFamilyAndStudent(token, {
+            studentFirstName: studentForm.firstName,
+            studentLastName: studentForm.lastName,
+            studentBirthDate: studentForm.birthDate,
+            studentArrivalDate: studentForm.arrivalDate,
+            studentGender: (studentForm.gender as 'M' | 'F' | '') || '',
+            targetClassId: studentForm.classId,
+            studentEmail: studentForm.email,
+            studentPassword: studentForm.password,
+            registrationNumber: studentForm.registrationNumber,
+            fatherFirstName: familyForm.fatherFirstName,
+            fatherLastName: familyForm.fatherLastName,
+            fatherEmail: familyForm.fatherEmail,
+            fatherPhone: familyForm.fatherPhone,
+            fatherProfession: familyForm.fatherProfession,
+            fatherAddress: familyForm.fatherAddress,
+            fatherTemporaryPassword: familyForm.fatherTemporaryPassword,
+            motherFirstName: familyForm.motherFirstName,
+            motherLastName: familyForm.motherLastName,
+            motherEmail: familyForm.motherEmail,
+            motherPhone: familyForm.motherPhone,
+            motherProfession: familyForm.motherProfession,
+            familyEmail: familyForm.familyEmail,
+            hasCantine: studentOptions.cantine,
+            transportMode: studentOptions.transport,
+            hasTenueScolaire: studentOptions.tenueScolaire,
+            hasTenueSport: studentOptions.tenueSport,
+            hasTenueScout: studentOptions.tenueScout,
+            hasTenueKarate: studentOptions.tenueKarate,
+          });
+          await refetchUT();
+          await fetchParents();
+        }
       } else if (activeTab === 'enseignants') {
         if (editingId) await editTeacher(editingId, teacherForm);
         else           await addTeacher(teacherForm);
@@ -472,9 +754,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         await fetchEmployees();
       }
       setIsAddModalOpen(false);
+      const savedMatricule = studentForm.registrationNumber;
+      const savedYear = studentForm.arrivalDate;
       setEditingId(null);
       resetForms();
-      showNotif('success', editingId ? 'Modification enregistrée.' : 'Utilisateur ajouté avec succès.');
+      showNotif('success', editingId 
+        ? 'Modification enregistrée.' 
+        : activeTab === 'eleves' && eleveSubTab === 'inscription'
+          ? `Inscription réussie pour le matricule ${savedMatricule} (année ${savedYear}).`
+          : 'Enregistrement réussi.');
     } catch (err: any) {
       showNotif('error', err?.message ?? 'Une erreur est survenue.');
     } finally {
@@ -808,10 +1096,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                        : activeTab === 'employes'    ? fetchEmployees
                        : refetchUT;
 
-  const currentData = isPreEnrollmentView         ? filteredPreEnrollments
-                    : activeTab === 'eleves'      ? filteredStudents
-                    : activeTab === 'enseignants' ? filteredTeachers
-                    : activeTab === 'familles'    ? filteredFamilies
+  const currentData = isPreEnrollmentView                                         ? filteredPreEnrollments
+                    : activeTab === 'eleves' && eleveSubTab === 'inscription'     ? filteredStudentsByLevel
+                    : activeTab === 'eleves'                                      ? filteredStudents
+                    : activeTab === 'enseignants'                                 ? filteredTeachers
+                    : activeTab === 'familles'                                    ? filteredFamilies
                     : filteredEmployees;
 
   /** Colonnes "Réinscrire" : on réutilise eleveColumns mais on remplace le menu d'actions. */
@@ -939,7 +1228,10 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             Gérez les élèves (pré-inscriptions, réinscriptions, inscriptions), enseignants, familles et le personnel.
           </p>
         </div>
-        {/* Bouton "Ajouter" masqué sur la vue Pré-inscription (création publique uniquement) et Réinscription (action par ligne). */}
+        {/* Bouton "Ajouter" masqué :
+            - Vue Pré-inscription (création publique uniquement)
+            - Vue Réinscription (action par ligne)
+            - Onglet Familles (les familles sont créées automatiquement à l'inscription d'un élève) */}
         {!(activeTab === 'eleves' && (eleveSubTab === 'preinscription' || eleveSubTab === 'reinscription')) && (
           <Button
             onClick={e => {
@@ -950,7 +1242,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             }}
             className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
           >
-            <UserPlus size={18} /> Ajouter
+            <UserPlus size={18} />
+            {activeTab === 'eleves' ? 'Inscrire un élève' : activeTab === 'enseignants' ? 'Ajouter enseignant' : activeTab === 'familles' ? 'Ajouter une famille' : 'Ajouter employé'}
           </Button>
         )}
       </div>
@@ -1041,6 +1334,48 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
               </div>
             )}
           </div>
+
+          {/* ── BANDEAU INSCRIPTION : stats + filtres niveau (style screenshot 1) ── */}
+          {eleveSubTab === 'inscription' && (
+            <div className="mt-5 space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <div className="px-4 h-10 rounded-full bg-bleu-50 dark:bg-bleu-900/20 text-bleu-700 dark:text-bleu-300 text-xs font-bold flex items-center gap-2">
+                  <UsersIcon size={13} /> Total : <span className="font-black">{inscriptionStats.total}</span>
+                </div>
+                <div className="px-4 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center gap-2">
+                  ♂ Garçons : <span className="font-black">{inscriptionStats.garcons}</span>
+                </div>
+                <div className="px-4 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-300 text-xs font-bold flex items-center gap-2">
+                  ♀ Filles : <span className="font-black">{inscriptionStats.filles}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(['TOUS', 'Crèche', 'Garderie', 'Maternelle', 'Primaire', 'Collège', 'Lycée'] as const).map(lvl => {
+                  const count = lvl === 'TOUS' ? filteredStudents.length : (niveauCounts[lvl] ?? 0);
+                  const isActive = niveauFilter === lvl;
+                  return (
+                    <button
+                      key={lvl}
+                      onClick={() => setNiveauFilter(lvl)}
+                      className={cn(
+                        'px-4 h-9 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2',
+                        isActive
+                          ? 'bg-bleu-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10',
+                      )}
+                    >
+                      {lvl === 'TOUS' ? 'Tous' : lvl}
+                      <span className={cn(
+                        'px-2 py-0.5 rounded-full text-[9px]',
+                        isActive ? 'bg-white/20 text-white' : 'bg-or-100 dark:bg-or-900/30 text-or-700 dark:text-or-400',
+                      )}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -1052,7 +1387,46 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         </div>
       )}
 
-      {/* TABLEAU */}
+      {/* ── BANDEAU STATS FAMILLES ─────────────────────────────────────────── */}
+      {activeTab === 'familles' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="p-5 border-none bg-gradient-to-br from-bleu-50 to-white dark:from-bleu-900/20 dark:to-gray-900/30">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-bleu-100 dark:bg-bleu-900/40 flex items-center justify-center text-bleu-600 dark:text-bleu-300">
+                <UserCheck size={22} />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Familles</p>
+                <p className="text-2xl font-black text-gray-900 dark:text-white">{familyStats.totalFamilles}</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5 border-none bg-gradient-to-br from-vert-50 to-white dark:from-vert-900/20 dark:to-gray-900/30">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-vert-100 dark:bg-vert-900/40 flex items-center justify-center text-vert-600 dark:text-vert-300">
+                <GraduationCap size={22} />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enfants</p>
+                <p className="text-2xl font-black text-gray-900 dark:text-white">{familyStats.totalEnfants}</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5 border-none bg-gradient-to-br from-pink-50 to-white dark:from-pink-900/20 dark:to-gray-900/30">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-pink-100 dark:bg-pink-900/40 flex items-center justify-center text-pink-600 dark:text-pink-300">
+                <UsersIcon size={22} />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fratries</p>
+                <p className="text-2xl font-black text-gray-900 dark:text-white">{familyStats.fratries}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* TABLEAU / GRILLE */}
       <AnimatePresence mode="wait">
         <motion.div
           key={`${activeTab}-${activeTab === 'eleves' ? eleveSubTab : ''}`}
@@ -1061,27 +1435,149 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="p-2 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
-                <Loader2 size={22} className="animate-spin" />
-                <span className="text-sm font-medium">Chargement...</span>
-              </div>
-            ) : currentData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-                {isPreEnrollmentView
-                  ? <ClipboardList size={40} className="opacity-20" />
-                  : <UsersIcon size={40} className="opacity-20" />}
-                <span className="text-sm font-medium">
+          {activeTab === 'familles' ? (
+            // ── Grille de cartes Familles (style screenshot 2) ──
+            <Card className="p-4 border-none shadow-soft dark:bg-gray-900/50 dark:backdrop-blur-md">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                  <Loader2 size={22} className="animate-spin" />
+                  <span className="text-sm font-medium">Chargement...</span>
+                </div>
+              ) : filteredFamilyCards.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+                  <UsersIcon size={40} className="opacity-20" />
+                  <span className="text-sm font-medium">Aucune famille enregistrée</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredFamilyCards.map(fc => {
+                    const hasFather = fc.parents.some(p => p.firstName); // au moins un parent référent
+                    const hasMother = fc.parents.length > 1;             // 2e parent = mère par convention
+                    const isFratrie = fc.students.length > 1;
+                    const isIndividual = fc.students.length === 1;
+                    return (
+                      <div
+                        key={fc.key}
+                        onClick={() => {
+                          // On affiche le profil du 1er parent comme représentant de la famille
+                          if (fc.parents[0]) {
+                            setProfileRow({ ...fc.parents[0], students: fc.students });
+                            setIsProfileOpen(true);
+                          }
+                        }}
+                        className={cn(
+                          'group relative rounded-2xl bg-white dark:bg-gray-900 border-l-4 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-lg p-4 transition-all cursor-pointer',
+                          isFratrie ? 'border-l-vert-500' : 'border-l-bleu-500',
+                        )}
+                      >                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-bleu-50 dark:bg-bleu-900/30 flex items-center justify-center text-bleu-600 dark:text-bleu-300 shrink-0">
+                            <UserCheck size={18} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm text-gray-900 dark:text-white truncate">
+                              {fc.label}{isIndividual ? ' INDIVIDUEL' : ''}
+                            </p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                              {fc.students.length} enfant{fc.students.length > 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                // Pour la modif, on prend le 1er parent trouvé pour pré-remplir
+                                // ou on pourrait ouvrir une modale dédiée.
+                                const p = fc.parents[0];
+                                if (p) {
+                                  setEditingId(p.id);
+                                  setParentForm({
+                                    ...p,
+                                    roleName: 'PARENT',
+                                    password: ''
+                                  } as ParentRequest);
+                                  setIsAddModalOpen(true);
+                                }                              }}
+                              className="p-1.5 rounded-lg hover:bg-bleu-50 dark:hover:bg-bleu-900/30 text-gray-400 hover:text-bleu-600 transition-colors"
+                              title="Modifier"
+                            >
+                              <Edit size={14} />
+                            </button>
+                             <button
+                               onClick={e => {
+                                 e.stopPropagation();
+                                 if (fc.familyId) {
+                                   handleDeleteFamily(fc.familyId, fc.label);
+                                 } else {
+                                   showNotif('error', 'Impossible de supprimer cette famille : ID manquant.');
+                                 }
+                               }}
+                               className="p-1.5 rounded-lg hover:bg-rouge-50 dark:hover:bg-rouge-900/30 text-gray-400 hover:text-rouge-600 transition-colors"
+                               title="Supprimer"
+                             >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          <ChevronRight size={16} className="text-gray-300 group-hover:text-bleu-500 transition-colors shrink-0" />
+                          </div>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {hasFather && (
+                            <span className="text-[10px] font-bold text-bleu-700 dark:text-bleu-300 inline-flex items-center gap-1 bg-bleu-50 dark:bg-bleu-900/30 px-2.5 py-1 rounded-full">
+                              👨 Père
+                            </span>
+                          )}
+                          {hasMother && (
+                            <span className="text-[10px] font-bold text-rouge-600 dark:text-rouge-300 inline-flex items-center gap-1 bg-rouge-50 dark:bg-rouge-900/30 px-2.5 py-1 rounded-full">
+                              👩 Mère
+                            </span>
+                          )}
+                          {isFratrie && (
+                            <span className="text-[10px] font-bold text-vert-700 dark:text-vert-300 inline-flex items-center gap-1 bg-vert-50 dark:bg-vert-900/30 px-2.5 py-1 rounded-full">
+                              ❤️ Fratrie
+                            </span>
+                          )}
+                        </div>
+
+                        {fc.students.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 space-y-1">
+                            {fc.students.slice(0, 3).map(s => (
+                              <p key={s.id} className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                                · {s.firstName} {s.lastName} <span className="text-gray-300">— {s.className || '—'}</span>
+                              </p>
+                            ))}
+                            {fc.students.length > 3 && (
+                              <p className="text-[10px] italic text-gray-400">+ {fc.students.length - 3} autre{fc.students.length - 3 > 1 ? 's' : ''}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          ) : (
+            <Card className="p-2 border-none shadow-soft overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                  <Loader2 size={22} className="animate-spin" />
+                  <span className="text-sm font-medium">Chargement...</span>
+                </div>
+              ) : currentData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
                   {isPreEnrollmentView
-                    ? `Aucune pré-inscription ${preStatusFilter === 'PENDING' ? 'en attente' : preStatusFilter === 'APPROVED' ? 'approuvée' : preStatusFilter === 'REJECTED' ? 'rejetée' : ''}`
-                    : 'Aucun utilisateur trouvé'}
-                </span>
-              </div>
-            ) : (
-              <Table data={currentData as any} columns={currentColumns as any} />
-            )}
-          </Card>
+                    ? <ClipboardList size={40} className="opacity-20" />
+                    : <UsersIcon size={40} className="opacity-20" />}
+                  <span className="text-sm font-medium">
+                    {isPreEnrollmentView
+                      ? `Aucune pré-inscription ${preStatusFilter === 'PENDING' ? 'en attente' : preStatusFilter === 'APPROVED' ? 'approuvée' : preStatusFilter === 'REJECTED' ? 'rejetée' : ''}`
+                      : 'Aucun utilisateur trouvé'}
+                  </span>
+                </div>
+              ) : (
+                <Table data={currentData as any} columns={currentColumns as any} />
+              )}
+            </Card>
+          )}
         </motion.div>
       </AnimatePresence>
 
@@ -1190,9 +1686,18 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                 <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input label="Numéro de matricule" placeholder="EIEF2024..."
-                  value={studentForm.registrationNumber}
-                  onChange={e => setStudentForm(f => ({ ...f, registrationNumber: e.target.value }))}
+                <Input label="Année d'arrivée" type="number"
+                  min="2000" max="2100"
+                  value={studentForm.arrivalDate ?? ''}
+                  onChange={e => {
+                    const year = e.target.value;
+                    const matricule = generateMatricule(year);
+                    setStudentForm(f => ({ 
+                      ...f, 
+                      arrivalDate: year,
+                      registrationNumber: editingId ? f.registrationNumber : matricule 
+                    }));
+                  }}
                 />
                 <Input label="Date de naissance" type="date"
                   value={studentForm.birthDate ?? ''}
@@ -1223,20 +1728,215 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                   value={studentForm.classId ?? ''}
                   onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
                 />
-                <Select
-                  label="Famille (rattachement)"
-                  options={[
-                    { value: '', label: parents.length === 0 ? 'Aucune famille disponible' : 'Sélectionner une famille...' },
-                    ...parents.map(p => ({
-                      value: p.id,
-                      label: `Famille ${p.lastName} (${p.firstName})`,
-                    })),
-                  ]}
-                  value={studentForm.familyId ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, familyId: e.target.value }))}
-                />
+                {editingId && (
+                  <Select
+                    label="Famille (rattachement existant)"
+                    options={[
+                      { value: '', label: parents.length === 0 ? 'Aucune famille disponible' : 'Sélectionner une famille...' },
+                      ...parents.map(p => ({
+                        value: p.id,
+                        label: `Famille ${p.lastName} (${p.firstName})`,
+                      })),
+                    ]}
+                    value={studentForm.familyId ?? ''}
+                    onChange={e => setStudentForm(f => ({ ...f, familyId: e.target.value }))}
+                  />
+                )}
               </div>
             </div>
+          )}
+
+          {/* ─ Père & Mère (création uniquement) ─ */}
+          {activeTab === 'eleves' && !editingId && (
+            <>
+              <div>
+                <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-bleu-500 rounded-full" /> 👨 Informations du Père
+                  <span className="ml-auto text-[8px] text-rouge-500 font-bold normal-case tracking-normal">obligatoire</span>
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input label="Prénom du père" placeholder="ex: Mamadou"
+                    value={familyForm.fatherFirstName}
+                    onChange={e => setFamilyForm(f => ({ ...f, fatherFirstName: e.target.value }))}
+                  />
+                  <Input label="Nom du père" placeholder="ex: Diallo"
+                    value={familyForm.fatherLastName}
+                    onChange={e => setFamilyForm(f => ({ ...f, fatherLastName: e.target.value }))}
+                  />
+                  <Input label="Email du père" type="email" placeholder="papa@exemple.com"
+                    value={familyForm.fatherEmail}
+                    onChange={e => setFamilyForm(f => ({ ...f, fatherEmail: e.target.value }))}
+                  />
+                  <Input label="Téléphone du père" placeholder="+224 ..."
+                    value={familyForm.fatherPhone}
+                    onChange={e => setFamilyForm(f => ({ ...f, fatherPhone: e.target.value }))}
+                  />
+                  <Input label="Profession (optionnel)" placeholder="ex: Ingénieur"
+                   value={familyForm.fatherProfession}
+                   onChange={e => setFamilyForm(f => ({ ...f, fatherProfession: e.target.value }))}
+                  />
+                  <Input label="Mot de passe du Père" type="password" placeholder="Min. 8 caractères"
+                   value={familyForm.fatherTemporaryPassword}
+                   onChange={e => setFamilyForm(f => ({ ...f, fatherTemporaryPassword: e.target.value }))}
+                  />
+                  <Input label="Adresse de la famille" placeholder="Quartier, ville"
+                    value={familyForm.fatherAddress}
+                    onChange={e => setFamilyForm(f => ({ ...f, fatherAddress: e.target.value }))}
+                  />
+                  <Input label="Email de contact général (optionnel)" placeholder="famille@exemple.com"
+                    value={familyForm.familyEmail}
+                    onChange={e => setFamilyForm(f => ({ ...f, familyEmail: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-rouge-500 dark:text-rouge-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-rouge-500 rounded-full" /> 👩 Informations de la Mère
+                  <span className="ml-auto text-[8px] text-gray-400 font-bold normal-case tracking-normal">optionnel</span>
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input label="Prénom de la mère" placeholder="ex: Mariama"
+                    value={familyForm.motherFirstName}
+                    onChange={e => setFamilyForm(f => ({ ...f, motherFirstName: e.target.value }))}
+                  />
+                  <Input label="Nom de la mère" placeholder="ex: Diallo"
+                    value={familyForm.motherLastName}
+                    onChange={e => setFamilyForm(f => ({ ...f, motherLastName: e.target.value }))}
+                  />
+                  <Input label="Email de la mère" type="email" placeholder="maman@exemple.com"
+                    value={familyForm.motherEmail}
+                    onChange={e => setFamilyForm(f => ({ ...f, motherEmail: e.target.value }))}
+                  />
+                  <Input label="Téléphone de la mère" placeholder="+224 ..."
+                    value={familyForm.motherPhone}
+                    onChange={e => setFamilyForm(f => ({ ...f, motherPhone: e.target.value }))}
+                  />
+                  <Input label="Profession (optionnel)" placeholder="ex: Enseignante"
+                    value={familyForm.motherProfession}
+                    onChange={e => setFamilyForm(f => ({ ...f, motherProfession: e.target.value }))}
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 italic mt-3">
+                  La famille (Père obligatoire, Mère optionnelle) est créée automatiquement lors de l'enregistrement de l'élève.
+                </p>
+              </div>
+
+              {/* ─ Options pour cet enfant ─ */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-vert-500 rounded-full" /> ⚙️ Options pour cet enfant
+                </p>
+                
+                <div className="space-y-4">
+                  {/* Cantine */}
+                  <button
+                    type="button"
+                    onClick={() => setStudentOptions(p => ({ ...p, cantine: !p.cantine }))}
+                    className={cn(
+                      'w-full text-left flex gap-4 items-start p-4 rounded-2xl border-2 transition-all',
+                      studentOptions.cantine
+                        ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400'
+                        : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 hover:border-bleu-300',
+                    )}
+                  >
+                    <div className={cn(
+                      'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
+                      studentOptions.cantine ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
+                    )}>
+                      {studentOptions.cantine && <CheckCircle2 size={12} className="text-white" />}
+                    </div>
+                    <span className="text-xl shrink-0">🍽️</span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Cantine scolaire</h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 leading-tight">Repas chauds et équilibrés servis chaque jour à l'école.</p>
+                      <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-400">💰 400 000 GNF / mois</p>
+                    </div>
+                  </button>
+
+                  {/* Transport */}
+                  <div className={cn(
+                    'p-4 rounded-2xl border-2 transition-all space-y-3',
+                    studentOptions.transport !== 'NONE'
+                      ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400'
+                      : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 hover:border-bleu-300'
+                  )}>
+                    <div className="flex gap-4 items-start">
+                      <div className={cn(
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
+                        studentOptions.transport !== 'NONE' ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
+                      )}>
+                        {studentOptions.transport !== 'NONE' && <CheckCircle2 size={12} className="text-white" />}
+                      </div>
+                      <span className="text-xl shrink-0">🚌</span>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Transport scolaire</h4>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2 leading-tight">Navette aller-retour sécurisée avec chauffeur dédié.</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pl-9">
+                      {(['PETIT_TRAJET', 'LONG_TRAJET'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setStudentOptions(p => ({ ...p, transport: p.transport === mode ? 'NONE' : mode }))}
+                          className={cn(
+                            'p-2 rounded-xl border text-[10px] font-bold transition-all',
+                            studentOptions.transport === mode
+                              ? 'bg-bleu-600 text-white border-bleu-600'
+                              : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400'
+                          )}
+                        >
+                          {mode === 'PETIT_TRAJET' ? '🚗 Petit (300k)' : '🚐 Long (350k)'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Uniformes */}
+                  <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
+                    <div className="flex items-start gap-3 mb-4">
+                      <span className="text-xl">👔</span>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Uniformes & Équipements</h4>
+                        <p className="text-[10px] text-gray-400">Sélectionnez les tenues souhaitées</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { id: 'tenueScolaire', icon: '👕', title: 'Scolaire', price: '350k / 450k' },
+                        { id: 'tenueSport',    icon: '🤸', title: 'Sport',    price: '100k' },
+                        { id: 'tenueScout',    icon: '⚜️', title: 'Scout',    price: '250k' },
+                        { id: 'tenueKarate',   icon: '🥋', title: 'Karaté',   price: '200k' },
+                      ].map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => setStudentOptions(p => ({ ...p, [u.id]: !(p as any)[u.id] }))}
+                          className={cn(
+                            'flex items-center gap-2 p-2 rounded-xl border-2 text-left transition-all',
+                            (studentOptions as any)[u.id]
+                              ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm'
+                              : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200',
+                          )}
+                        >
+                          <div className={cn(
+                            'w-4 h-4 rounded-full border flex items-center justify-center shrink-0',
+                            (studentOptions as any)[u.id] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
+                          )}>
+                            {(studentOptions as any)[u.id] && <CheckCircle2 size={10} className="text-white" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-gray-900 dark:text-white truncate">{u.icon} {u.title}</p>
+                            <p className="text-[9px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
           {/* ─ Champs spécifiques enseignants ─ */}
@@ -1270,12 +1970,27 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
           {activeTab === 'familles' && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1 h-3 bg-vert-500 rounded-full" /> Contact du parent référent
+                <span className="w-1 h-3 bg-vert-500 rounded-full" /> Détails de la Famille
               </p>
-              <Input label="Téléphone" placeholder="+224 ..."
-                value={parentForm.phone ?? ''}
-                onChange={e => setParentForm(f => ({ ...f, phone: e.target.value }))}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <Input label="Téléphone" placeholder="+224 ..."
+                  value={parentForm.phone ?? ''}
+                  onChange={e => setParentForm(f => ({ ...f, phone: e.target.value }))}
+                />
+                <Input label="Adresse de la famille" placeholder="Quartier, ville"
+                  value={parentForm.address ?? ''}
+                  onChange={e => setParentForm(f => ({ ...f, address: e.target.value }))}
+                />
+                <Select label="Relation"
+                  options={[
+                    { value: 'Pere', label: 'Père' },
+                    { value: 'Mere', label: 'Mère' },
+                    { value: 'Tuteur', label: 'Tuteur/Autre' },
+                  ]}
+                  value={parentForm.relationship ?? ''}
+                  onChange={e => setParentForm(f => ({ ...f, relationship: e.target.value }))}
+                />
+              </div>
               <p className="text-[10px] text-gray-400 italic mt-3">
                 Une famille est représentée par un parent référent. Les enfants seront rattachés à cette famille via leur fiche élève.
               </p>
@@ -1406,6 +2121,38 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
               <DetailRow icon={<User size={14} />}     label="Sexe"              value={preDetail.studentGender === 'M' ? 'Masculin' : preDetail.studentGender === 'F' ? 'Féminin' : preDetail.studentGender} />
               <DetailRow icon={<BookOpen size={14} />} label="Niveau souhaité"   value={preDetail.targetLevel} />
               <DetailRow icon={<BookOpen size={14} />} label="Classe souhaitée"  value={preDetail.targetClassName} />
+            </div>
+
+            {/* Options */}
+            <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-1 h-3 rounded-full bg-purple-500" /> Options souhaitées
+              </p>
+              <DetailRow 
+                icon={<span>🍽️</span>} 
+                label="Cantine scolaire" 
+                value={preDetail.hasCantine ? "Oui (400 000 GNF/mois)" : "Non"} 
+              />
+              <DetailRow 
+                icon={<span>🚌</span>} 
+                label="Transport scolaire" 
+                value={
+                  preDetail.transportMode === 'PETIT_TRAJET' ? "Oui - Petit trajet (300 000 GNF/mois)" :
+                  preDetail.transportMode === 'LONG_TRAJET' ? "Oui - Long trajet (350 000 GNF/mois)" : "Non"
+                } 
+              />
+              {(preDetail.hasTenueScolaire || preDetail.hasTenueSport || preDetail.hasTenueScout || preDetail.hasTenueKarate) && (
+                <DetailRow 
+                  icon={<span>👔</span>} 
+                  label="Uniformes & Équipements" 
+                  value={[
+                    preDetail.hasTenueScolaire ? "Tenue scolaire" : null,
+                    preDetail.hasTenueSport ? "Tenue de sport" : null,
+                    preDetail.hasTenueScout ? "Tenue Scout" : null,
+                    preDetail.hasTenueKarate ? "Tenue de Karaté" : null
+                  ].filter(Boolean).join(', ')} 
+                />
+              )}
             </div>
 
             {/* Parent / Tuteur */}
@@ -1562,7 +2309,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         )}
       </Modal>
 
-      {/* ── MODALE RÉINSCRIPTION ──────────────────────────────────────────────── */}
       <Modal
         isOpen={!!reenrollTarget}
         onClose={() => !reenrolling && setReenrollTarget(null)}
@@ -1571,7 +2317,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600">
               <RefreshCw size={22} />
             </div>
-            <span className="font-bold gradient-bleu-or-text">Réinscrire l'élève</span>
+            <span className="font-bold gradient-bleu-or-text">Reinscrire l'eleve</span>
           </div>
         }
         size="md"
@@ -1582,15 +2328,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
               <Avatar name={`${reenrollTarget.firstName} ${reenrollTarget.lastName}`} size="sm" />
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">{reenrollTarget.firstName} {reenrollTarget.lastName}</p>
-                <p className="text-[11px] text-gray-400">Matricule : {reenrollTarget.registrationNumber} · Classe actuelle : {reenrollTarget.className}</p>
+                <p className="text-[11px] text-gray-400">Matricule : {reenrollTarget.registrationNumber} - Classe actuelle : {reenrollTarget.className}</p>
               </div>
             </div>
 
             <Select
               label="Nouvelle classe"
               options={[
-                { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
-                ...classes.map(c => ({ value: c.id, label: c.level ? `${c.name} — ${c.level}` : c.name })),
+                { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Selectionner une classe...' },
+                ...classes.map(c => ({ value: c.id, label: c.level ? `${c.name} - ${c.level}` : c.name })),
               ]}
               value={reenrollForm.classId}
               onChange={e => setReenrollForm(f => ({ ...f, classId: e.target.value }))}
@@ -1610,14 +2356,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                 className="flex-1 h-12 bg-or-600 hover:bg-or-500 border-none text-gray-950 flex items-center justify-center gap-2"
               >
                 {reenrolling && <Loader2 size={16} className="animate-spin" />}
-                Confirmer la réinscription
+                Confirmer la reinscription
               </Button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* ── TOAST NOTIFICATION (composant partagé) ─────────────────────────── */}
       <NotificationToast notif={notif} onClose={closeNotif} />
     </motion.div>
   );

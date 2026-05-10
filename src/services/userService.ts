@@ -14,6 +14,7 @@ export interface StudentResponse {
   phone: string;
   registrationNumber: string;
   birthDate: string;
+  arrivalDate?: string;
   gender: string;
   className: string;
   /** UUID de la famille — backend renvoie familyId */
@@ -31,6 +32,7 @@ export interface StudentRequest {
   phone?: string;
   registrationNumber: string;
   birthDate?: string;
+  arrivalDate?: string;
   gender?: string;
   classId?: string;
   /** Backend : Student rattaché à une Family (et non plus à un parent unique) */
@@ -62,6 +64,23 @@ export interface PreEnrollmentRequest {
   guardianPhone: string;
   guardianRelationship: string;
   guardianAddress: string;
+  fatherFirstName?: string;
+  fatherLastName?: string;
+  fatherEmail?: string;
+  fatherPhone?: string;
+  fatherProfession?: string;
+  motherFirstName?: string;
+  motherLastName?: string;
+  motherEmail?: string;
+  motherPhone?: string;
+  motherProfession?: string;
+  familyEmail?: string;
+  hasCantine: boolean;
+  transportMode: string;
+  hasTenueScolaire: boolean;
+  hasTenueSport: boolean;
+  hasTenueScout: boolean;
+  hasTenueKarate: boolean;
 }
 
 export interface PreEnrollmentResponse {
@@ -81,6 +100,12 @@ export interface PreEnrollmentResponse {
   targetClassId: string;
   targetClassName: string;
   targetLevel: string;
+  hasCantine: boolean;
+  transportMode: string;
+  hasTenueScolaire: boolean;
+  hasTenueSport: boolean;
+  hasTenueScout: boolean;
+  hasTenueKarate: boolean;
   rejectionReason: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
@@ -95,6 +120,9 @@ export interface PreEnrollmentApprovalRequest {
   studentEmail: string;
   studentPassword: string;
   parentTemporaryPassword?: string;
+  arrivalYear?: number;
+  registrationNumber?: string;
+  arrivalDate?: string;
 }
 
 export interface PreEnrollmentDecisionRequest {
@@ -144,15 +172,57 @@ export interface ParentResponse {
   phone: string;
   roleName: string;
   isActive: boolean;
+  familyId?: string;
 }
 
 export interface ParentRequest {
   email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
   phone?: string;
   roleName: "PARENT";
+  address?: string;
+  relationship?: string;
+}
+
+// ── Inscription famille (élève + père + mère) ────────────────────────────────
+//
+// Le backend n'expose pas (encore) un endpoint atomique père+mère+élève. On
+// s'appuie sur le flux pré-inscription qui crée déjà Family + Parent + Student
+// en une transaction (lors de l'approbation).
+export interface FamilyEnrollmentRequest {
+  // ─── Élève ───
+  studentFirstName: string;
+  studentLastName: string;
+  studentBirthDate: string;
+  studentArrivalDate?: string;
+  studentGender: "M" | "F" | "";
+  targetClassId: string;
+  studentEmail: string;
+  studentPassword: string;
+  registrationNumber?: string;
+  // ─── Père (= guardian principal) ───
+  fatherFirstName: string;
+  fatherLastName: string;
+  fatherEmail: string;
+  fatherPhone: string;
+  fatherProfession?: string;
+  fatherAddress: string;
+  fatherTemporaryPassword?: string;
+  // ─── Mère (optionnelle) ───
+  motherFirstName?: string;
+  motherLastName?: string;
+  motherEmail?: string;
+  motherPhone?: string;
+  motherProfession?: string;
+  familyEmail?: string;
+  hasCantine?: boolean;
+  transportMode?: string;
+  hasTenueScolaire?: boolean;
+  hasTenueSport?: boolean;
+  hasTenueScout?: boolean;
+  hasTenueKarate?: boolean;
 }
 
 // ── Employés ──────────────────────────────────────────────────────────────────
@@ -334,6 +404,106 @@ export const userService = {
       token,
     }),
 
+  /**
+   * Inscription "tout-en-un" depuis l'admin :
+   *   1. submit pre-enrollment (père = guardian)
+   *   2. approve (crée Family + Père + Élève en une transaction)
+   *   3. (optionnel) inscrit la mère comme parent additionnel
+   */
+  registerFamilyAndStudent: async (
+    token: string,
+    payload: FamilyEnrollmentRequest,
+  ): Promise<PreEnrollmentResponse> => {
+    const submitted = await apiRequest<PreEnrollmentResponse>(
+      "/pre-enrollments",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          studentFirstName: payload.studentFirstName,
+          studentLastName: payload.studentLastName,
+          studentBirthDate: payload.studentBirthDate,
+          studentGender: payload.studentGender,
+          targetClassId: payload.targetClassId,
+          guardianFirstName: payload.fatherFirstName,
+          guardianLastName: payload.fatherLastName,
+          guardianEmail: payload.fatherEmail,
+          guardianPhone: payload.fatherPhone,
+          guardianRelationship: "Pere",
+          guardianAddress: payload.fatherAddress,
+          fatherFirstName: payload.fatherFirstName,
+          fatherLastName: payload.fatherLastName,
+          fatherEmail: payload.fatherEmail,
+          fatherPhone: payload.fatherPhone,
+          fatherProfession: payload.fatherProfession,
+          motherFirstName: payload.motherFirstName,
+          motherLastName: payload.motherLastName,
+          motherEmail: payload.motherEmail,
+          motherPhone: payload.motherPhone,
+          motherProfession: payload.motherProfession,
+          familyEmail: payload.familyEmail,
+          hasCantine: !!payload.hasCantine,
+          transportMode: payload.transportMode || "NONE",
+          hasTenueScolaire: !!payload.hasTenueScolaire,
+          hasTenueSport: !!payload.hasTenueSport,
+          hasTenueScout: !!payload.hasTenueScout,
+          hasTenueKarate: !!payload.hasTenueKarate,
+        }),
+        token,
+      },
+    );
+
+    const approvalPayload: any = {
+      studentEmail: payload.studentEmail,
+      studentPassword: payload.studentPassword,
+      parentTemporaryPassword: payload.fatherTemporaryPassword || undefined,
+      registrationNumber: payload.registrationNumber,
+    };
+
+    if (payload.studentArrivalDate) {
+      if (payload.studentArrivalDate.length === 4 && /^\d+$/.test(payload.studentArrivalDate)) {
+        approvalPayload.arrivalYear = parseInt(payload.studentArrivalDate, 10);
+      } else {
+        approvalPayload.arrivalDate = payload.studentArrivalDate.slice(0, 10);
+      }
+    }
+
+    const approved = await apiRequest<PreEnrollmentResponse>(
+      `/pre-enrollments/${submitted.id}/approve`,
+      {
+        method: "POST",
+        body: JSON.stringify(approvalPayload),
+        token,
+      },
+    );
+
+    if (
+      payload.motherFirstName?.trim() &&
+      payload.motherLastName?.trim() &&
+      payload.motherEmail?.trim()
+    ) {
+      try {
+        await apiRequest<unknown>("/users/auth/register", {
+          method: "POST",
+          body: JSON.stringify({
+            email: payload.motherEmail.trim(),
+            password:
+              payload.fatherTemporaryPassword ||
+              `Maman${Math.floor(Math.random() * 10000)}!`,
+            firstName: payload.motherFirstName.trim(),
+            lastName: payload.motherLastName.trim(),
+            phone: payload.motherPhone?.trim() || "",
+            roleName: "PARENT",
+          }),
+          token,
+        });
+      } catch {
+        // Silencieux: l'inscription élève + père est validée même si la mère échoue.
+      }
+    }
+
+    return approved;
+  },
+
   // ── Enseignants ─────────────────────────────────────────────────────────────
 
   getAllTeachers: (token: string, search?: string) => {
@@ -399,6 +569,9 @@ export const userService = {
 
   deleteParent: (token: string, id: string) =>
     apiRequest<void>(`/users/${id}`, { method: "DELETE", token }),
+
+  deleteFamily: (token: string, id: string) =>
+    apiRequest<void>(`/users/families/${id}`, { method: "DELETE", token }),
 
   // ── Employés ────────────────────────────────────────────────────────────────
 

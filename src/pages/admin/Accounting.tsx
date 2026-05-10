@@ -128,14 +128,13 @@ interface TuitionFeeResponse {
   installments: TuitionFeeInstallmentResponse[];
 }
 
-// ── FIX: champs alignés avec le backend ──────────────────────────────────────
 interface TuitionFeeInstallmentStatusResponse {
   tuitionFeeId: string;
   tuitionFeeName: string;
   installmentId: string;
-  installmentLabel: string;   // ← était "label" (inexistant)
+  installmentLabel: string;
   dueDate: string;
-  installmentAmount: number;  // ← était "expectedAmount" (inexistant)
+  installmentAmount: number;
   paidAmount: number;
   remainingAmount: number;
   overdue: boolean;
@@ -254,6 +253,8 @@ const AdminAccounting: React.FC = () => {
   });
   const [tuitionSubmitting, setTuitionSubmitting] = useState(false);
 
+  const [paymentCategories, setPaymentCategories] = useState<ExpenseCategoryResponse[]>([]);
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const showSuccess = (msg: string) => {
@@ -263,7 +264,7 @@ const AdminAccounting: React.FC = () => {
   };
 
   const getApiBaseUrl = () =>
-    (process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8080/api/v1');
+    (process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:8080/api/v1');
 
   const getToken = (): string | null => {
     try {
@@ -302,6 +303,17 @@ const AdminAccounting: React.FC = () => {
   };
 
   // ── Fetch payments ────────────────────────────────────────────────────────
+
+  const fetchPaymentCategories = useCallback(async () => {
+    try {
+      // Le backend semble utiliser le même endpoint pour INCOME et EXPENSE mais filtré par type si besoin
+      // Ici on prend tout et on filtrera au besoin
+      const data = await apiRequest<ExpenseCategoryResponse[]>('/expenses/categories', { method: 'GET' });
+      setPaymentCategories(data);
+    } catch (err: any) {
+      console.error('Erreur chargement catégories paiements:', err);
+    }
+  }, []);
 
   const fetchPayments = useCallback(async () => {
     try {
@@ -1872,19 +1884,24 @@ const AdminAccounting: React.FC = () => {
           title="Générer un rapport"
         >
           <div className="space-y-3 p-1">
-            {[
-              { label: 'Rapport des paiements', path: '/payments/report', file: 'rapport-paiements.pdf' },
-              { label: 'Rapport des impayés', path: '/payments/overdue/report', file: 'rapport-impayes.pdf' },
-              { label: 'Rapport de scolarité', path: '/tuition-fees/report', file: 'rapport-scolarite.pdf' },
-            ].map(r => (
-              <button
-                key={r.path}
-                onClick={() => downloadReport(r.path, r.file)}
-                className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-2xl text-sm font-bold text-gray-700 dark:text-gray-300 transition-all"
-              >
-                <Download size={16} className="text-bleu-600" /> {r.label}
-              </button>
-            ))}
+            <button
+              onClick={() => downloadReport('/payments/report/daily', `journal-caisse-${new Date().toISOString().split('T')[0]}.html`, true)}
+              className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-2xl text-sm font-bold text-gray-700 dark:text-gray-300 transition-all"
+            >
+              <FileText size={16} className="text-bleu-600" /> Journal de caisse (Journalier HTML)
+            </button>
+            <button
+              onClick={() => downloadReport('/payments/report/monthly', `rapport-mensuel-${new Date().toISOString().slice(0, 7)}.csv`)}
+              className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-2xl text-sm font-bold text-gray-700 dark:text-gray-300 transition-all"
+            >
+              <Download size={16} className="text-vert-600" /> Rapport mensuel (CSV)
+            </button>
+            <button
+              onClick={() => downloadReport('/payments/report/overdue', `rapport-impayes-${new Date().toISOString().split('T')[0]}.csv`)}
+              className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 hover:bg-rouge-50 dark:hover:bg-rouge-900/20 rounded-2xl text-sm font-bold text-gray-700 dark:text-gray-300 transition-all"
+            >
+              <AlertCircle size={16} className="text-rouge-600" /> Rapport des impayés (CSV)
+            </button>
           </div>
         </Modal>
       )}
