@@ -17,7 +17,7 @@ interface Props {
   onChange: (form: ClassForm) => void;
   onClose: () => void;
   onSubmit: () => void;
-  onOpenYearModal: () => void;
+  onOpenYearModal?: () => void;
 }
 
 const ClassModal: React.FC<Props> = ({
@@ -67,14 +67,16 @@ const ClassModal: React.FC<Props> = ({
               onChange={e => onChange({ ...form, academicYearId: e.target.value })}
             />
           </div>
-          <Button
-            variant="outline"
-            className="h-[46px] px-3 border-gray-200 dark:border-white/10"
-            onClick={onOpenYearModal}
-            title="Ajouter une année académique"
-          >
-            <Plus size={18} />
-          </Button>
+          {onOpenYearModal && (
+            <Button
+              variant="outline"
+              className="h-[46px] px-3 border-gray-200 dark:border-white/10"
+              onClick={onOpenYearModal}
+              title="Ajouter une année académique"
+            >
+              <Plus size={18} />
+            </Button>
+          )}
         </div>
         <Select
           label="Professeur Principal"

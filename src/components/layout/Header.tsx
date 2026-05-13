@@ -22,6 +22,7 @@ const roleLabels: Record<string, string> = {
   eleve: 'Élève',
   manager: 'Manager',
   comptable: 'Comptable',
+  coordinator: 'Coordinateur',
 };
 
 const Header: React.FC<HeaderProps> = ({

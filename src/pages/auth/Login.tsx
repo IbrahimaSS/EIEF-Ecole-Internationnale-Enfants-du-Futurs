@@ -41,6 +41,7 @@ const Login: React.FC = () => {
 
   const roles: Array<{ value: UserRole; label: string; icon: React.ComponentType<{ size?: number }> }> = [
     { value: 'admin' as UserRole, label: 'Administration', icon: ShieldCheck },
+    { value: 'coordinator' as UserRole, label: 'Coordinateur', icon: Users },
     { value: 'comptable' as UserRole, label: 'Comptable', icon: CheckCircle2 },
     { value: 'enseignant' as UserRole, label: 'Enseignant', icon: BookOpen },
     { value: 'parent' as UserRole, label: 'Parent', icon: UserCheck },

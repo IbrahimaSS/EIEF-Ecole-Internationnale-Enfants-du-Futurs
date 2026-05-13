@@ -58,7 +58,13 @@ import {
   TeacherResponse,
 } from './scolarite/types';
 
-const ManagerScolarite: React.FC = () => {
+interface ManagerScolariteProps {
+  allowCatalogManagement?: boolean;
+}
+
+const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
+  allowCatalogManagement = true,
+}) => {
   // ── Données initiales ─────────────────────────────────────────────────────
   const {
     classes,
@@ -405,7 +411,7 @@ const ManagerScolarite: React.FC = () => {
         classCount={classes.length}
         studentCount={students.length}
         scheduleCount={schedules.length}
-        onAddSubject={onAddSubjectClick}
+        onAddSubject={allowCatalogManagement ? onAddSubjectClick : undefined}
         onAddClass={onAddClassClick}
         onAddSchedule={() => openAddSchedule()}
       />
@@ -577,26 +583,30 @@ const ManagerScolarite: React.FC = () => {
         onChange={setClassForm}
         onClose={() => setIsClassModalOpen(false)}
         onSubmit={handleSubmitClass}
-        onOpenYearModal={() => setIsAcademicYearModalOpen(true)}
+        onOpenYearModal={allowCatalogManagement ? () => setIsAcademicYearModalOpen(true) : undefined}
       />
 
-      <SubjectModal
-        isOpen={isSubjectModalOpen}
-        form={subjectForm}
-        submitting={submitting}
-        onChange={setSubjectForm}
-        onClose={() => setIsSubjectModalOpen(false)}
-        onSubmit={handleSubmitSubject}
-      />
+      {allowCatalogManagement && (
+        <SubjectModal
+          isOpen={isSubjectModalOpen}
+          form={subjectForm}
+          submitting={submitting}
+          onChange={setSubjectForm}
+          onClose={() => setIsSubjectModalOpen(false)}
+          onSubmit={handleSubmitSubject}
+        />
+      )}
 
-      <AcademicYearModal
-        isOpen={isAcademicYearModalOpen}
-        form={academicYearForm}
-        submitting={submitting}
-        onChange={setAcademicYearForm}
-        onClose={() => setIsAcademicYearModalOpen(false)}
-        onSubmit={handleSubmitAcademicYear}
-      />
+      {allowCatalogManagement && (
+        <AcademicYearModal
+          isOpen={isAcademicYearModalOpen}
+          form={academicYearForm}
+          submitting={submitting}
+          onChange={setAcademicYearForm}
+          onClose={() => setIsAcademicYearModalOpen(false)}
+          onSubmit={handleSubmitAcademicYear}
+        />
+      )}
 
       <GradesModal
         isOpen={isGradesModalOpen}

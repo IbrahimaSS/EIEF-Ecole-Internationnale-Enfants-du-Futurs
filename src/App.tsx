@@ -20,6 +20,9 @@ import ManagerScolarite from './pages/manager/Scolarite';
 import ManagerUsers from './pages/manager/Users';
 import ComptableDashboard from './pages/comptabilite/Dashboard';
 import ComptableAccounting from './pages/comptabilite/Accounting';
+import CoordinatorDashboard from './pages/coordinator/Dashboard';
+import CoordinatorScolarite from './pages/coordinator/Scolarite';
+import CoordinatorTeachers from './pages/coordinator/Teachers';
 
 import Login from './pages/auth/Login';
 import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
@@ -61,6 +64,7 @@ import ProtectedRoute from './components/shared/ProtectedRoute';
 // Layouts
 import Layout from './components/layout/Layout';
 import { useLocation } from 'react-router-dom';
+import { UserRole } from './types/auth';
 
 // Composant de page d'erreur 404
 const NotFound = () => (
@@ -161,6 +165,19 @@ function App() {
             <Route path="profil" element={<AdminProfile />} />
           </Route>
 
+          <Route path="/coordinator" element={
+            <ProtectedRoute allowedRoles={['coordinator']}>
+              <LayoutRoutes role="coordinator" />
+            </ProtectedRoute>
+          }>
+            <Route index element={<CoordinatorDashboard />} />
+            <Route path="dashboard" element={<CoordinatorDashboard />} />
+            <Route path="scolarite" element={<CoordinatorScolarite />} />
+            <Route path="enseignants" element={<CoordinatorTeachers />} />
+            <Route path="profil" element={<AdminProfile />} />
+            <Route path="preferences" element={<EnseignantPreferences />} />
+          </Route>
+
           <Route path="/enseignant" element={
             <ProtectedRoute allowedRoles={['enseignant']}>
               <LayoutRoutes role="enseignant" />
@@ -229,7 +246,7 @@ function App() {
 
 // Composant interne pour gérer les routes avec layout
 interface LayoutRoutesProps {
-  role: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager' | 'comptable';
+  role: UserRole;
 }
 
 const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
@@ -282,6 +299,16 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
         };
         return comptablePages[currentPage] || comptablePages['dashboard'];
+
+      case 'coordinator':
+        const coordinatorPages: Record<string, { title: string; subtitle: string }> = {
+          'dashboard': { title: 'Espace Coordinateur', subtitle: `Bienvenue, ${user?.firstName} !` },
+          'scolarite': { title: 'Coordination académique', subtitle: 'Classes, emplois du temps, notes, bulletins et pointage enseignant' },
+          'enseignants': { title: 'Suivi des enseignants', subtitle: 'Consultez l’équipe pédagogique et son activité' },
+          'profil': { title: 'Mon Profil', subtitle: 'Gérez vos informations personnelles' },
+          'preferences': { title: 'Préférences', subtitle: 'Paramètres et notifications' },
+        };
+        return coordinatorPages[currentPage] || coordinatorPages['dashboard'];
 
       case 'enseignant':
         const teacherPages: Record<string, { title: string; subtitle: string }> = {

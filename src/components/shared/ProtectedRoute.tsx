@@ -46,6 +46,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       eleve: '/eleve/dashboard',
       manager: '/manager/dashboard',
       comptable: '/comptable/dashboard',
+      coordinator: '/coordinator/dashboard',
     };
     
     return (

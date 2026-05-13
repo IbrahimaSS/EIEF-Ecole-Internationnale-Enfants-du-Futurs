@@ -7,7 +7,7 @@ interface Props {
   classCount: number;
   studentCount: number;
   scheduleCount: number;
-  onAddSubject: () => void;
+  onAddSubject?: () => void;
   onAddClass: () => void;
   onAddSchedule: () => void;
 }
@@ -31,13 +31,15 @@ const ScolariteHeader: React.FC<Props> = ({
       </p>
     </div>
     <div className="flex flex-wrap gap-3">
-      <Button
-        onClick={onAddSubject}
-        variant="outline"
-        className="flex gap-2 border-or-500 text-or-600 hover:bg-or-50 font-semibold text-[10px] h-11 px-6 rounded-2xl"
-      >
-        <BookOpen size={18} /> Nouvelle Matière
-      </Button>
+      {onAddSubject && (
+        <Button
+          onClick={onAddSubject}
+          variant="outline"
+          className="flex gap-2 border-or-500 text-or-600 hover:bg-or-50 font-semibold text-[10px] h-11 px-6 rounded-2xl"
+        >
+          <BookOpen size={18} /> Nouvelle Matière
+        </Button>
+      )}
       <Button
         onClick={onAddClass}
         variant="outline"

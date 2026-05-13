@@ -2,9 +2,10 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { UserRole } from '../../types/auth';
 
 interface LayoutProps {
-  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager' | 'comptable';
+  userRole: UserRole;
   userName: string;
   currentPage: string;
   title: string;

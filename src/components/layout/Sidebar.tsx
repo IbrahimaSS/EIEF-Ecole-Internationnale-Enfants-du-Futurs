@@ -18,10 +18,10 @@ import {
   ChevronRight,
   Calendar,
   Gamepad2,
-  FileBarChart,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
+import { UserRole } from '../../types/auth';
 
 interface SidebarItem {
   id: string;
@@ -37,7 +37,7 @@ interface SidebarItem {
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  userRole: 'admin' | 'enseignant' | 'parent' | 'eleve' | 'manager' | 'comptable';
+  userRole: UserRole;
   userName: string;
   currentPage: string;
 }
@@ -102,6 +102,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     { id: 'administration', label: 'Administration', icon: <Settings size={20} />, href: '/comptable/administration' },
   ];
 
+  const coordinatorItems: SidebarItem[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/coordinator/dashboard' },
+    { id: 'scolarite', label: 'Classes, Notes & Pointage', icon: <GraduationCap size={20} />, href: '/coordinator/scolarite' },
+    { id: 'enseignants', label: 'Enseignants', icon: <Users size={20} />, href: '/coordinator/enseignants' },
+  ];
+
   const getItemsByRole = () => {
     switch (userRole) {
       case 'admin': return adminItems;
@@ -110,6 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
       case 'eleve': return eleveItems;
       case 'manager': return managerItems;
       case 'comptable': return comptableItems;
+      case 'coordinator': return coordinatorItems;
       default: return [];
     }
   };
@@ -132,6 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     eleve: 'Élève',
     manager: 'Manager',
     comptable: 'Comptable',
+    coordinator: 'Coordinateur',
   };
 
   const sidebarItems = getItemsByRole();

@@ -506,7 +506,7 @@ export const userService = {
 
   // ── Enseignants ─────────────────────────────────────────────────────────────
 
-  getAllTeachers: (token: string, search?: string) => {
+  getAllTeachers: (token?: string | null, search?: string) => {
     const query = search ? `?search=${encodeURIComponent(search)}` : "";
     return apiRequest<TeacherResponse[]>(`/users/teachers${query}`, { token });
   },
