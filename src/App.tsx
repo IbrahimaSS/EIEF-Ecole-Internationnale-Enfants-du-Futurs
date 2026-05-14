@@ -57,6 +57,7 @@ import Programmes from './pages/Programmes';
 import PreInscription from './pages/PreInscription';
 import Contact from './pages/Contact';
 import Jeux from './pages/eleve/Jeux';
+import StudentCardScan from './pages/public/StudentCardScan';
 
 // Composants partagés
 import ProtectedRoute from './components/shared/ProtectedRoute';
@@ -107,6 +108,7 @@ function App() {
         <Routes>
           {/* Route publique - Login */}
           <Route path="/login" element={<Login />} />
+          <Route path="/carte-eleve/:token" element={<StudentCardScan />} />
           <Route path="/eleve/landing" element={<EleveLanding />} />
           <Route path="/parent/landing" element={<ParentLanding />} />
           <Route path="/employe/landing" element={<EmployeLanding />} />

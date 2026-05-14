@@ -14,6 +14,7 @@ import NotificationToast   from './scolarite/components/NotificationToast';
 import EmploisTab          from './scolarite/tabs/EmploisTab';
 import NotesTab            from './scolarite/tabs/NotesTab';
 import PointageTab         from './scolarite/tabs/PointageTab';
+import StudentCardsTab     from './scolarite/tabs/StudentCardsTab';
 import ScheduleModal       from './scolarite/components/modals/ScheduleModal';
 import ClassModal          from './scolarite/components/modals/ClassModal';
 import SubjectModal        from './scolarite/components/modals/SubjectModal';
@@ -60,10 +61,12 @@ import {
 
 interface ManagerScolariteProps {
   allowCatalogManagement?: boolean;
+  allowStudentCards?: boolean;
 }
 
 const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
   allowCatalogManagement = true,
+  allowStudentCards = false,
 }) => {
   // ── Données initiales ─────────────────────────────────────────────────────
   const {
@@ -428,6 +431,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
         onChangeTab={setActiveTab}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        allowStudentCards={allowStudentCards}
       />
 
       {error && (
@@ -534,6 +538,16 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
             onPrintTeacherReport={() =>
               printTeacherReport(teachers, attendance.teacherAttendances, pointageDate)
             }
+          />
+        )}
+
+        {activeTab === 'cartes' && allowStudentCards && (
+          <StudentCardsTab
+            loading={loading}
+            filteredStudents={filteredStudents}
+            classes={classes}
+            onSuccess={onSuccess}
+            onError={onError}
           />
         )}
       </AnimatePresence>

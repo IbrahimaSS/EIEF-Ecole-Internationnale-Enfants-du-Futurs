@@ -57,6 +57,7 @@ const emptyStudent  = (): StudentRequest  => ({
   birthDate: '', 
   arrivalDate: new Date().getFullYear().toString(), // On utilise ce champ pour stocker l'année
   gender: '', 
+  avatarUrl: '',
   classId: '', 
   familyId: '' 
 });
@@ -636,6 +637,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         birthDate:          row.birthDate ?? '',
         arrivalDate:        row.arrivalDate ? row.arrivalDate.substring(0, 4) : '',
         gender:             row.gender ?? '',
+        avatarUrl:          row.avatarUrl ?? '',
         classId:            '',
         familyId:           row.familyId ?? '',
       });
@@ -718,6 +720,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             studentEmail: studentForm.email,
             studentPassword: studentForm.password,
             registrationNumber: studentForm.registrationNumber,
+            studentAvatarUrl: studentForm.avatarUrl || undefined,
             fatherFirstName: familyForm.fatherFirstName,
             fatherLastName: familyForm.fatherLastName,
             fatherEmail: familyForm.fatherEmail,
@@ -1715,6 +1718,10 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                 <Input label="Téléphone" placeholder="+224 ..."
                   value={studentForm.phone ?? ''}
                   onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
+                />
+                <Input label="Photo élève (URL ou data URL)" placeholder="https://... ou data:image/..."
+                  value={studentForm.avatarUrl ?? ''}
+                  onChange={e => setStudentForm(f => ({ ...f, avatarUrl: e.target.value }))}
                 />
                 <Select
                   label="Classe"
