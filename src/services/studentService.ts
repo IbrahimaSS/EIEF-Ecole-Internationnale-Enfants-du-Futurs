@@ -57,25 +57,29 @@ export interface StudentSubjectGradeResponse {
 // ── Appels API ───────────────────────────────────────────────────────────────
 
 export const studentService = {
-  getDashboard: (studentId: string) =>
-    apiRequest<StudentDashboardResponse>(`/student/${studentId}/dashboard`),
+  getDashboard: (studentId?: string) =>
+    apiRequest<StudentDashboardResponse>(
+      studentId ? `/student/${studentId}/dashboard` : "/student/me/dashboard",
+    ),
 
-  getNotes: (studentId: string, semester?: number) => {
+  getNotes: (studentId?: string, semester?: number) => {
     const query = semester ? `?semester=${semester}` : "";
-    return apiRequest<StudentNotesResponse>(
-      `/student/${studentId}/notes${query}`,
-    );
+    const base = studentId ? `/student/${studentId}/notes` : "/student/me/notes";
+    return apiRequest<StudentNotesResponse>(`${base}${query}`);
   },
 
   getResources: (
-    studentId: string,
+    studentId?: string,
     params?: { type?: string; search?: string },
   ) => {
     const qs = new URLSearchParams();
     if (params?.type) qs.set("type", params.type);
     if (params?.search) qs.set("search", params.search);
     const query = qs.toString() ? `?${qs.toString()}` : "";
-    return apiRequest<Resource[]>(`/student/${studentId}/resources${query}`);
+    const base = studentId
+      ? `/student/${studentId}/resources`
+      : "/student/me/resources";
+    return apiRequest<Resource[]>(`${base}${query}`);
   },
 
   getAll: (params?: { classId?: string; search?: string }) => {

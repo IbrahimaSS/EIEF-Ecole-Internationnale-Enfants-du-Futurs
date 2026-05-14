@@ -50,7 +50,7 @@ const EleveNotes: React.FC = () => {
     setLoading(true);
     setError(null);
     studentService
-      .getNotes(user.id, selectedSem)
+      .getNotes(undefined, selectedSem)
       .then(setData)
       .catch(() => setError('Impossible de charger les notes.'))
       .finally(() => setLoading(false));

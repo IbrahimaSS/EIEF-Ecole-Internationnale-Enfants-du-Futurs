@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCcw, ArrowLeft, Trophy, Star, Gamepad2, Settings, CheckCircle2, Info, LogIn } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, Badge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
+import { gameService } from '../../services/gameService';
 
 interface CardData {
   id: number;
@@ -14,17 +15,14 @@ interface CardData {
   isMatched: boolean;
 }
 
-const CARDS_CONTENT = [
-  { pairId: 1, emoji: '🍎', word: 'Pomme' },
-  { pairId: 2, emoji: '🐱', word: 'Chat' },
-  { pairId: 3, emoji: '🚗', word: 'Voiture' },
-  { pairId: 4, emoji: '☀️', word: 'Soleil' },
-  { pairId: 5, emoji: '🏠', word: 'Maison' },
-  { pairId: 6, emoji: '🚀', word: 'Fusée' },
-];
-
 const Jeux: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const gameId = searchParams.get('gameId');
+  const difficulty = searchParams.get('difficulty') || 'facile';
+  const classLevel = searchParams.get('classLevel') || 'Maternelle';
+
   const { isAuthenticated } = useAuthStore();
   const [cards, setCards] = useState<CardData[]>([]);
   const [flippedCards, setFlippedCards] = useState<number[]>([]);
@@ -33,12 +31,35 @@ const Jeux: React.FC = () => {
   const [isWon, setIsWon] = useState(false);
   const [encouragement, setEncouragement] = useState('À toi de jouer ! Trouve toutes les paires.');
 
+  const ALL_CARDS_CONTENT = [
+    { pairId: 1, emoji: '🍎', word: 'Pomme' },
+    { pairId: 2, emoji: '🐱', word: 'Chat' },
+    { pairId: 3, emoji: '🚗', word: 'Voiture' },
+    { pairId: 4, emoji: '☀️', word: 'Soleil' },
+    { pairId: 5, emoji: '🏠', word: 'Maison' },
+    { pairId: 6, emoji: '🚀', word: 'Fusée' },
+    { pairId: 7, emoji: '🐘', word: 'Eléphant' },
+    { pairId: 8, emoji: '🎸', word: 'Guitare' },
+    { pairId: 9, emoji: '🚁', word: 'Hélico' },
+    { pairId: 10, emoji: '🍕', word: 'Pizza' },
+    { pairId: 11, emoji: '🌈', word: 'Arc-en-ciel' },
+    { pairId: 12, emoji: '🍦', word: 'Glace' },
+  ];
+
   // Initialize game
   const initializeGame = () => {
     const newCards: CardData[] = [];
     let idCounter = 0;
     
-    CARDS_CONTENT.forEach(item => {
+    let pairCount = 6;
+    if (classLevel.startsWith('CE')) pairCount = 8;
+    if (classLevel.startsWith('CM') || !classLevel.startsWith('M') && !classLevel.startsWith('C')) pairCount = 12;
+    if (difficulty === 'facile' && pairCount > 6) pairCount -= 2;
+    if (difficulty === 'difficile' && pairCount < 12) pairCount += 2;
+
+    const gameContent = ALL_CARDS_CONTENT.slice(0, Math.min(pairCount, ALL_CARDS_CONTENT.length));
+
+    gameContent.forEach(item => {
       newCards.push({ id: idCounter++, content: item.emoji, type: 'emoji', pairId: item.pairId, isFlipped: false, isMatched: false });
       newCards.push({ id: idCounter++, content: item.word, type: 'word', pairId: item.pairId, isFlipped: false, isMatched: false });
     });
@@ -93,10 +114,7 @@ const Jeux: React.FC = () => {
           
           // Check win condition
           if (newCards.filter(c => !c.isMatched).length === 2) {
-             setIsWon(true);
-             // Save progress for the catalog
-             localStorage.setItem('eief_game_memory_completed', 'true');
-             localStorage.setItem('eief_game_math_unlocked', 'true');
+             handleWin();
           }
         }, 500);
       } else {
@@ -120,15 +138,49 @@ const Jeux: React.FC = () => {
       }
     }
   };
+  
+  const handleWin = async () => {
+    setIsWon(true);
+    
+    // 1. Sauvegarde locale (legacy/fallback)
+    localStorage.setItem('eief_game_memory_completed', 'true');
+    localStorage.setItem('eief_game_math_unlocked', 'true');
+
+    // 2. Sauvegarde Backend (si connecté)
+    if (isAuthenticated && gameId) {
+      try {
+        await gameService.saveScore({
+          gameId,
+          score: score + 10, // Dernier match non ajouté au score d'affichage au moment de l'appel
+          difficulty,
+          classLevel,
+          metadata: JSON.stringify({ moves })
+        });
+        console.log("Score sauvegardé avec succès !");
+      } catch (error) {
+        console.error("Erreur lors de la sauvegarde du score:", error);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 select-none">
       {/* Header */}
       <div className="bg-white dark:bg-gray-950 border-b border-gray-100 dark:border-white/5 sticky top-0 z-50 shadow-sm">
          <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full text-gray-500 transition-colors">
-               <ArrowLeft size={24} />
-            </button>
+            <div className="flex items-center gap-4">
+               <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full text-gray-500 transition-colors">
+                  <ArrowLeft size={24} />
+               </button>
+               <div className="flex gap-2">
+                 <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 border-none font-black text-[10px] px-3">
+                   {classLevel}
+                 </Badge>
+                 <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-none font-black text-[10px] px-3">
+                   {difficulty === 'facile' ? '⭐' : difficulty === 'moyen' ? '⭐⭐' : '⭐⭐⭐'} {difficulty.toUpperCase()}
+                 </Badge>
+               </div>
+            </div>
             <div className="flex items-center gap-2">
                <Gamepad2 className="text-bleu-500" size={24} />
                <h1 className="text-xl font-black text-gray-900 dark:text-white">Espace Jeux</h1>

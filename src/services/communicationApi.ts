@@ -121,22 +121,28 @@ export const sendMessage = (
  * Boîte de réception de l'utilisateur connecté.
  * GET /messages/inbox?userId={userId}
  */
-export const getInbox = (userId: string): Promise<MessageResponse[]> =>
-  apiRequest<MessageResponse[]>(`/messages/inbox?userId=${userId}`);
+export const getInbox = (userId?: string): Promise<MessageResponse[]> => {
+  const qs = userId ? `?userId=${userId}` : "";
+  return apiRequest<MessageResponse[]>(`/messages/inbox${qs}`);
+};
 
 /**
  * Messages envoyés par l'utilisateur connecté.
  * GET /messages/sent?userId={userId}
  */
-export const getSentMessages = (userId: string): Promise<MessageResponse[]> =>
-  apiRequest<MessageResponse[]>(`/messages/sent?userId=${userId}`);
+export const getSentMessages = (userId?: string): Promise<MessageResponse[]> => {
+  const qs = userId ? `?userId=${userId}` : "";
+  return apiRequest<MessageResponse[]>(`/messages/sent${qs}`);
+};
 
 /**
  * Messages non lus de l'utilisateur connecté.
  * GET /messages/unread?userId={userId}
  */
-export const getUnreadMessages = (userId: string): Promise<MessageResponse[]> =>
-  apiRequest<MessageResponse[]>(`/messages/unread?userId=${userId}`);
+export const getUnreadMessages = (userId?: string): Promise<MessageResponse[]> => {
+  const qs = userId ? `?userId=${userId}` : "";
+  return apiRequest<MessageResponse[]>(`/messages/unread${qs}`);
+};
 
 /**
  * Marquer un message comme lu.

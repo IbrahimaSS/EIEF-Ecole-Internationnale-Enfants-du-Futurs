@@ -1,26 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, ArrowLeft, CheckCircle2, XCircle, Trophy, RefreshCcw, HelpCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Card } from '../../components/ui';
+import { Brain, ArrowLeft, CheckCircle2, XCircle, Trophy, RefreshCcw, HelpCircle, Star } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Card, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
+import { gameService } from '../../services/gameService';
 
 const LogicPuzzle: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const gameId = searchParams.get('gameId');
+  const difficulty = searchParams.get('difficulty') || 'facile';
+  const classLevel = searchParams.get('classLevel') || 'Maternelle';
+
   const [puzzle, setPuzzle] = useState({ sequence: [] as string[], options: [] as string[], answer: '' });
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [score, setScore] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [encouragement, setEncouragement] = useState('Observe bien la suite !');
+  const { isAuthenticated } = useAuthStore();
 
   const generatePuzzle = () => {
-    const sequences = [
+    let sequences = [
       { seq: ['🍎', '🍌', '🍎', '?'], opt: ['🍌', '🍎', '🍇'], ans: '🍌' },
-      { seq: ['1', '2', '1', '2', '?'], opt: ['1', '2', '3'], ans: '1' },
       { seq: ['🔵', '🔴', '🔵', '🔴', '?'], opt: ['🔴', '🔵', '🟢'], ans: '🔵' },
-      { seq: ['A', 'B', 'A', 'B', '?'], opt: ['A', 'B', 'C'], ans: 'A' },
       { seq: ['☀️', '🌙', '☀️', '🌙', '?'], opt: ['🌙', '☀️', '⭐'], ans: '☀️' }
     ];
+
+    if (classLevel.startsWith('CE') || classLevel.startsWith('CM')) {
+      sequences = [
+        { seq: ['1', '2', '4', '?'], opt: ['6', '8', '5'], ans: '8' },
+        { seq: ['A', 'C', 'E', '?'], opt: ['G', 'F', 'H'], ans: 'G' },
+        { seq: ['10', '20', '30', '?'], opt: ['40', '50', '35'], ans: '40' },
+        { seq: ['🔺', '⬛', '🔺', '⬛', '?'], opt: ['🔺', '⬛', '🟡'], ans: '🔺' }
+      ];
+    }
+
+    if (difficulty === 'difficile' || (!classLevel.startsWith('M') && !classLevel.startsWith('C'))) {
+      sequences = [
+        { seq: ['2', '4', '8', '16', '?'], opt: ['32', '24', '30'], ans: '32' },
+        { seq: ['Z', 'Y', 'X', 'W', '?'], opt: ['V', 'U', 'T'], ans: 'V' },
+        { seq: ['1', '4', '9', '16', '?'], opt: ['25', '20', '36'], ans: '25' },
+        { seq: ['1', '1', '2', '3', '5', '?'], opt: ['8', '7', '6'], ans: '8' }
+      ];
+    }
+
     const p = sequences[Math.floor(Math.random() * sequences.length)];
     setPuzzle({ sequence: p.seq, options: p.opt, answer: p.ans });
     setFeedback(null);
@@ -45,11 +71,26 @@ const LogicPuzzle: React.FC = () => {
       setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (totalQuestions + 1 >= 5) {
         setIsFinished(true);
-        // Unlock next game
+        // 1. Sauvegarde locale
         localStorage.setItem('eief_game_color_unlocked', 'true');
+
+        // 2. Sauvegarde Backend
+        if (isAuthenticated && gameId) {
+          try {
+            await gameService.saveScore({
+              gameId,
+              score: isCorrect ? score + 1 : score,
+              difficulty,
+              classLevel,
+              metadata: JSON.stringify({ totalQuestions: 5, successRate: ((isCorrect ? score + 1 : score) / 5) * 100 })
+            });
+          } catch (error) {
+            console.error("Erreur sauvegarde score:", error);
+          }
+        }
       } else {
         generatePuzzle();
       }
@@ -60,7 +101,7 @@ const LogicPuzzle: React.FC = () => {
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <Button 
             variant="outline" 
             onClick={() => navigate('/eleve/jeux')}
@@ -68,6 +109,14 @@ const LogicPuzzle: React.FC = () => {
           >
             <ArrowLeft size={18} /> Retour
           </Button>
+          <div className="flex gap-2">
+            <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 border-none font-black text-[10px] px-3">
+              {classLevel}
+            </Badge>
+            <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-none font-black text-[10px] px-3">
+              {difficulty === 'facile' ? '⭐' : difficulty === 'moyen' ? '⭐⭐' : '⭐⭐⭐'} {difficulty.toUpperCase()}
+            </Badge>
+          </div>
           <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-500/10 px-4 py-2 rounded-xl border border-orange-100 dark:border-orange-500/20">
             <Trophy size={18} className="text-orange-500" />
             <span className="font-black text-orange-600 dark:text-orange-400">{score} / {totalQuestions}</span>

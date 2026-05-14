@@ -61,7 +61,7 @@ const EleveRessources: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    studentService.getResources(user.id)
+    studentService.getResources()
       .then((data) => setResources(data))
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Erreur lors du chargement des ressources');

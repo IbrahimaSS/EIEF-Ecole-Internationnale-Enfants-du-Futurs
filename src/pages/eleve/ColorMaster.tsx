@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, ArrowLeft, CheckCircle2, XCircle, Trophy, RefreshCcw, Star } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Card } from '../../components/ui';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Card, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
+import { gameService } from '../../services/gameService';
 
 const ColorMaster: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const gameId = searchParams.get('gameId');
+  const difficulty = searchParams.get('difficulty') || 'facile';
+  const classLevel = searchParams.get('classLevel') || 'Maternelle';
+
   const [target, setTarget] = useState({ name: '', hex: '' });
   const [options, setOptions] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -13,8 +21,9 @@ const ColorMaster: React.FC = () => {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [encouragement, setEncouragement] = useState('Trouve la bonne couleur !');
+  const { isAuthenticated } = useAuthStore();
 
-  const colorData = [
+  const basicColors = [
     { name: 'Rouge', hex: '#ef4444' },
     { name: 'Bleu', hex: '#3b82f6' },
     { name: 'Vert', hex: '#22c55e' },
@@ -25,12 +34,28 @@ const ColorMaster: React.FC = () => {
     { name: 'Gris', hex: '#64748b' }
   ];
 
+  const advancedColors = [
+    { name: 'Cyan', hex: '#06b6d4' },
+    { name: 'Indigo', hex: '#6366f1' },
+    { name: 'Emeraude', hex: '#10b981' },
+    { name: 'Ambre', hex: '#f59e0b' },
+    { name: 'Fuchsia', hex: '#d946ef' },
+    { name: 'Citron', hex: '#bef264' },
+    { name: 'Marine', hex: '#1e3a8a' },
+    { name: 'Bordeaux', hex: '#7f1d1d' }
+  ];
+
   const generateChallenge = () => {
-    const t = colorData[Math.floor(Math.random() * colorData.length)];
+    let colorPool = basicColors;
+    if (difficulty !== 'facile' || !classLevel.startsWith('M')) {
+      colorPool = [...basicColors, ...advancedColors];
+    }
+
+    const t = colorPool[Math.floor(Math.random() * colorPool.length)];
     setTarget(t);
     
     // Mix options
-    const others = colorData.filter(c => c.hex !== t.hex);
+    const others = colorPool.filter(c => c.hex !== t.hex);
     const selectedOthers = others.sort(() => 0.5 - Math.random()).slice(0, 2);
     const mixed = [...selectedOthers, t].sort(() => 0.5 - Math.random());
     setOptions(mixed.map(m => m.hex));
@@ -57,9 +82,24 @@ const ColorMaster: React.FC = () => {
       setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (totalQuestions + 1 >= 5) {
         setIsFinished(true);
+        
+        // Sauvegarde Backend
+        if (isAuthenticated && gameId) {
+          try {
+            await gameService.saveScore({
+              gameId,
+              score: isCorrect ? score + 1 : score,
+              difficulty,
+              classLevel,
+              metadata: JSON.stringify({ totalQuestions: 5, successRate: ((isCorrect ? score + 1 : score) / 5) * 100 })
+            });
+          } catch (error) {
+            console.error("Erreur sauvegarde score:", error);
+          }
+        }
       } else {
         generateChallenge();
       }
@@ -70,7 +110,7 @@ const ColorMaster: React.FC = () => {
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <Button 
             variant="outline" 
             onClick={() => navigate('/eleve/jeux')}
@@ -78,6 +118,14 @@ const ColorMaster: React.FC = () => {
           >
             <ArrowLeft size={18} /> Retour
           </Button>
+          <div className="flex gap-2">
+            <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 border-none font-black text-[10px] px-3">
+              {classLevel}
+            </Badge>
+            <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-none font-black text-[10px] px-3">
+              {difficulty === 'facile' ? '⭐' : difficulty === 'moyen' ? '⭐⭐' : '⭐⭐⭐'} {difficulty.toUpperCase()}
+            </Badge>
+          </div>
           <div className="flex items-center gap-2 bg-pink-50 dark:bg-pink-500/10 px-4 py-2 rounded-xl border border-pink-100 dark:border-pink-500/20">
             <Trophy size={18} className="text-pink-500" />
             <span className="font-black text-pink-600 dark:text-pink-400">{score} / {totalQuestions}</span>

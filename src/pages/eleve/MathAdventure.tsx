@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calculator, ArrowLeft, CheckCircle2, XCircle, Trophy, RefreshCcw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Card } from '../../components/ui';
+import { Calculator, ArrowLeft, CheckCircle2, XCircle, Trophy, RefreshCcw, Star } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Card, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
+import { gameService } from '../../services/gameService';
 
 const MathAdventure: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const gameId = searchParams.get('gameId');
+  const difficulty = searchParams.get('difficulty') || 'facile';
+  const classLevel = searchParams.get('classLevel') || 'Maternelle';
+
   const [problem, setProblem] = useState({ a: 0, b: 0, op: '+', answer: 0 });
   const [userAnswer, setUserAnswer] = useState('');
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -13,13 +21,50 @@ const MathAdventure: React.FC = () => {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [encouragement, setEncouragement] = useState('Prêt pour l\'aventure ?');
+  const { isAuthenticated } = useAuthStore();
 
   const generateProblem = () => {
-    const a = Math.floor(Math.random() * 10) + 1;
-    const b = Math.floor(Math.random() * 10) + 1;
-    const ops = ['+', '-'];
-    const op = ops[Math.floor(Math.random() * ops.length)];
-    const answer = op === '+' ? a + b : a - b;
+    let a = 0, b = 0, op = '+';
+    let range = 10;
+    let allowedOps = ['+'];
+
+    // Dynamic difficulty logic based on classLevel
+    if (classLevel === 'Maternelle' || classLevel === 'CP') {
+      range = difficulty === 'facile' ? 10 : 20;
+      allowedOps = ['+', '-'];
+    } else if (classLevel.startsWith('CE')) {
+      range = difficulty === 'facile' ? 50 : 100;
+      allowedOps = ['+', '-', '*'];
+    } else if (classLevel.startsWith('CM')) {
+      range = difficulty === 'facile' ? 100 : 500;
+      allowedOps = ['+', '-', '*', '/'];
+    } else {
+      // Collège
+      range = difficulty === 'facile' ? 500 : 1000;
+      allowedOps = ['+', '-', '*', '/'];
+    }
+
+    op = allowedOps[Math.floor(Math.random() * allowedOps.length)];
+    
+    if (op === '/') {
+      // Ensure integer division
+      b = Math.floor(Math.random() * 10) + 1;
+      const res = Math.floor(Math.random() * 10) + 1;
+      a = b * res;
+    } else if (op === '*') {
+      a = Math.floor(Math.random() * (classLevel.startsWith('CM') ? 20 : 10)) + 1;
+      b = Math.floor(Math.random() * 10) + 1;
+    } else {
+      a = Math.floor(Math.random() * range) + 1;
+      b = Math.floor(Math.random() * range) + 1;
+    }
+
+    // Ensure subtraction doesn't result in negative for lower levels
+    if (op === '-' && a < b && (classLevel === 'Maternelle' || classLevel === 'CP')) {
+      [a, b] = [b, a];
+    }
+
+    const answer = op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : a / b;
     setProblem({ a, b, op, answer });
     setUserAnswer('');
     setFeedback(null);
@@ -44,11 +89,26 @@ const MathAdventure: React.FC = () => {
       setEncouragement(messages[Math.floor(Math.random() * messages.length)]);
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (totalQuestions + 1 >= 5) {
         setIsFinished(true);
-        // Unlock next game
+        // 1. Sauvegarde locale
         localStorage.setItem('eief_game_logic_unlocked', 'true');
+        
+        // 2. Sauvegarde Backend
+        if (isAuthenticated && gameId) {
+          try {
+            await gameService.saveScore({
+              gameId,
+              score: isCorrect ? score + 1 : score,
+              difficulty,
+              classLevel,
+              metadata: JSON.stringify({ totalQuestions: 5, successRate: ((isCorrect ? score + 1 : score) / 5) * 100 })
+            });
+          } catch (error) {
+            console.error("Erreur sauvegarde score:", error);
+          }
+        }
       } else {
         generateProblem();
       }
@@ -59,7 +119,7 @@ const MathAdventure: React.FC = () => {
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <Button 
             variant="outline" 
             onClick={() => navigate('/eleve/jeux')}
@@ -67,6 +127,14 @@ const MathAdventure: React.FC = () => {
           >
             <ArrowLeft size={18} /> Retour
           </Button>
+          <div className="flex gap-2">
+            <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 border-none font-black text-[10px] px-3">
+              {classLevel}
+            </Badge>
+            <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-none font-black text-[10px] px-3">
+              {difficulty === 'facile' ? '⭐' : difficulty === 'moyen' ? '⭐⭐' : '⭐⭐⭐'} {difficulty.toUpperCase()}
+            </Badge>
+          </div>
           <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-xl border border-blue-100 dark:border-blue-500/20">
             <Trophy size={18} className="text-blue-500" />
             <span className="font-black text-blue-600 dark:text-blue-400">{score} / {totalQuestions}</span>

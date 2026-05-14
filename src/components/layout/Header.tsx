@@ -140,7 +140,7 @@ const Header: React.FC<HeaderProps> = ({
                   : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/5 hover:border-gray-100 dark:hover:border-white/10'
               )}
             >
-              <Avatar name={userName} size="sm" className="ring-2 ring-or-400/30" />
+              <Avatar name={userName} size="sm" src={user?.avatarUrl} className="ring-2 ring-or-500/40" />
               <div className="hidden md:flex flex-col text-left">
                 <span className="text-xs font-black text-gray-900 dark:text-white leading-none">
                   {userName.split(' ')[0]}
@@ -158,7 +158,7 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="px-5 py-4 bg-gradient-to-br from-vert-700 via-bleu-700 to-bleu-800 -mx-2 -mt-2 mb-2 relative overflow-hidden">
                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-or-400/30 rounded-full blur-[60px]" />
                   <div className="relative flex items-center gap-3">
-                    <Avatar name={userName} size="md" className="ring-2 ring-or-400/50 shrink-0" />
+                    <Avatar name={userName} size="md" src={user?.avatarUrl} className="ring-2 ring-or-400/50 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-black text-white truncate">{userName}</p>
                       <p className="text-[9px] font-black text-or-300 uppercase tracking-widest mt-0.5">
