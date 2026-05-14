@@ -44,7 +44,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName, currentPage }) => {
   const navigate = useNavigate();
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   const adminItems: SidebarItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/admin/dashboard' },
@@ -56,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     { id: 'bibliotheque', label: 'Bibliothèque', icon: <BookOpen size={20} />, href: '/admin/bibliotheque' },
     { id: 'transport', label: 'Transport', icon: <Bus size={20} />, href: '/admin/transport' },
     { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/admin/communication' },
+    { id: 'jeux', label: 'Jeux Éducatifs', icon: <Gamepad2 size={20} />, href: '/admin/jeux' },
     { id: 'administration', label: 'Administration', icon: <Settings size={20} />, href: '/admin/administration' },
   ];
 
@@ -99,6 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     { id: 'bibliotheque', label: 'Bibliothèque', icon: <BookOpen size={20} />, href: '/comptable/bibliotheque' },
     { id: 'transport', label: 'Transport', icon: <Bus size={20} />, href: '/comptable/transport' },
     { id: 'communication', label: 'Communication', icon: <MessageSquare size={20} />, href: '/comptable/communication' },
+    { id: 'jeux', label: 'Jeux Éducatifs', icon: <Gamepad2 size={20} />, href: '/comptable/jeux' },
     { id: 'administration', label: 'Administration', icon: <Settings size={20} />, href: '/comptable/administration' },
   ];
 
@@ -251,7 +253,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
       {/* Footer : profil + logout */}
       <div className="relative p-4 border-t border-white/5 bg-black/20 flex-shrink-0">
         <div className={cn('flex items-center gap-3', !isOpen && 'justify-center')}>
-          <Avatar name={userName} size="sm" className="ring-2 ring-or-500/40" />
+          <Avatar name={userName} size="sm" src={user?.avatarUrl} className="ring-2 ring-or-500/40" />
           {isOpen && (
             <div className="flex-1 overflow-hidden text-left">
               <p className="text-white text-xs font-black truncate">{userName}</p>

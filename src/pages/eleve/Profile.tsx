@@ -11,14 +11,19 @@ import { apiRequest } from '../../services/api';
 import { StudentResponse } from '../../services/userService';
 
 const EleveProfile: React.FC = () => {
-  const { user, token } = useAuthStore();
+  const { user, token, setUser } = useAuthStore();
   const [isSaving, setIsSaving]     = useState(false);
   const [isSuccess, setIsSuccess]   = useState(false);
   const [activeTab, setActiveTab]   = useState<'info' | 'securite'>('info');
   const [student, setStudent]       = useState<StudentResponse | null>(null);
 
   // Champs du formulaire info
+  const [firstName, setFirstName] = useState(user?.firstName ?? '');
+  const [lastName, setLastName]   = useState(user?.lastName ?? '');
   const [phone, setPhone]           = useState('');
+  const [birthDate, setBirthDate]   = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  
   // Champs mot de passe
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd]         = useState('');
@@ -30,17 +35,40 @@ const EleveProfile: React.FC = () => {
 
   // Charge le profil complet de l'élève
   useEffect(() => {
-    if (!user?.id) return;
-    apiRequest<StudentResponse>(`/users/students/${user.id}`)
+    apiRequest<StudentResponse>('/users/students/me')
       .then((s) => {
         setStudent(s);
         setPhone(s.phone ?? '');
+        setBirthDate(s.birthDate ? s.birthDate.split('T')[0] : '');
+        setFirstName(s.firstName || user?.firstName || '');
+        setLastName(s.lastName || user?.lastName || '');
       })
       .catch(console.error);
   }, [user?.id]);
 
+  const [imgError, setImgError] = useState(false);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    console.log("Fichier sélectionné:", file?.name, file?.size);
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        console.log("Prévisualisation générée");
+        setAvatarPreview(reader.result as string);
+        setImgError(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSave = async () => {
-    if (!user?.id || !token) return;
+    console.log("Tentative de sauvegarde...", { id: user?.id, hasToken: !!token });
+    
+    if (!user?.id) {
+      alert("Erreur : ID utilisateur introuvable. Veuillez vous reconnecter.");
+      return;
+    }
 
     if (activeTab === 'securite') {
       if (newPwd !== confirmPwd) {
@@ -56,32 +84,50 @@ const EleveProfile: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await apiRequest(`/users/me?userId=${user.id}`, {
+      // On utilise la prévisualisation (Base64) directement si elle existe
+      const finalAvatarUrl = avatarPreview || user.avatarUrl;
+      
+      const payload: any = {
+        email: user.email,
+        firstName,
+        lastName,
+        roleName: user.backendRole || (user.role === 'eleve' ? 'STUDENT' : user.role.toUpperCase()),
+        password: currentPwd,
+        avatarUrl: finalAvatarUrl,
+        telephone: phone
+      };
+
+      if (activeTab !== 'info') {
+        payload.password = newPwd;
+      }
+
+      console.log("Envoi du payload avec image Base64...");
+
+      const updatedUser = await apiRequest<any>('/users/me', {
         method: 'PUT',
-        token,
-        body: JSON.stringify(
-          activeTab === 'securite'
-            ? {
-                email:     user.email,
-                firstName: user.firstName,
-                lastName:  user.lastName,
-                password:  newPwd,
-              }
-            : {
-                email:     user.email,
-                firstName: user.firstName,
-                lastName:  user.lastName,
-                phone,
-              }
-        ),
+        token: token || undefined,
+        body: JSON.stringify(payload),
       });
+
+      // Mettre à jour le store local
+      if (setUser) {
+        setUser({
+          ...user,
+          firstName,
+          lastName,
+          telephone: phone,
+          avatarUrl: finalAvatarUrl
+        });
+      }
+
       setIsSuccess(true);
       if (activeTab === 'securite') {
         setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
       }
       setTimeout(() => setIsSuccess(false), 3000);
-    } catch (err) {
-      console.error('Erreur sauvegarde profil', err);
+    } catch (err: any) {
+      console.error('Erreur sauvegarde profil:', err);
+      alert(`Erreur lors de la sauvegarde : ${err.message || 'Problème de connexion au serveur'}`);
     } finally {
       setIsSaving(false);
     }
@@ -115,11 +161,26 @@ const EleveProfile: React.FC = () => {
         <div className="px-10 pb-10 relative -mt-24 flex flex-col sm:flex-row gap-8 items-center sm:items-end">
           <div className="relative group">
             <div className="w-40 h-40 rounded-[3rem] border-[6px] border-white dark:border-gray-900 overflow-hidden bg-white shadow-2xl relative z-10">
-              <div className="w-full h-full bg-gradient-to-br from-bleu-100 to-bleu-50 dark:from-bleu-900 dark:to-gray-800 flex items-center justify-center text-bleu-600 dark:text-bleu-400">
-                <User size={80} strokeWidth={1} />
-              </div>
+              {((avatarPreview || user?.avatarUrl) && !imgError) ? (
+                <img 
+                  src={avatarPreview || user?.avatarUrl} 
+                  alt="Avatar" 
+                  className="w-full h-full object-cover" 
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-bleu-100 to-bleu-50 dark:from-bleu-900 dark:to-gray-800 flex items-center justify-center text-bleu-600 dark:text-bleu-400">
+                  <User size={80} strokeWidth={1} />
+                </div>
+              )}
             </div>
-            <input type="file" ref={avatarInputRef} className="hidden" />
+            <input 
+              type="file" 
+              ref={avatarInputRef} 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleAvatarChange}
+            />
             <button onClick={() => avatarInputRef.current?.click()} className="absolute bottom-1 right-1 p-3.5 bg-bleu-600 text-white rounded-2xl shadow-xl hover:scale-110 transition-transform z-20 border-4 border-white dark:border-gray-900">
               <Camera size={20} />
             </button>
@@ -215,12 +276,21 @@ const EleveProfile: React.FC = () => {
                 <Card className="p-10 border-none shadow-soft bg-white dark:bg-gray-900/50">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-3 ml-1">Nom Complet</label>
-                      {/* Lecture seule — modifiable uniquement par l'admin */}
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-3 ml-1">Prénom</label>
                       <Input
-                        value={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`}
-                        readOnly
-                        className="font-bold text-sm h-12 rounded-xl bg-gray-50/50 opacity-60 cursor-not-allowed"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="font-bold text-sm h-12 rounded-xl bg-gray-50/50"
+                        icon={User}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-3 ml-1">Nom</label>
+                      <Input
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="font-bold text-sm h-12 rounded-xl bg-gray-50/50"
+                        icon={User}
                       />
                     </div>
                     <div>
@@ -236,9 +306,10 @@ const EleveProfile: React.FC = () => {
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-3 ml-1">Date de naissance</label>
                       <Input
-                        value={formatDate(student?.birthDate)}
-                        readOnly
-                        className="font-bold text-sm h-12 rounded-xl bg-gray-50/50 opacity-60 cursor-not-allowed"
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
+                        type="date"
+                        className="font-bold text-sm h-12 rounded-xl bg-gray-50/50"
                         icon={Calendar}
                       />
                     </div>
@@ -259,6 +330,18 @@ const EleveProfile: React.FC = () => {
                         className="font-bold text-sm h-12 rounded-xl bg-gray-50/50 opacity-60 cursor-not-allowed"
                         icon={MapPin}
                       />
+                    </div>
+                    <div className="md:col-span-2 p-6 bg-or-50/50 dark:bg-or-900/10 rounded-2xl border border-or-100 dark:border-or-900/20">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-or-600 dark:text-or-400 block mb-3 ml-1">Confirmation requise</label>
+                      <Input
+                        type="password"
+                        value={currentPwd}
+                        onChange={(e) => setCurrentPwd(e.target.value)}
+                        placeholder="Saisissez votre mot de passe actuel pour valider"
+                        className="font-bold text-sm h-12 rounded-xl bg-white"
+                        icon={Shield}
+                      />
+                      <p className="text-[9px] text-or-500 font-bold uppercase tracking-wider mt-3 ml-1 italic">Le serveur exige votre mot de passe pour enregistrer ces modifications.</p>
                     </div>
                   </div>
                 </Card>

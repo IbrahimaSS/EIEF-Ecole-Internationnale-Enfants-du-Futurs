@@ -65,7 +65,7 @@ const EleveEmploi: React.FC = () => {
   const { user } = useAuthStore();
   const studentId = user?.id ?? '';
 
-  const { data: schedules, isLoading, error, refetch } = useStudentSchedule(studentId);
+  const { data: schedules, isLoading, error, refetch } = useStudentSchedule();
 
   const currentCourse = schedules ? getCurrentCourse(schedules) : null;
   const nextCourse    = schedules ? getNextCourse(schedules)    : null;

@@ -57,19 +57,17 @@ export const useClassSchedules = (classId: string) => {
 
 // ── Hooks student (emploi du temps élève) ─────────────────────────────────────
 
-export const useStudentSchedule = (studentId: string) => {
+export const useStudentSchedule = (studentId?: string) => {
   return useQuery({
-    queryKey: [SCHEDULE_QUERY_KEYS.studentSchedule, studentId],
+    queryKey: [SCHEDULE_QUERY_KEYS.studentSchedule, studentId || 'me'],
     queryFn: () => studentScheduleService.getSchedule(studentId),
-    enabled: !!studentId,
   });
 };
 
-export const useStudentTodaySchedule = (studentId: string) => {
+export const useStudentTodaySchedule = (studentId?: string) => {
   return useQuery({
-    queryKey: [SCHEDULE_QUERY_KEYS.studentTodaySchedule, studentId],
+    queryKey: [SCHEDULE_QUERY_KEYS.studentTodaySchedule, studentId || 'me'],
     queryFn: () => studentScheduleService.getTodaySchedule(studentId),
-    enabled: !!studentId,
   });
 };
 

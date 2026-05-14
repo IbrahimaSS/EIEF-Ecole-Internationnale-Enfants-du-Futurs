@@ -94,6 +94,44 @@
   .stat-card {
     @apply bg-white rounded-xl p-6 flex items-center gap-4 shadow-soft border border-neutral-100 hover:shadow-card transition-all duration-300;
   }
+
+  /* ===== PREMIUM FUTURISTIC STYLES ===== */
+  .mesh-gradient-bg {
+    background-color: #f0f4f8;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(43, 94, 167, 0.15) 0, transparent 50%), 
+      radial-gradient(at 50% 0%, rgba(249, 168, 37, 0.1) 0, transparent 50%), 
+      radial-gradient(at 100% 0%, rgba(211, 47, 47, 0.1) 0, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(56, 142, 60, 0.1) 0, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(43, 94, 167, 0.1) 0, transparent 50%);
+    transition: background-color 0.5s ease;
+  }
+
+  .dark .mesh-gradient-bg {
+    background-color: #030712;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(43, 94, 167, 0.2) 0, transparent 50%), 
+      radial-gradient(at 50% 0%, rgba(168, 85, 247, 0.15) 0, transparent 50%), 
+      radial-gradient(at 100% 0%, rgba(211, 47, 47, 0.15) 0, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(56, 142, 60, 0.15) 0, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0, transparent 50%);
+  }
+
+  .glass-card-premium {
+    @apply bg-white/40 backdrop-blur-2xl border border-white/40 shadow-xl rounded-[2.5rem] transition-all duration-500;
+  }
+  .dark .glass-card-premium {
+    @apply bg-gray-900/40 border-white/5;
+  }
+
+  .glow-purple { box-shadow: 0 0 30px rgba(168, 85, 247, 0.3); }
+  .glow-blue { box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); }
+  .glow-emerald { box-shadow: 0 0 30px rgba(16, 185, 129, 0.3); }
+  .glow-orange { box-shadow: 0 0 30px rgba(249, 115, 22, 0.3); }
+
+  .text-glow {
+    text-shadow: 0 0 15px currentColor;
+  }
 }
 
 /* ===== CUSTOM ANIMATIONS ===== */

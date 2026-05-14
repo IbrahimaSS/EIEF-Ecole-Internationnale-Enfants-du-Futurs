@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { apiRequest } from '../../services/api';
 import { motion } from 'framer-motion';
 import {
   BookOpen, Clock, GraduationCap, TrendingUp,
-  Calendar, CheckCircle2, FileText, ChevronRight, Award
+  Calendar, CheckCircle2, FileText, ChevronRight, Award,
+  Gamepad2
 } from 'lucide-react';
 import { Card, Badge, Avatar, Button } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { studentService, StudentDashboardResponse } from '../../services/studentService';
+import { gameService, GameScore } from '../../services/gameService';
+import { GAMES_DATABASE } from './gamesData';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,31 +44,116 @@ const EleveDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  const [data, setData]       = useState<StudentDashboardResponse | null>(null);
+  const [data, setData] = useState<StudentDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gameScores, setGameScores] = useState<GameScore[]>([]);
+  const [studentClass, setStudentClass] = useState<string | null>(null);
 
- // Remplace le useEffect par celui-ci
-useEffect(() => {
-  if (!user?.id) return;
-  setLoading(true);
-  studentService.getDashboard(user.id)
-    .then(setData)
-    .catch((err) => {
-      console.error('Dashboard error:', err);
-      // Affiche un dashboard vide plutôt qu'un écran d'erreur
-      setData({
-        averageGrade: 0,
-        classRank: 0,
-        classSize: 0,
-        attendanceRate: 0,
-        pendingAssignments: 0,
-        recentGrades: [],
-        todaySchedule: [],
-        upcomingAssignments: [],
-      });
-    })
-    .finally(() => setLoading(false));
-}, [user?.id]);
+  useEffect(() => {
+    setLoading(true);
+    
+    // Charger parallèlement les données du dashboard, les scores et le profil (pour la classe)
+    Promise.all([
+      studentService.getDashboard(),
+      gameService.getMyScores(),
+      apiRequest<any>('/users/students/me').catch(() => ({ className: 'Terminale' }))
+    ])
+      .then(([dashboardData, scores, profile]) => {
+        setData(dashboardData);
+        setGameScores(scores);
+        const className = profile.className || profile.classe || 'Terminale';
+        setStudentClass(className);
+      })
+      .catch((err) => {
+        console.error('Dashboard error:', err);
+        setData({
+          averageGrade: 0,
+          classRank: 0,
+          classSize: 0,
+          attendanceRate: 0,
+          pendingAssignments: 0,
+          recentGrades: [],
+          todaySchedule: [],
+          upcomingAssignments: [],
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [user?.id]);
+
+  // ── Analyse Pédagogique (Faiblesses / Forces) ──────────────────────────────
+  const analysis = useMemo(() => {
+    if (!data?.recentGrades) return { strengths: [], weaknesses: [], recommendations: [] };
+
+    const subjectGrades: Record<string, number[]> = {};
+    data.recentGrades.forEach(g => {
+      if (!subjectGrades[g.subjectName]) subjectGrades[g.subjectName] = [];
+      subjectGrades[g.subjectName].push(g.value);
+    });
+
+    const averages = Object.entries(subjectGrades).map(([name, grades]) => ({
+      name,
+      avg: grades.reduce((a, b) => a + b, 0) / grades.length
+    }));
+
+    const strengths  = averages.filter(a => a.avg >= 14).map(a => a.name);
+    const weaknesses = averages.filter(a => a.avg < 10).map(a => a.name);
+
+    // 1. On récupère les jeux par défaut + les jeux custom (Admin)
+    const savedCustom = localStorage.getItem("eief_custom_games");
+    const customGames = savedCustom ? JSON.parse(savedCustom) : [];
+    const allGamesList = [...customGames, ...GAMES_DATABASE];
+
+    // On normalise la classe pour le filtrage des jeux
+    const rawClass = (studentClass || '').toUpperCase();
+    let normalizedClass = studentClass || 'Terminale';
+    if (rawClass.includes('TSM') || rawClass.includes('TERMINALE') || rawClass.startsWith('T')) {
+      normalizedClass = 'Terminale';
+    }
+
+    // Recommandations basées sur les faiblesses
+    const recommendations = allGamesList.filter(game => {
+      const matchClass = game.classLevel === normalizedClass;
+      const isWeak = weaknesses.some(w => game.subject.toLowerCase().includes(w.toLowerCase()));
+      const lowerId = game.id.toLowerCase();
+      const notPlayed = !gameScores.some(s => 
+        s.gameId.toLowerCase() === lowerId || s.gameId.toLowerCase().includes(lowerId)
+      );
+      return matchClass && (isWeak || notPlayed);
+    }).slice(0, 3);
+
+    return { strengths, weaknesses, recommendations };
+  }, [data, gameScores, studentClass]);
+
+  // ── Progression Jeux ───────────────────────────────────────────────────────
+  const gameStats = useMemo(() => {
+    // 1. On récupère les jeux par défaut + les jeux custom (Admin)
+    const savedCustom = localStorage.getItem("eief_custom_games");
+    const customGames = savedCustom ? JSON.parse(savedCustom) : [];
+    const allGames = [...customGames, ...GAMES_DATABASE];
+
+    // 2. On normalise la classe pour le filtrage
+    const rawClass = (studentClass || '').toUpperCase();
+    let normalizedClass = studentClass || 'Terminale';
+    if (rawClass.includes('TSM') || rawClass.includes('TERMINALE') || rawClass.startsWith('T')) {
+      normalizedClass = 'Terminale';
+    }
+
+    // 3. Filtrage par classe
+    const classGames = allGames.filter(g => g.classLevel === normalizedClass);
+    
+    // Fallback : si toujours 0 jeux, on prend Terminale par défaut pour ne pas bloquer l'élève
+    const finalGames = classGames.length > 0 ? classGames : GAMES_DATABASE.filter(g => g.classLevel === 'Terminale');
+    
+    const playedIds = new Set(gameScores.map(s => s.gameId.toLowerCase()));
+    const completedCount = finalGames.filter(g => {
+      const lowerId = g.id.toLowerCase();
+      // On vérifie si l'ID est dans les scores OU si un score contient cet ID (cas d'alias)
+      return playedIds.has(lowerId) || gameScores.some(s => s.gameId.toLowerCase().includes(lowerId));
+    }).length;
+    const progress = finalGames.length > 0 ? (completedCount / finalGames.length) * 100 : 0;
+    
+    return { completedCount, totalCount: finalGames.length, progress };
+  }, [gameScores, studentClass]);
 
   // ── Squelette de chargement ──────────────────────────────────────────────
   if (loading) return (
@@ -158,6 +247,89 @@ useEffect(() => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* COLONNE CENTRALE */}
         <div className="lg:col-span-2 space-y-8">
+          
+          {/* NOUVELLE SECTION : ANALYSE & COACH */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* PROGRESSION JEUX */}
+            <Card className="p-6 border-none shadow-soft bg-white dark:bg-gray-900/50">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                  <Gamepad2 size={18} className="text-or-500" /> Progression Ludique
+                </h3>
+                <span className="text-xs font-black text-or-500">{Math.round(gameStats.progress)}%</span>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="h-3 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${gameStats.progress}%` }}
+                    className="h-full bg-gradient-to-r from-or-400 to-or-600 shadow-gold"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500 font-bold">
+                  {gameStats.completedCount} jeux maîtrisés sur {gameStats.totalCount} disponibles
+                </p>
+              </div>
+            </Card>
+
+            {/* ANALYSE DES COMPÉTENCES */}
+            <Card className="p-6 border-none shadow-soft bg-white dark:bg-gray-900/50">
+              <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2 mb-6">
+                <TrendingUp size={18} className="text-vert-500" /> Analyse des Compétences
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {analysis.strengths.map(s => (
+                    <Badge key={s} className="bg-vert-50 text-vert-600 border-none font-bold text-[9px] py-1">
+                      💪 Fort en {s}
+                    </Badge>
+                  ))}
+                  {analysis.weaknesses.map(w => (
+                    <Badge key={w} className="bg-rouge-50 text-rouge-600 border-none font-bold text-[9px] py-1">
+                      ⚠️ À travailler : {w}
+                    </Badge>
+                  ))}
+                  {analysis.strengths.length === 0 && analysis.weaknesses.length === 0 && (
+                    <p className="text-[11px] text-gray-400 italic">En attente de plus de notes...</p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* MON COACH EIEF (RECOMMANDATIONS) */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2 px-2">
+              <Award size={20} className="text-or-500" /> Mon Coach EIEF
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {analysis.recommendations.map((game) => (
+                <Card 
+                  key={game.id} 
+                  className="p-4 border-none shadow-soft bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg transition-all cursor-pointer group"
+                  onClick={() => navigate('/eleve/jeux')}
+                >
+                  <div className="p-2 bg-white dark:bg-white/5 rounded-xl w-fit mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                    {/* On utilise un icone par défaut ou on pourrait mapper */}
+                    <BookOpen size={16} className="text-bleu-500" />
+                  </div>
+                  <h4 className="text-xs font-black text-gray-900 dark:text-white line-clamp-1">{game.title}</h4>
+                  <p className="text-[10px] text-gray-500 mt-1 line-clamp-2">{game.description}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-[9px] font-black text-or-500 uppercase tracking-widest">{game.subject}</span>
+                    <ChevronRight size={12} className="text-gray-300 group-hover:text-or-500 transition-colors" />
+                  </div>
+                </Card>
+              ))}
+              {analysis.recommendations.length === 0 && (
+                <Card className="col-span-3 p-6 text-center bg-gray-50 dark:bg-white/5 border-none">
+                  <p className="text-xs font-bold text-gray-500">Félicitations ! Tu es à jour dans tous tes objectifs. 🎉</p>
+                </Card>
+              )}
+            </div>
+          </div>
 
           {/* DERNIÈRES NOTES */}
           <div className="space-y-4">

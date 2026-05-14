@@ -38,9 +38,13 @@ export const scheduleService = {
 // ── /student — Emploi du temps élève ─────────────────────────────────────────
 
 export const studentScheduleService = {
-  getSchedule: (studentId: string): Promise<ScheduleResponse[]> =>
-    apiRequest<ScheduleResponse[]>(`/student/${studentId}/schedule`),
+  getSchedule: (studentId?: string): Promise<ScheduleResponse[]> =>
+    apiRequest<ScheduleResponse[]>(
+      studentId ? `/student/${studentId}/schedule` : '/student/me/schedule'
+    ),
 
-  getTodaySchedule: (studentId: string): Promise<ScheduleResponse[]> =>
-    apiRequest<ScheduleResponse[]>(`/student/${studentId}/schedule/today`),
+  getTodaySchedule: (studentId?: string): Promise<ScheduleResponse[]> =>
+    apiRequest<ScheduleResponse[]>(
+      studentId ? `/student/${studentId}/schedule/today` : '/student/me/schedule/today'
+    ),
 };

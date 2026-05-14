@@ -16,6 +16,7 @@ import AdminTransport from './pages/admin/Transport';
 import AdminCommunication from './pages/admin/Communication';
 import AdminSettings from './pages/admin/Settings';
 import AdminProfile from './pages/admin/Profile';
+import AdminGamification from './pages/admin/Gamification';
 import ManagerScolarite from './pages/manager/Scolarite';
 import ManagerUsers from './pages/manager/Users';
 import ComptableDashboard from './pages/comptabilite/Dashboard';
@@ -48,6 +49,7 @@ import CatalogueJeux from './pages/eleve/CatalogueJeux';
 import MathAdventure from './pages/eleve/MathAdventure';
 import LogicPuzzle from './pages/eleve/LogicPuzzle';
 import ColorMaster from './pages/eleve/ColorMaster';
+import QuizGame from './pages/eleve/QuizGame';
 import EleveLanding from './pages/EleveLanding';
 import ParentLanding from './pages/ParentLanding';
 import EmployeLanding from './pages/EmployeLanding';
@@ -131,6 +133,7 @@ function App() {
             <Route path="transport" element={<AdminTransport />} />
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="administration" element={<AdminSettings />} />
+            <Route path="jeux" element={<AdminGamification />} />
             <Route path="profil" element={<AdminProfile />} />
           </Route>
           
@@ -225,6 +228,7 @@ function App() {
             <Route path="jeux/math" element={<MathAdventure />} />
             <Route path="jeux/logic" element={<LogicPuzzle />} />
             <Route path="jeux/color" element={<ColorMaster />} />
+            <Route path="jeux/quiz" element={<QuizGame />} />
             <Route path="profil" element={<EleveProfile />} />
             <Route path="preferences" element={<ElevePreferences />} />
           </Route>
@@ -273,6 +277,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'transport': { title: 'Transport Scolaire', subtitle: 'Gestion des lignes et des bus' },
           'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
           'administration': { title: 'Administration', subtitle: 'Configuration système et sécurité' },
+          'jeux': { title: 'Jeux Éducatifs', subtitle: 'Gérez le catalogue des jeux d’apprentissage' },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
         };
         return adminPages[currentPage] || adminPages['dashboard'];
