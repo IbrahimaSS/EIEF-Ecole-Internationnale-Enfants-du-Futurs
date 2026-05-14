@@ -3,6 +3,8 @@ import { apiRequest } from './api';
 
 export interface DashboardResponse {
   totalStudents: number;
+  studentsUpToDate: number;
+  studentsWithArrears: number;
   totalTeachers: number;
   totalUsers: number;
   pendingPayments: number;

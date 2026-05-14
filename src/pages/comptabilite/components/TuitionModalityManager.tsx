@@ -37,6 +37,39 @@ const createEmptyForm = (): TuitionFeePayload => ({
   active: true,
 });
 
+// ── Gestion Inscription / Réinscription ─────────────────────────────────────
+// Le backend ne possède pas (encore) de champ dédié au type d'inscription
+// (Nouvelle Inscription vs Réinscription). On contourne en encodant le type
+// dans la `description` via un marqueur invisible "[TYPE:INSCRIPTION]" ou
+// "[TYPE:REINSCRIPTION]". Les helpers ci-dessous gèrent l'encodage/décodage
+// de façon transparente : la description visible reste propre, et chaque
+// modalité s'affiche avec un badge clair (Inscription / Réinscription).
+
+export type ModalityType = 'INSCRIPTION' | 'REINSCRIPTION';
+
+const TYPE_MARKER_RE = /^\[TYPE:(INSCRIPTION|REINSCRIPTION)\]\s*/;
+
+const extractType = (description: string | null | undefined): ModalityType => {
+  if (!description) return 'INSCRIPTION';
+  const match = description.match(TYPE_MARKER_RE);
+  return (match?.[1] as ModalityType) || 'INSCRIPTION';
+};
+
+const stripTypeMarker = (description: string | null | undefined): string => {
+  if (!description) return '';
+  return description.replace(TYPE_MARKER_RE, '');
+};
+
+const encodeTypeInDescription = (type: ModalityType, description: string): string => {
+  const cleaned = stripTypeMarker(description).trim();
+  return `[TYPE:${type}]${cleaned ? ' ' + cleaned : ''}`;
+};
+
+const LABEL_BY_TYPE: Record<ModalityType, string> = {
+  INSCRIPTION: 'Nouvelle Inscription',
+  REINSCRIPTION: 'Réinscription',
+};
+
 const normalizeInstallments = (installments: TuitionFeePayload['installments']) =>
   installments.map((installment, index) => ({
     ...installment,
@@ -58,46 +91,50 @@ const TuitionModalityManager: React.FC<Props> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState<TuitionFeePayload>(createEmptyForm);
   const [selectedClassFilterId, setSelectedClassFilterId] = useState('');
+  // Type courant du formulaire (Nouvelle Inscription / Réinscription). Encodé
+  // dans la description au submit, décodé lors de l'édition.
+  const [modalityType, setModalityType] = useState<ModalityType>('INSCRIPTION');
+  // Filtre par type dans la liste des modalités existantes.
+  const [typeFilter, setTypeFilter] = useState<'TOUS' | ModalityType>('TOUS');
 
-  const selectedAcademicYearName = useMemo(
-    () => academicYears.find((year) => year.id === formData.academicYearId)?.name ?? null,
-    [academicYears, formData.academicYearId],
+  // Toutes les classes sont disponibles à la création/édition d'une modalité.
+  // On ne filtre plus par année académique pour ne pas masquer des classes
+  // dont le champ academicYearName serait absent ou mal renseigné côté backend.
+  const availableClasses = useMemo(
+    () =>
+      classes.slice().sort((left, right) => {
+        const yearCompare = (left.academicYearName || '').localeCompare(right.academicYearName || '');
+        if (yearCompare !== 0) return yearCompare;
+        return left.name.localeCompare(right.name);
+      }),
+    [classes],
   );
 
-  const availableClasses = useMemo(() => {
-    if (!selectedAcademicYearName) {
-      return classes;
-    }
-
-    return classes.filter(
-      (schoolClass) => !schoolClass.academicYearName || schoolClass.academicYearName === selectedAcademicYearName,
-    );
-  }, [classes, selectedAcademicYearName]);
-
-  const listFilterClasses = useMemo(() => {
-    const referencedClassIds = new Set(
-      tuitionFees.flatMap((tuitionFee) => tuitionFee.classIds),
-    );
-
-    return classes
-      .filter((schoolClass) => referencedClassIds.has(schoolClass.id))
-      .sort((left, right) => {
+  // Filtre "Filtrer par classe" du listing : on affiche TOUTES les classes,
+  // pas uniquement celles qui sont déjà rattachées à une modalité.
+  const listFilterClasses = useMemo(
+    () =>
+      classes.slice().sort((left, right) => {
         const yearCompare = (left.academicYearName || '').localeCompare(right.academicYearName || '');
-        if (yearCompare !== 0) {
-          return yearCompare;
-        }
-
+        if (yearCompare !== 0) return yearCompare;
         return left.name.localeCompare(right.name);
-      });
-  }, [classes, tuitionFees]);
+      }),
+    [classes],
+  );
 
   const filteredTuitionFees = useMemo(() => {
-    if (!selectedClassFilterId) {
-      return tuitionFees;
-    }
-
-    return tuitionFees.filter((tuitionFee) => tuitionFee.classIds.includes(selectedClassFilterId));
-  }, [selectedClassFilterId, tuitionFees]);
+    return tuitionFees.filter((tuitionFee) => {
+      // Filtre par classe.
+      if (selectedClassFilterId && !(tuitionFee.classIds || []).includes(selectedClassFilterId)) {
+        return false;
+      }
+      // Filtre par type (Inscription / Réinscription).
+      if (typeFilter !== 'TOUS' && extractType(tuitionFee.description) !== typeFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [selectedClassFilterId, typeFilter, tuitionFees]);
 
   const installmentTotal = useMemo(
     () => formData.installments.reduce((sum, installment) => sum + Number(installment.amount || 0), 0),
@@ -110,6 +147,7 @@ const TuitionModalityManager: React.FC<Props> = ({
     setEditingFeeId(null);
     setFormError(null);
     setFormData(createEmptyForm());
+    setModalityType('INSCRIPTION');
     setIsModalOpen(false);
   };
 
@@ -117,20 +155,24 @@ const TuitionModalityManager: React.FC<Props> = ({
     setEditingFeeId(null);
     setFormError(null);
     setFormData(createEmptyForm());
+    setModalityType('INSCRIPTION');
     setIsModalOpen(true);
   };
 
   const openEditModal = (tuitionFee: TuitionFeeResponse) => {
     setEditingFeeId(tuitionFee.id);
     setFormError(null);
+    const type = extractType(tuitionFee.description);
+    setModalityType(type);
     setFormData({
       name: tuitionFee.name,
-      description: tuitionFee.description ?? '',
+      // On retire le marqueur pour que la description affichée reste propre.
+      description: stripTypeMarker(tuitionFee.description ?? ''),
       academicYearId: tuitionFee.academicYearId,
       totalAmount: Number(tuitionFee.totalAmount),
       classIds: tuitionFee.classIds,
       installments: normalizeInstallments(
-        tuitionFee.installments
+        (tuitionFee.installments ?? [])
           .slice()
           .sort((left, right) => left.installmentOrder - right.installmentOrder)
           .map((installment) => ({
@@ -198,7 +240,9 @@ const TuitionModalityManager: React.FC<Props> = ({
     const payload: TuitionFeePayload = {
       ...formData,
       name: formData.name.trim(),
-      description: formData.description.trim(),
+      // Encode le type d'inscription dans la description (marqueur invisible
+      // pour l'utilisateur, lu côté frontend pour afficher le badge).
+      description: encodeTypeInDescription(modalityType, formData.description.trim()),
       totalAmount: Number(formData.totalAmount),
       classIds: [...formData.classIds],
       installments: normalizeInstallments(formData.installments).map((installment, index) => ({
@@ -247,18 +291,10 @@ const TuitionModalityManager: React.FC<Props> = ({
     });
   };
 
+  // On ne retire plus les classes déjà sélectionnées lorsqu'on change d'année :
+  // toutes les classes restent disponibles indépendamment de l'année scolaire.
   const updateAcademicYear = (academicYearId: string) => {
-    const nextAcademicYearName = academicYears.find((year) => year.id === academicYearId)?.name;
-    setFormData((current) => ({
-      ...current,
-      academicYearId,
-      classIds: current.classIds.filter((classId) => {
-        const schoolClass = classes.find((candidate) => candidate.id === classId);
-        return schoolClass && nextAcademicYearName
-          ? schoolClass.academicYearName === nextAcademicYearName
-          : false;
-      }),
-    }));
+    setFormData((current) => ({ ...current, academicYearId }));
   };
 
   const updateInstallment = (
@@ -338,6 +374,28 @@ const TuitionModalityManager: React.FC<Props> = ({
               </select>
             </div>
 
+            <div className="w-full lg:w-[320px]">
+              <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Filtrer par type
+              </label>
+              <div className="grid grid-cols-3 gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-white/5">
+                {(['TOUS', 'INSCRIPTION', 'REINSCRIPTION'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setTypeFilter(opt)}
+                    className={`rounded-xl px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${
+                      typeFilter === opt
+                        ? 'bg-white text-bleu-600 shadow-sm dark:bg-gray-800 dark:text-or-300'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    {opt === 'TOUS' ? 'Tous' : opt === 'INSCRIPTION' ? 'Inscription' : 'Réinscription'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Button onClick={openCreateModal} className="self-start lg:self-end">
               <Plus size={16} /> Nouvelle modalité
             </Button>
@@ -362,7 +420,10 @@ const TuitionModalityManager: React.FC<Props> = ({
           </div>
         ) : (
           <div className="mt-6 space-y-4">
-            {filteredTuitionFees.map((tuitionFee) => (
+            {filteredTuitionFees.map((tuitionFee) => {
+              const feeType = extractType(tuitionFee.description);
+              const cleanDescription = stripTypeMarker(tuitionFee.description);
+              return (
               <div
                 key={tuitionFee.id}
                 className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5"
@@ -373,12 +434,15 @@ const TuitionModalityManager: React.FC<Props> = ({
                       <h4 className="text-base font-black text-gray-900 dark:text-white">
                         {tuitionFee.name}
                       </h4>
+                      <Badge variant={feeType === 'INSCRIPTION' ? 'info' : 'warning'}>
+                        {LABEL_BY_TYPE[feeType]}
+                      </Badge>
                       <Badge variant={tuitionFee.isActive ? 'success' : 'default'}>
                         {tuitionFee.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      {tuitionFee.description || 'Aucune description fournie.'}
+                      {cleanDescription || 'Aucune description fournie.'}
                     </p>
                     <p className="mt-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
                       {tuitionFee.academicYearName}
@@ -418,7 +482,7 @@ const TuitionModalityManager: React.FC<Props> = ({
                       Classes ciblées
                     </p>
                     <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
-                      {tuitionFee.classNames.length}
+                      {(tuitionFee.classNames || []).length}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/60">
@@ -426,13 +490,13 @@ const TuitionModalityManager: React.FC<Props> = ({
                       Échéances
                     </p>
                     <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
-                      {tuitionFee.installments.length}
+                      {(tuitionFee.installments || []).length}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {tuitionFee.classNames.map((className) => (
+                  {(tuitionFee.classNames || []).map((className) => (
                     <Badge key={`${tuitionFee.id}-${className}`} variant="info" className="text-[10px] font-bold uppercase tracking-widest">
                       {className}
                     </Badge>
@@ -440,7 +504,7 @@ const TuitionModalityManager: React.FC<Props> = ({
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  {tuitionFee.installments
+                  {(tuitionFee.installments || [])
                     .slice()
                     .sort((left, right) => left.installmentOrder - right.installmentOrder)
                     .map((installment) => (
@@ -469,7 +533,8 @@ const TuitionModalityManager: React.FC<Props> = ({
                     ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -491,7 +556,7 @@ const TuitionModalityManager: React.FC<Props> = ({
             <Input
               value={formData.name}
               onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))}
-              placeholder="Ex: Scolarité collège 2025-2026"
+              placeholder="Ex: Scolarité Maternelle 2026-2027 — Nouvelle Inscription"
               label="Nom de la modalité"
             />
             <Input
@@ -502,8 +567,44 @@ const TuitionModalityManager: React.FC<Props> = ({
                 totalAmount: Number(event.target.value),
               }))}
               placeholder="0"
-              label="Montant total"
+              label="Montant total (GNF)"
             />
+          </div>
+
+          {/* ── Type d'inscription ── Permet de créer deux modalités distinctes
+              par classe : une pour les nouveaux élèves et une pour les
+              réinscriptions, conformément à la fiche de renseignements. */}
+          <div>
+            <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              Type d'inscription concerné
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {(['INSCRIPTION', 'REINSCRIPTION'] as ModalityType[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setModalityType(option)}
+                  className={`rounded-2xl border-2 px-4 py-3 text-left transition-all ${
+                    modalityType === option
+                      ? 'border-bleu-500 bg-bleu-50 dark:border-bleu-400 dark:bg-bleu-900/20'
+                      : 'border-gray-200 bg-white hover:border-bleu-300 dark:border-white/10 dark:bg-white/5'
+                  }`}
+                >
+                  <p className={`text-sm font-bold ${
+                    modalityType === option
+                      ? 'text-bleu-700 dark:text-bleu-200'
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {LABEL_BY_TYPE[option]}
+                  </p>
+                  <p className="mt-0.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                    {option === 'INSCRIPTION'
+                      ? 'Pour les élèves entrants (1ère année à l\'école)'
+                      : 'Pour les élèves déjà inscrits l\'année précédente'}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -521,20 +622,62 @@ const TuitionModalityManager: React.FC<Props> = ({
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
             <div>
               <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Année académique
+                Année académique (sélectionner une date dans l'année)
               </label>
-              <select
-                value={formData.academicYearId}
-                onChange={(event) => updateAcademicYear(event.target.value)}
+              {/* Le comptable choisit une date dans le calendrier. Le système
+                  retrouve automatiquement l'année académique qui contient cette
+                  date (en comparant startDate ≤ date ≤ endDate). À défaut, il
+                  fait un match par nom (ex: "2026-2027" pour une date en
+                  septembre 2026 → année qui commence en 2026). */}
+              <input
+                type="date"
+                min="2026-01-01"
+                value={(() => {
+                  const matched = academicYears.find((y) => y.id === formData.academicYearId);
+                  return matched?.startDate ? matched.startDate.slice(0, 10) : '';
+                })()}
+                onChange={(event) => {
+                  const picked = event.target.value;
+                  if (!picked) {
+                    setFormData((current) => ({ ...current, academicYearId: '' }));
+                    return;
+                  }
+                  const pickedDate = new Date(picked);
+                  // 1) Match par plage de dates
+                  let matched = academicYears.find((y) => {
+                    if (!y.startDate || !y.endDate) return false;
+                    return new Date(y.startDate) <= pickedDate && pickedDate <= new Date(y.endDate);
+                  });
+                  // 2) Fallback : match par nom (ex: "2026-2027" si la date est en 2026 entre sept et déc, ou en 2027 entre jan et août)
+                  if (!matched) {
+                    const y = pickedDate.getFullYear();
+                    const m = pickedDate.getMonth() + 1;
+                    const startYear = m >= 8 ? y : y - 1;
+                    const expectedName = `${startYear}-${startYear + 1}`;
+                    matched = academicYears.find((ay) => (ay.name || '').includes(expectedName));
+                  }
+                  if (matched) {
+                    updateAcademicYear(matched.id);
+                  } else {
+                    // On affiche un état "non trouvé" — formData.academicYearId reste vide.
+                    setFormData((current) => ({ ...current, academicYearId: '' }));
+                  }
+                }}
                 className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-700 focus:outline-none focus:ring-4 focus:ring-bleu-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              >
-                <option value="">Sélectionner une année...</option>
-                {academicYears.map((year) => (
-                  <option key={year.id} value={year.id}>
-                    {year.name}{year.isActive ? ' (active)' : ''}
-                  </option>
-                ))}
-              </select>
+              />
+              {/* Année identifiée (ou message si non trouvée) */}
+              {formData.academicYearId ? (
+                <p className="mt-1.5 text-[10px] font-bold text-vert-700 dark:text-vert-300">
+                  Année identifiée :{' '}
+                  {academicYears.find((y) => y.id === formData.academicYearId)?.name || '—'}
+                  {academicYears.find((y) => y.id === formData.academicYearId)?.isActive ? ' (active)' : ''}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[10px] font-semibold italic text-gray-400">
+                  Aucune année académique ne correspond à cette date. Créez-la
+                  d'abord dans <strong>Administration → Scolarité</strong>.
+                </p>
+              )}
             </div>
 
             <label className="mt-6 flex items-center gap-3 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 dark:border-white/10 dark:text-white">
@@ -566,7 +709,7 @@ const TuitionModalityManager: React.FC<Props> = ({
             <div className="grid grid-cols-1 gap-3 rounded-3xl border border-gray-100 p-4 dark:border-white/10 lg:grid-cols-2">
               {availableClasses.length === 0 ? (
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Aucune classe disponible pour l'année sélectionnée.
+                  Aucune classe enregistrée. Créez d'abord vos classes depuis la section Scolarité.
                 </p>
               ) : (
                 availableClasses.map((schoolClass) => {
@@ -661,6 +804,7 @@ const TuitionModalityManager: React.FC<Props> = ({
                       value={installment.dueDate}
                       onChange={(event) => updateInstallment(index, 'dueDate', event.target.value)}
                       label="Date limite"
+                      min="2026-01-01"
                     />
                   </div>
                 </div>

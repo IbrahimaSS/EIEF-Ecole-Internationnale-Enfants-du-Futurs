@@ -81,6 +81,12 @@ export interface PreEnrollmentRequest {
   hasTenueSport: boolean;
   hasTenueScout: boolean;
   hasTenueKarate: boolean;
+  hasActiviteKarate?: boolean;
+  hasActiviteNatation?: boolean;
+  hasActiviteRobotique?: boolean;
+  hasCoursCoranique?: boolean;
+  hasCoursBiblique?: boolean;
+  hasGarderie?: boolean;
 }
 
 export interface PreEnrollmentResponse {
@@ -106,6 +112,12 @@ export interface PreEnrollmentResponse {
   hasTenueSport: boolean;
   hasTenueScout: boolean;
   hasTenueKarate: boolean;
+  hasActiviteKarate?: boolean;
+  hasActiviteNatation?: boolean;
+  hasActiviteRobotique?: boolean;
+  hasCoursCoranique?: boolean;
+  hasCoursBiblique?: boolean;
+  hasGarderie?: boolean;
   rejectionReason: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
@@ -173,6 +185,8 @@ export interface ParentResponse {
   roleName: string;
   isActive: boolean;
   familyId?: string;
+  address?: string;
+  relationship?: string;
 }
 
 export interface ParentRequest {
@@ -210,6 +224,8 @@ export interface FamilyEnrollmentRequest {
   fatherProfession?: string;
   fatherAddress: string;
   fatherTemporaryPassword?: string;
+  /** Lien du tuteur principal avec l'élève : "Pere" (défaut), "Mere", "Tuteur"... */
+  guardianRelationship?: string;
   // ─── Mère (optionnelle) ───
   motherFirstName?: string;
   motherLastName?: string;
@@ -223,6 +239,12 @@ export interface FamilyEnrollmentRequest {
   hasTenueSport?: boolean;
   hasTenueScout?: boolean;
   hasTenueKarate?: boolean;
+  hasActiviteKarate?: boolean;
+  hasActiviteNatation?: boolean;
+  hasActiviteRobotique?: boolean;
+  hasCoursCoranique?: boolean;
+  hasCoursBiblique?: boolean;
+  hasGarderie?: boolean;
 }
 
 // ── Employés ──────────────────────────────────────────────────────────────────
@@ -404,6 +426,12 @@ export const userService = {
       token,
     }),
 
+  deletePreEnrollment: (token: string, id: string) =>
+    apiRequest<void>(`/pre-enrollments/${id}`, {
+      method: "DELETE",
+      token,
+    }),
+
   /**
    * Inscription "tout-en-un" depuis l'admin :
    *   1. submit pre-enrollment (père = guardian)
@@ -428,7 +456,7 @@ export const userService = {
           guardianLastName: payload.fatherLastName,
           guardianEmail: payload.fatherEmail,
           guardianPhone: payload.fatherPhone,
-          guardianRelationship: "Pere",
+          guardianRelationship: payload.guardianRelationship || "Pere",
           guardianAddress: payload.fatherAddress,
           fatherFirstName: payload.fatherFirstName,
           fatherLastName: payload.fatherLastName,
@@ -447,6 +475,12 @@ export const userService = {
           hasTenueSport: !!payload.hasTenueSport,
           hasTenueScout: !!payload.hasTenueScout,
           hasTenueKarate: !!payload.hasTenueKarate,
+          hasActiviteKarate: !!payload.hasActiviteKarate,
+          hasActiviteNatation: !!payload.hasActiviteNatation,
+          hasActiviteRobotique: !!payload.hasActiviteRobotique,
+          hasCoursCoranique: !!payload.hasCoursCoranique,
+          hasCoursBiblique: !!payload.hasCoursBiblique,
+          hasGarderie: !!payload.hasGarderie,
         }),
         token,
       },

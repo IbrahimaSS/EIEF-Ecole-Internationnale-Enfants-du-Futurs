@@ -1,12 +1,15 @@
 // src/pages/admin/AdminUsers.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users as UsersIcon, GraduationCap, UserPlus, Search,
   MoreVertical, Eye, Edit, Trash2, AlertCircle,
   Loader2, UserCheck, Briefcase, Phone, Mail, Calendar, Hash,
   BookOpen, Shield, User, FileText, CheckCircle2, XCircle,
-  RefreshCw, ClipboardList, ChevronRight, Map as MapIcon,
+  RefreshCw, ClipboardList, ChevronRight, Map as MapIcon, Wallet,
+  Settings, Utensils, Bus, Car, Truck, Shirt, Tent, Swords,
+  Rocket, Waves, Bot, Moon, Baby, Activity, Coins,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import NotificationToast from '../../components/shared/NotificationToast';
@@ -15,6 +18,7 @@ import { cn } from '../../utils/cn';
 import { useUsers } from '../../hooks/useUsers';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import { userService } from '../../services/userService';
+import { apiRequest } from '../../services/api';
 import type {
   StudentRequest, TeacherRequest,
   ParentRequest, ParentResponse,
@@ -64,6 +68,37 @@ const emptyTeacher  = (): TeacherRequest  => ({ email: '', password: '', firstNa
 const emptyParent   = (): ParentRequest   => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT', address: '', relationship: '' });
 const emptyEmployee = (): EmployeeRequest => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'STAFF' });
 
+// ─── Tarifs 2026-2027 ──────────────────────────────────────────────────────────
+
+const PRICES = {
+  INSCRIPTION_FEE: 100000,
+  LEVELS: {
+    'Maternelle': { new: 5700000, returning: 5500000 },
+    'Primaire':   { new: 6200000, returning: 6000000 },
+    'Collège':    { new: 7700000, returning: 7500000 },
+    'Lycée':      { new: 8200000, returning: 8000000 },
+    '6ème Année (CEE)':  { new: 8200000, returning: 7000000 },
+    '10ème Année (BEPC)': { new: 9700000, returning: 8500000 },
+    'Terminale (BAC)':    { new: 10200000, returning: 9000000 },
+  },
+  SERVICES: {
+    CANTINE: 400000,
+    TRANSPORT_PETIT: 300000,
+    TRANSPORT_LONG: 350000,
+    TENUE_SCOLAIRE_PRIMAIRE: 350000,
+    TENUE_SCOLAIRE_SECONDAIRE: 450000,
+    TENUE_SPORT: 100000,
+    TENUE_SCOUT: 250000,
+    TENUE_KARATE: 200000,
+    ACTIVITE_KARATE: 200000,
+    ACTIVITE_NATATION: 300000,
+    ACTIVITE_ROBOTIQUE: 200000,
+    COURS_CORANIQUE: 100000,
+    COURS_BIBLIQUE: 100000,
+    GARDERIE: 100000,
+  }
+};
+
 // ─── Sous-composant : panneau "Voir le profil" ─────────────────────────────────
 
 interface DetailRowProps { icon: React.ReactNode; label: string; value?: string | null }
@@ -86,8 +121,33 @@ interface ProfileModalProps {
   activeTab: TabId;
   onEdit: (row: any) => void;
   onDelete: (row: any) => void;
+  preEnrollments: PreEnrollmentResponse[];
 }
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activeTab, onEdit, onDelete }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activeTab, onEdit, onDelete, preEnrollments }) => {
+  const [financialSummary, setFinancialSummary] = useState<any>(null);
+  const [loadingFinances, setLoadingFinances] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'familles' && row?.familyId) {
+      setLoadingFinances(true);
+      const token = getToken();
+      const API_BASE = (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+      fetch(`${API_BASE}/tuition-fees/families/${row.familyId}/status`, {
+        headers: { 'enfantsfuture-auth-token': `enfantsfuture ${token}` }
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === 200) {
+          setFinancialSummary(d.data);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoadingFinances(false));
+    } else {
+      setFinancialSummary(null);
+    }
+  }, [isOpen, activeTab, row]);
+
   if (!row) return null;
 
   const fullName = `${row.firstName} ${row.lastName}`;
@@ -125,19 +185,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
           <div className="absolute -bottom-6 -left-4 w-24 h-24 rounded-full bg-white/5" />
           <div className="relative flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-bold flex-shrink-0">
-              {row.firstName?.[0]?.toUpperCase()}{row.lastName?.[0]?.toUpperCase()}
+              {activeTab === 'familles' 
+                ? row.label?.replace('FAMILLE ', '')?.substring(0, 2) 
+                : `${row.firstName?.[0]?.toUpperCase()}${row.lastName?.[0]?.toUpperCase()}`}
             </div>
             <div>
               <p className="text-xs font-semibold opacity-75 mb-0.5">{tabLabelMap[activeTab]}</p>
-              <h3 className="text-xl font-bold leading-tight">{fullName}</h3>
-              <p className="text-sm opacity-80 mt-0.5">{row.email}</p>
+              <h3 className="text-xl font-bold leading-tight">{activeTab === 'familles' ? row.label : fullName}</h3>
+              <p className="text-sm opacity-80 mt-0.5">{activeTab === 'familles' && row.parents?.[0] ? row.parents[0].email : row.email}</p>
             </div>
             <div className="ml-auto">
               <span className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-bold',
-                row.isActive ? 'bg-white/20 text-white' : 'bg-black/20 text-white/70'
+                (activeTab === 'familles' ? true : row.isActive) ? 'bg-white/20 text-white' : 'bg-black/20 text-white/70'
               )}>
-                {row.isActive ? '● Actif' : '○ Inactif'}
+                {(activeTab === 'familles' ? true : row.isActive) ? '● Actif' : '○ Inactif'}
               </span>
             </div>
           </div>
@@ -149,8 +211,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
             <span className={cn('w-1 h-3 rounded-full bg-gradient-to-b', tabColorMap[activeTab])} />
             Informations de contact
           </p>
-          <DetailRow icon={<Mail size={14} />}     label="Email"     value={row.email} />
-          <DetailRow icon={<Phone size={14} />}    label="Téléphone" value={row.phone} />
+          <DetailRow icon={<Mail size={14} />}     label="Email"     value={activeTab === 'familles' && row.parents?.[0] ? row.parents[0].email : row.email} />
+          <DetailRow icon={<Phone size={14} />}    label="Téléphone" value={activeTab === 'familles' && row.parents?.[0] ? row.parents[0].phone : row.phone} />
         </div>
 
         {activeTab === 'eleves' && (
@@ -174,24 +236,97 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
               <span className="w-1 h-3 rounded-full bg-gradient-to-b from-vert-500 to-vert-600" />
               Détails de la Famille
             </p>
-            <DetailRow icon={<UserCheck size={14} />} label="Relation" value={row.relationship} />
-            <DetailRow icon={<MapIcon size={14} />}       label="Adresse"  value={row.address} />
+            <DetailRow icon={<UserCheck size={14} />} label="Relation" value={row.parents?.[0]?.relationship} />
+            <DetailRow icon={<MapIcon size={14} />}       label="Adresse"  value={row.parents?.[0]?.address} />
+
+            {loadingFinances ? (
+              <div className="mt-4 flex items-center justify-center p-4">
+                <Loader2 className="animate-spin text-gray-400" size={20} />
+              </div>
+            ) : financialSummary ? (
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/10">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Wallet size={12} className="text-or-500" />
+                  État Financier (Scolarité)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl text-center shadow-sm">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Total Payé</p>
+                    <p className="text-sm font-black text-vert-600">{financialSummary.totalPaid?.toLocaleString('fr-FR')} GNF</p>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl text-center shadow-sm">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Reste à Payer</p>
+                    <p className="text-sm font-black text-red-600">{financialSummary.totalRemaining?.toLocaleString('fr-FR')} GNF</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             
             {row.students && row.students.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/10">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Enfants rattachés</p>
-                <div className="space-y-2">
-                  {row.students.map((s: any) => (
-                    <div key={s.id} className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 shadow-sm">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-900 dark:text-white leading-none mb-0.5">{s.firstName} {s.lastName}</span>
-                        <span className="text-[10px] text-gray-400 font-medium italic">{s.registrationNumber}</span>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Enfants rattachés & Services</p>
+                <div className="space-y-4">
+                  {row.students.map((s: any) => {
+                    const pre = preEnrollments.find(p => p.approvedStudentUserId === s.userId);
+                    return (
+                      <div key={s.id} className="rounded-2xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-white/5 border-b border-gray-50 dark:border-white/5">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-gray-900 dark:text-white leading-none mb-0.5">{s.firstName} {s.lastName}</span>
+                            <span className="text-[10px] text-gray-400 font-medium italic">{s.registrationNumber}</span>
+                          </div>
+                          <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-bleu-50 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-300 ring-1 ring-inset ring-bleu-600/10">
+                            {s.className || 'Non classé'}
+                          </span>
+                        </div>
+                        <div className="p-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {pre?.hasCantine && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-vert-50 dark:bg-vert-900/20 text-vert-600 dark:text-vert-400 text-[9px] font-bold">
+                                <Utensils size={10} /> Cantine
+                              </span>
+                            )}
+                            {pre?.transportMode !== 'NONE' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600 dark:text-bleu-400 text-[9px] font-bold">
+                                <Bus size={10} /> Transport
+                              </span>
+                            )}
+                            {pre?.hasActiviteKarate && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-400 text-[9px] font-bold">
+                                <Swords size={10} /> Karaté
+                              </span>
+                            )}
+                            {pre?.hasActiviteNatation && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[9px] font-bold">
+                                <Waves size={10} /> Natation
+                              </span>
+                            )}
+                            {pre?.hasActiviteRobotique && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-[9px] font-bold">
+                                <Bot size={10} /> Robotique
+                              </span>
+                            )}
+                            {pre?.hasCoursCoranique && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
+                                <Moon size={10} /> Coran
+                              </span>
+                            )}
+                            {pre?.hasCoursBiblique && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[9px] font-bold">
+                                <BookOpen size={10} /> Bible
+                              </span>
+                            )}
+                            {pre?.hasGarderie && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 text-[9px] font-bold">
+                                <Baby size={10} /> Garderie
+                              </span>
+                            )}
+                            {!pre && <span className="text-[10px] text-gray-400 italic">Options par défaut</span>}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-bleu-50 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-300 ring-1 ring-inset ring-bleu-600/10">
-                        {s.className || 'Non classé'}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -222,15 +357,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
 
         {/* Actions */}
         <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+          {activeTab !== 'familles' && (
+            <Button
+              variant="outline"
+              onClick={() => { onClose(); onEdit(row); }}
+              className="flex-1 h-11 gap-2 text-sm"
+            >
+              <Edit size={15} /> Modifier
+            </Button>
+          )}
           <Button
-            variant="outline"
-            onClick={() => { onClose(); onEdit(row); }}
-            className="flex-1 h-11 gap-2 text-sm"
-          >
-            <Edit size={15} /> Modifier
-          </Button>
-          <Button
-            onClick={() => { onClose(); onDelete({ id: row.id, name: fullName }); }}
+            onClick={() => { onClose(); onDelete(activeTab === 'familles' ? { id: row.familyId || row.key, name: row.label } : { id: row.id, name: fullName }); }}
             className="flex-1 h-11 gap-2 text-sm bg-red-600 hover:bg-red-700 border-none shadow-lg shadow-red-600/20"
           >
             <Trash2 size={15} /> Supprimer
@@ -249,9 +386,14 @@ interface AdminUsersProps {
    * des employés sont masqués. Utile pour les rôles non-admin (ex: manager).
    */
   hideEmployeesTab?: boolean;
+  /**
+   * Si true, l'onglet "Enseignants" et la possibilité de créer/éditer
+   * des enseignants sont masqués. Utile pour le rôle comptable.
+   */
+  hideTeachersTab?: boolean;
 }
 
-const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => {
+const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideTeachersTab = false }) => {
 
   // ── Hooks élèves / enseignants ─────────────────────────────────────────────
   const { refetch: refetchDashboard } = useAdminDashboard();
@@ -305,6 +447,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const [rejectReason,      setRejectReason]      = useState('');
   const [pendingPreAction,  setPendingPreAction]  = useState(false);
   const [preDetail,         setPreDetail]         = useState<PreEnrollmentResponse | null>(null);
+  const [deletePreTarget,   setDeletePreTarget]   = useState<PreEnrollmentResponse | null>(null);
+  const [deletingPre,       setDeletingPre]       = useState(false);
 
   // ── State réinscription ────────────────────────────────────────────────────
   const [reenrollTarget, setReenrollTarget] = useState<StudentResponse | null>(null);
@@ -315,8 +459,29 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const [classes, setClasses] = useState<{ id: string; name: string; level: string }[]>([]);
 
   // ── UI state ───────────────────────────────────────────────────────────────
-  const [activeTab,        setActiveTab]        = useState<TabId>('eleves');
-  const [eleveSubTab,      setEleveSubTab]      = useState<EleveSubTab>('inscription');
+  // Le tab et le sous-tab sont pilotables via l'URL (ex: ?tab=eleves&sub=
+  // preinscription) pour que les liens de la sidebar atterrissent directement
+  // sur le bon onglet. On utilise `useLocation` pour détecter chaque
+  // navigation et resynchroniser l'état local.
+  const location = useLocation();
+  const initialParams = new URLSearchParams(location.search);
+  const initialTab = (initialParams.get('tab') as TabId) || 'eleves';
+  const initialSub = (initialParams.get('sub') as EleveSubTab) || 'inscription';
+  const [activeTab,   setActiveTab]   = useState<TabId>(initialTab);
+  const [eleveSubTab, setEleveSubTab] = useState<EleveSubTab>(initialSub);
+
+  // À chaque changement d'URL, on resynchronise l'état local.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('tab') as TabId | null;
+    const s = params.get('sub') as EleveSubTab | null;
+    if (t && ['eleves', 'enseignants', 'familles', 'employes'].includes(t)) {
+      setActiveTab(t);
+    }
+    if (s && ['preinscription', 'reinscription', 'inscription'].includes(s)) {
+      setEleveSubTab(s);
+    }
+  }, [location.search]);
   const [searchQuery,      setSearchQuery]      = useState('');
   const [isAddModalOpen,   setIsAddModalOpen]   = useState(false);
   const [openMenuRowId,    setOpenMenuRowId]    = useState<string | null>(null);
@@ -341,24 +506,118 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const [familyForm, setFamilyForm] = useState({
     fatherFirstName: '', fatherLastName: '', fatherPhone: '', fatherEmail: '', fatherProfession: '', fatherAddress: '',
     fatherTemporaryPassword: '',
+    guardianRelationship: 'Pere',
     motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
     familyEmail: '',
   });
 
   const [studentOptions, setStudentOptions] = useState({
+    isReturning: false,
     cantine: false,
     transport: 'NONE' as 'NONE' | 'PETIT_TRAJET' | 'LONG_TRAJET',
     tenueScolaire: false,
     tenueSport: false,
     tenueScout: false,
     tenueKarate: false,
+    activiteKarate: false,
+    activiteNatation: false,
+    activiteRobotique: false,
+    coursCoranique: false,
+    coursBiblique: false,
+    garderie: false,
   });
 
   /** Filtre par cycle pour la vue Inscriptions (style screenshot 1). */
   const [niveauFilter, setNiveauFilter] = useState<string>('TOUS');
 
+  // ── Paiement initial saisi au moment de l'inscription/réinscription ──────
+  // Permet au comptable / admin d'enregistrer immédiatement un versement
+  // (inscription, scolarité, autres) qui sera créé via POST /payments dès
+  // que l'élève existe en base. Le total sera visible directement dans la
+  // section Finances et dans la Fiche Famille du comptable.
+  const [initialPayment, setInitialPayment] = useState<{
+    enabled: boolean;
+    amount: number;
+    service: 'INSCRIPTION' | 'SCOLARITE' | 'AUTRES';
+    method: 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CHECK';
+    reference: string;
+    note: string;
+  }>({
+    enabled: false,
+    amount: 0,
+    service: 'SCOLARITE',
+    method: 'CASH',
+    reference: '',
+    note: '',
+  });
+
+  const resetInitialPayment = () =>
+    setInitialPayment({
+      enabled: false,
+      amount: 0,
+      service: 'SCOLARITE',
+      method: 'CASH',
+      reference: '',
+      note: '',
+    });
+
   // ── Notification (hook partagé) ────────────────────────────────────────────
   const { notif, showNotif, closeNotif } = useNotif();
+
+  const calculateTotalScolarite = useCallback(() => {
+    const classId = studentForm.classId;
+    const klass = classes.find(c => c.id === classId);
+    if (!klass) return { base: 0, fee: 0, total: 0, installments: [] };
+
+    let levelKey = klass.level as keyof typeof PRICES.LEVELS;
+    // Heuristique pour les classes d'examen
+    if (klass.name.includes('6ème')) levelKey = '6ème Année (CEE)';
+    if (klass.name.includes('10ème')) levelKey = '10ème Année (BEPC)';
+    if (klass.name.includes('Terminale')) levelKey = 'Terminale (BAC)';
+
+    const levelPrices = PRICES.LEVELS[levelKey] || PRICES.LEVELS['Primaire'];
+    const base = studentOptions.isReturning ? levelPrices.returning : levelPrices.new;
+    
+    // Règle des 3 enfants : on vérifie dans la famille si on a déjà 2 enfants (donc le 3e est gratuit)
+    // Pour simplifier, si on est en train d'ajouter un enfant à une famille qui en a déjà 2 ou plus.
+    let childrenCount = 1;
+    if (editingId) {
+      // Si on édite un élève, on pourrait chercher sa famille.
+      // Mais ici Inscrire un élève est pour les NOUVEAUX ou via PreInscription.
+    }
+    
+    // Si c'est une famille existante (via familyId sélectionné dans la modale)
+    if (studentForm.familyId) {
+       const family = parents.find(p => p.id === studentForm.familyId);
+       // On cherche combien d'enfants cette famille a déjà
+       const familyStudents = students.filter(s => s.familyId === studentForm.familyId);
+       childrenCount = familyStudents.length + 1;
+    }
+
+    const fee = childrenCount >= 3 ? 0 : PRICES.INSCRIPTION_FEE;
+    const total = base + fee;
+
+    // Plan de paiement (simplifié basé sur les fiches)
+    // Maternelle/Primaire: 1er (base 1st + fee), 2e (Dec), 3e (Feb)
+    // Lycée/Exam: 1er, 2e, 3e, 4e
+    const installments = [];
+    if (levelKey === 'Lycée' || levelKey.includes('Année') || levelKey.includes('Terminale')) {
+      // 4 versements
+      const firstBase = levelKey.includes('6ème') ? 4200000 : 5200000;
+      installments.push({ label: '1er Versement + Inscr', amount: (studentOptions.isReturning ? firstBase - 1200000 : firstBase) + fee });
+      installments.push({ label: '2ème Versement (Déc)', amount: levelKey.includes('6ème') ? 2000000 : 2500000 });
+      installments.push({ label: '3ème Versement (Fév)', amount: levelKey.includes('Terminale') ? 1600000 : 1100000 });
+      installments.push({ label: '4ème Versement (Mar)', amount: 1000000 });
+    } else {
+      // 3 versements
+      const firstBase = 2700000; // exemple Maternelle/Primaire
+      installments.push({ label: '1er Versement + Inscr', amount: (studentOptions.isReturning ? firstBase - 200000 : firstBase) + fee });
+      installments.push({ label: '2ème Versement (Déc)', amount: 2100000 });
+      installments.push({ label: '3ème Versement (Fév)', amount: levelKey === 'Maternelle' ? 1000000 : 1500000 });
+    }
+
+    return { base, fee, total, installments };
+  }, [studentForm.classId, studentOptions.isReturning, studentForm.familyId, classes, parents, students, editingId]);
 
   // ── Fetch parents ──────────────────────────────────────────────────────────
   const fetchParents = useCallback(async () => {
@@ -458,7 +717,35 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
     safeIncludes(e.registrationNumber, q)
   );
-  const filteredPreEnrollments = preEnrollments.filter(p =>
+  /**
+   * Pré-inscriptions filtrées :
+   *  1) On retire les pré-inscriptions APPROVED dont l'élève créé a été
+   *     supprimé entre-temps (sinon le tableau affiche des "fantômes" qui
+   *     ne correspondent plus à aucun élève réel).
+   *  2) On applique le filtre de recherche texte.
+   *
+   * On ne se base sur ce nettoyage que si la liste des élèves a déjà été
+   * chargée (sinon, pendant le tout 1er chargement, on garderait tout).
+   */
+  const studentUserIds = new Set(students.map(s => s.userId));
+  const parentUserIds = new Set(parents.map(p => p.id));
+
+  const visiblePreEnrollments = preEnrollments.filter(p => {
+    // Si la pré-inscription a été approuvée, elle a créé un élève et un parent.
+    // Si l'un des deux (ou les deux) a été supprimé entre-temps, on masque
+    // la pré-inscription pour éviter d'afficher des données "fantômes".
+    if (p.status === 'APPROVED') {
+      // Tant que les listes ne sont pas chargées, on garde tout pour éviter le clignotement.
+      if (loadingUT || loadingP) return true;
+
+      const studentExists = p.approvedStudentUserId ? studentUserIds.has(p.approvedStudentUserId) : true;
+      const parentExists = p.approvedParentUserId ? parentUserIds.has(p.approvedParentUserId) : true;
+
+      return studentExists && parentExists;
+    }
+    return true;
+  });
+  const filteredPreEnrollments = visiblePreEnrollments.filter(p =>
     safeIncludes(`${p.studentFirstName ?? ''} ${p.studentLastName ?? ''}`, q) ||
     safeIncludes(`${p.guardianFirstName ?? ''} ${p.guardianLastName ?? ''}`, q) ||
     safeIncludes(p.referenceNumber, q) ||
@@ -575,6 +862,39 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     safeIncludes(e.email, q)
   );
 
+  // ── Stats détaillées par tab (pour les cards contextuelles) ────────────────
+  // Élèves
+  const elevesStatsDetailed = {
+    total:    students.length,
+    garcons:  students.filter(s => s.gender === 'M').length,
+    filles:   students.filter(s => s.gender === 'F').length,
+    actifs:   students.filter((s: any) => s.isActive !== false).length,
+  };
+
+  // Enseignants
+  const enseignantsStatsDetailed = {
+    total:       teachers.length,
+    actifs:      teachers.filter(t => t.isActive).length,
+    inactifs:    teachers.filter(t => !t.isActive).length,
+    specialites: new Set(teachers.map(t => (t.specialty || '').trim()).filter(Boolean)).size,
+  };
+
+  // Familles : nombre, ayant des enfants, fratries, parents enregistrés
+  const famillesStatsDetailed = {
+    totalFamilles:  familyCards.length,
+    avecEnfants:    familyCards.filter(f => f.students.length > 0).length,
+    fratries:       familyCards.filter(f => f.students.length > 1).length,
+    parentsActifs:  parents.filter(p => p.isActive).length,
+  };
+
+  // Employés
+  const employesStatsDetailed = {
+    total:    employees.length,
+    actifs:   employees.filter(e => e.isActive).length,
+    inactifs: employees.filter(e => !e.isActive).length,
+    admins:   employees.filter(e => e.roleName === 'ADMIN' || e.roleName === 'STAFF').length,
+  };
+
   // ── Supprimer Famille ──────────────────────────────────────────────────────
   const handleDeleteFamily = async (familyId: string, label: string) => {
     if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la ${label} et tous ses membres (parents et élèves) ?`)) return;
@@ -601,16 +921,24 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     setFamilyForm({
       fatherFirstName: '', fatherLastName: '', fatherPhone: '', fatherEmail: '', fatherProfession: '', fatherAddress: '',
       fatherTemporaryPassword: '',
+      guardianRelationship: 'Pere',
       motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
       familyEmail: '',
     });
     setStudentOptions({
+      isReturning: false,
       cantine: false,
       transport: 'NONE',
       tenueScolaire: false,
       tenueSport: false,
       tenueScout: false,
       tenueKarate: false,
+      activiteKarate: false,
+      activiteNatation: false,
+      activiteRobotique: false,
+      coursCoranique: false,
+      coursBiblique: false,
+      garderie: false,
     });
   };
 
@@ -688,16 +1016,16 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             throw new Error('Classe obligatoire pour une inscription.');
           }
           if (!familyForm.fatherFirstName.trim() || !familyForm.fatherLastName.trim()) {
-            throw new Error('Renseignez le prénom et le nom du Père.');
+            throw new Error('Renseignez le prénom et le nom du Parent Référent.');
           }
           if (!familyForm.fatherEmail.trim() || !familyForm.fatherPhone.trim()) {
-            throw new Error('Email et téléphone du Père obligatoires.');
+            throw new Error('Email et téléphone du Parent Référent obligatoires.');
           }
           if (!familyForm.fatherAddress.trim()) {
             throw new Error('Adresse de la famille obligatoire.');
           }
           if (!familyForm.fatherTemporaryPassword.trim() || familyForm.fatherTemporaryPassword.length < 8) {
-            throw new Error('Le mot de passe du Père est obligatoire (min. 8 car.).');
+            throw new Error('Le mot de passe du Parent Référent est obligatoire (min. 8 car.).');
           }
           if (!studentForm.birthDate) {
             throw new Error('Date de naissance de l\'élève obligatoire.');
@@ -708,7 +1036,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
           if (!studentForm.email.trim() || (studentForm.password ?? '').length < 8) {
             throw new Error("Email + mot de passe (≥ 8 car.) du compte élève requis.");
           }
-          await userService.registerFamilyAndStudent(token, {
+          const approved = await userService.registerFamilyAndStudent(token, {
             studentFirstName: studentForm.firstName,
             studentLastName: studentForm.lastName,
             studentBirthDate: studentForm.birthDate,
@@ -725,6 +1053,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             fatherProfession: familyForm.fatherProfession,
             fatherAddress: familyForm.fatherAddress,
             fatherTemporaryPassword: familyForm.fatherTemporaryPassword,
+            guardianRelationship: familyForm.guardianRelationship,
             motherFirstName: familyForm.motherFirstName,
             motherLastName: familyForm.motherLastName,
             motherEmail: familyForm.motherEmail,
@@ -740,6 +1069,40 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
           });
           await refetchUT();
           await fetchParents();
+
+          // Paiement initial : si le comptable a saisi un montant > 0, on
+          // l'enregistre directement via /payments — il apparaîtra côté
+          // Finances et dans la Fiche Famille du comptable.
+          if (initialPayment.enabled && initialPayment.amount > 0) {
+            try {
+              // L'élève vient d'être créé : on le retrouve par son userId
+              // pour récupérer son studentId (le backend Payment attend
+              // studentId, pas userId).
+              const studentUserId = approved?.approvedStudentUserId;
+              const studentList = await userService.getAllStudents(token);
+              const justCreated = studentList.find((s) => s.userId === studentUserId)
+                ?? studentList.find((s) => s.registrationNumber === studentForm.registrationNumber);
+              if (justCreated) {
+                await apiRequest('/payments', {
+                  method: 'POST',
+                  token,
+                  body: JSON.stringify({
+                    studentId: justCreated.id,
+                    amount: initialPayment.amount,
+                    reference:
+                      initialPayment.reference.trim() ||
+                      `${initialPayment.service}-${studentForm.registrationNumber || Date.now()}`,
+                    method: initialPayment.method,
+                    categoryId: null,
+                  }),
+                });
+              }
+            } catch (paymentErr: any) {
+              // L'inscription a réussi ; on signale juste l'échec du paiement.
+              showNotif('error',
+                `Inscription OK, mais le paiement initial a échoué : ${paymentErr?.message ?? 'erreur'}.`);
+            }
+          }
         }
       } else if (activeTab === 'enseignants') {
         if (editingId) await editTeacher(editingId, teacherForm);
@@ -758,6 +1121,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
       const savedYear = studentForm.arrivalDate;
       setEditingId(null);
       resetForms();
+      resetInitialPayment();
       showNotif('success', editingId 
         ? 'Modification enregistrée.' 
         : activeTab === 'eleves' && eleveSubTab === 'inscription'
@@ -777,8 +1141,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     if (!token) { showNotif('error', 'Token manquant.'); return; }
     setDeleting(true);
     try {
-      if (activeTab === 'eleves')           await removeStudent(deleteTarget.id);
-      else if (activeTab === 'enseignants') await removeTeacher(deleteTarget.id);
+      if (activeTab === 'eleves') {
+        await removeStudent(deleteTarget.id);
+        // Recharge aussi les pré-inscriptions pour purger les entrées
+        // dont l'élève approuvé vient d'être supprimé.
+        await fetchPreEnrollments();
+      } else if (activeTab === 'enseignants') await removeTeacher(deleteTarget.id);
       else if (activeTab === 'familles') {
         await userService.deleteParent(token, deleteTarget.id);
         await fetchParents();
@@ -925,20 +1293,80 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
 
   const familyColumns = [
     {
-      key: 'lastName', label: 'Famille', sortable: true,
-      render: (_: any, row: any) => (
+      key: 'label', label: 'Famille', sortable: true,
+      render: (_: any, row: FamilyCard) => (
         <div className="flex items-center gap-3">
-          <Avatar name={`${row.firstName} ${row.lastName}`} size="sm" />
+          <Avatar name={row.label?.replace('FAMILLE ', '') || 'Inconnu'} size="sm" />
           <div>
-            <div className="font-semibold text-gray-900 dark:text-white leading-none mb-1">Famille {row.lastName}</div>
-            <div className="text-[10px] text-gray-400 font-medium">Contact : {row.firstName} {row.lastName} · {row.email}</div>
+            <div className="font-semibold text-gray-900 dark:text-white leading-none mb-1">{row.label || 'Famille'}</div>
+            <div className="text-[10px] text-gray-400 font-medium">
+              {row.parents.length > 0 ? `${row.parents[0].firstName} ${row.parents[0].lastName} · ${row.parents[0].email}` : 'Aucun parent défini'}
+            </div>
           </div>
         </div>
       ),
     },
-    { key: 'phone', label: 'Téléphone', render: (val: string) => <span className="text-sm text-gray-500">{val || '—'}</span> },
-    { key: 'isActive', label: 'Statut', render: (val: boolean) => <Badge variant={val ? 'success' : 'default'}>{val ? 'Actif' : 'Inactif'}</Badge> },
-    { key: 'actions', label: '', render: renderActions },
+    { 
+      key: 'phone', label: 'Téléphone', 
+      render: (_: any, row: FamilyCard) => <span className="text-sm text-gray-500">{row.parents.length > 0 ? row.parents[0].phone || '—' : '—'}</span> 
+    },
+    { 
+      key: 'students', label: 'Enfants', 
+      render: (_: any, row: FamilyCard) => <Badge variant={row.students.length > 0 ? 'success' : 'default'}>{row.students.length} enfant(s)</Badge> 
+    },
+    { 
+      key: 'actions', label: '', 
+      render: (_: any, row: FamilyCard) => (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); setProfileRow(row); setIsProfileOpen(true); }}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-400 hover:text-bleu-600 transition-colors"
+            title="Voir le détail"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setOpenMenuRowId(openMenuRowId === row.key ? null : row.key);
+            }}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-400 transition-colors"
+          >
+            <MoreVertical size={16} />
+          </button>
+          <AnimatePresence>
+            {openMenuRowId === row.key && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-12 mt-2 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden"
+              >
+                <div className="p-1">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setOpenMenuRowId(null);
+                      handleDeleteFamily(row.familyId || row.key, row.label);
+                    }}
+                    className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-xl transition-all w-full"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Trash2 size={14} />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span>Supprimer</span>
+                      <span className="text-[9px] font-normal text-red-400">Action irréversible</span>
+                    </div>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ) 
+    },
   ];
 
   // ─── Colonnes pré-inscriptions ────────────────────────────────────────────
@@ -1024,6 +1452,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
               </button>
             </>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); setDeletePreTarget(row); }}
+            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl text-gray-400 hover:text-red-600 transition-colors"
+            title="Supprimer définitivement"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       ),
     },
@@ -1058,25 +1493,30 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
   const allTabs = [
     { id: 'eleves',      label: 'Élèves',      icon: GraduationCap, count: students.length  },
     { id: 'enseignants', label: 'Enseignants', icon: UsersIcon,     count: teachers.length  },
-    { id: 'familles',    label: 'Familles',    icon: UserCheck,     count: parents.length   },
+    { id: 'familles',    label: 'Familles',    icon: UserCheck,     count: familyCards.length   },
     { id: 'employes',    label: 'Employés',    icon: Briefcase,     count: employees.length },
-  ] as const;
-  const tabs = hideEmployeesTab ? allTabs.filter(t => t.id !== 'employes') : allTabs;
+  ];
+  let tabs = [...allTabs];
+  if (hideEmployeesTab) tabs = tabs.filter(t => t.id !== 'employes');
+  if (hideTeachersTab) tabs = tabs.filter(t => t.id !== 'enseignants');
 
   /** Sous-onglets pour la gestion des élèves (Pré-inscription / Réinscription / Inscription). */
   const eleveSubTabs: { id: EleveSubTab; label: string; icon: any; count?: number }[] = [
-    { id: 'preinscription', label: 'Pré-inscription', icon: ClipboardList, count: preEnrollments.length },
+    { id: 'preinscription', label: 'Pré-inscription', icon: ClipboardList, count: visiblePreEnrollments.length },
     { id: 'reinscription',  label: 'Réinscription',   icon: RefreshCw,     count: students.length },
     { id: 'inscription',    label: 'Inscription',     icon: UserPlus,      count: students.length },
   ];
 
-  // Sécurité : si on cache l'onglet Employés alors qu'il était sélectionné,
+  // Sécurité : si on cache l'onglet Employés ou Enseignants alors qu'il était sélectionné,
   // bascule sur l'onglet Élèves.
   useEffect(() => {
     if (hideEmployeesTab && activeTab === 'employes') {
       setActiveTab('eleves');
     }
-  }, [hideEmployeesTab, activeTab]);
+    if (hideTeachersTab && activeTab === 'enseignants') {
+      setActiveTab('eleves');
+    }
+  }, [hideEmployeesTab, hideTeachersTab, activeTab]);
 
   /** Quand on est sur l'onglet Élèves > Pré-inscription, on dévie vers les pré-inscriptions. */
   const isPreEnrollmentView = activeTab === 'eleves' && eleveSubTab === 'preinscription';
@@ -1100,7 +1540,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                     : activeTab === 'eleves' && eleveSubTab === 'inscription'     ? filteredStudentsByLevel
                     : activeTab === 'eleves'                                      ? filteredStudents
                     : activeTab === 'enseignants'                                 ? filteredTeachers
-                    : activeTab === 'familles'                                    ? filteredFamilies
+                    : activeTab === 'familles'                                    ? filteredFamilyCards
                     : filteredEmployees;
 
   /** Colonnes "Réinscrire" : on réutilise eleveColumns mais on remplace le menu d'actions. */
@@ -1188,6 +1628,21 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
     } finally { setPendingPreAction(false); }
   };
 
+  const handleDeletePre = async () => {
+    if (!deletePreTarget) return;
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    setDeletingPre(true);
+    try {
+      await userService.deletePreEnrollment(token, deletePreTarget.id);
+      setDeletePreTarget(null);
+      await fetchPreEnrollments();
+      showNotif('success', 'Pré-inscription supprimée définitivement.');
+    } catch (err: any) {
+      showNotif('error', err?.message ?? 'La suppression a échoué.');
+    } finally { setDeletingPre(false); }
+  };
+
   /* -------- Réinscription -------- */
   const handleReenroll = async () => {
     if (!reenrollTarget) return;
@@ -1200,7 +1655,31 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         classId: reenrollForm.classId,
         enrollmentDate: reenrollForm.enrollmentDate || undefined,
       });
+
+      // Paiement initial si saisi (réinscription) : on a déjà l'id élève.
+      if (initialPayment.enabled && initialPayment.amount > 0) {
+        try {
+          await apiRequest('/payments', {
+            method: 'POST',
+            token,
+            body: JSON.stringify({
+              studentId: reenrollTarget.id,
+              amount: initialPayment.amount,
+              reference:
+                initialPayment.reference.trim() ||
+                `${initialPayment.service}-${reenrollTarget.registrationNumber || Date.now()}`,
+              method: initialPayment.method,
+              categoryId: null,
+            }),
+          });
+        } catch (paymentErr: any) {
+          showNotif('error',
+            `Réinscription OK, mais le paiement initial a échoué : ${paymentErr?.message ?? 'erreur'}.`);
+        }
+      }
+
       setReenrollTarget(null);
+      resetInitialPayment();
       await refetchUT();
       showNotif('success', `${reenrollTarget.firstName} ${reenrollTarget.lastName} a été réinscrit(e).`);
     } catch (err: any) {
@@ -1248,33 +1727,77 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         )}
       </div>
 
-      {/* TABS & SEARCH */}
-      <Card className="p-4 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none overflow-x-auto">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={e => { e.stopPropagation(); setActiveTab(tab.id as TabId); setSearchQuery(''); }}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[10px] font-semibold transition-all duration-300 whitespace-nowrap ${
-                    isActive
-                      ? 'bg-white dark:bg-or-500 text-bleu-600 dark:text-white shadow-sm'
-                      : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-                  }`}
-                >
-                  <Icon size={15} />
-                  {tab.label}
-                  <span className={`ml-1 px-2 py-0.5 rounded-full text-[9px] ${isActive ? 'bg-bleu-50 dark:bg-white/20 text-bleu-600 dark:text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-500'}`}>
-                    {isLoading ? '…' : tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="relative flex-1 max-w-md">
+      {/* STATS RAPIDES — contextuelles selon l'onglet actif.
+          Chaque tab (Élèves / Enseignants / Familles / Employés) affiche
+          ses propres indicateurs métier. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
+        {(() => {
+          // Définition des cards à afficher pour chaque tab
+          type StatCard = { label: string; value: number | string; color: string; icon: React.ReactNode };
+
+          let cards: StatCard[] = [];
+          if (activeTab === 'eleves') {
+            cards = [
+              { label: 'Total élèves',  value: elevesStatsDetailed.total,   color: 'from-bleu-500/10 to-bleu-500/0', icon: <GraduationCap size={18} className="text-bleu-600 dark:text-bleu-300" /> },
+              { label: 'Garçons',       value: elevesStatsDetailed.garcons, color: 'from-blue-500/10 to-blue-500/0', icon: <span className="text-blue-600 dark:text-blue-300 text-lg font-black">♂</span> },
+              { label: 'Filles',        value: elevesStatsDetailed.filles,  color: 'from-pink-500/10 to-pink-500/0', icon: <span className="text-pink-600 dark:text-pink-300 text-lg font-black">♀</span> },
+              { label: 'Actifs',        value: elevesStatsDetailed.actifs,  color: 'from-vert-500/10 to-vert-500/0', icon: <CheckCircle2 size={18} className="text-vert-600 dark:text-vert-300" /> },
+            ];
+          } else if (activeTab === 'enseignants') {
+            cards = [
+              { label: 'Total enseignants', value: enseignantsStatsDetailed.total,       color: 'from-or-500/10 to-or-500/0',     icon: <UsersIcon size={18} className="text-or-600 dark:text-or-300" /> },
+              { label: 'Actifs',            value: enseignantsStatsDetailed.actifs,      color: 'from-vert-500/10 to-vert-500/0', icon: <CheckCircle2 size={18} className="text-vert-600 dark:text-vert-300" /> },
+              { label: 'Inactifs',          value: enseignantsStatsDetailed.inactifs,    color: 'from-rouge-500/10 to-rouge-500/0', icon: <XCircle size={18} className="text-rouge-600 dark:text-rouge-300" /> },
+              { label: 'Spécialités',       value: enseignantsStatsDetailed.specialites, color: 'from-bleu-500/10 to-bleu-500/0',  icon: <BookOpen size={18} className="text-bleu-600 dark:text-bleu-300" /> },
+            ];
+          } else if (activeTab === 'familles') {
+            cards = [
+              { label: 'Familles',       value: famillesStatsDetailed.totalFamilles, color: 'from-bleu-500/10 to-bleu-500/0', icon: <UserCheck size={18} className="text-bleu-600 dark:text-bleu-300" /> },
+              { label: 'Avec enfants',   value: famillesStatsDetailed.avecEnfants,   color: 'from-vert-500/10 to-vert-500/0', icon: <GraduationCap size={18} className="text-vert-600 dark:text-vert-300" /> },
+              { label: 'Fratries',       value: famillesStatsDetailed.fratries,      color: 'from-pink-500/10 to-pink-500/0', icon: <UsersIcon size={18} className="text-pink-600 dark:text-pink-300" /> },
+              { label: 'Parents actifs', value: famillesStatsDetailed.parentsActifs, color: 'from-or-500/10 to-or-500/0',     icon: <UserCheck size={18} className="text-or-600 dark:text-or-300" /> },
+            ];
+          } else {
+            // employes
+            cards = [
+              { label: 'Total employés', value: employesStatsDetailed.total,    color: 'from-purple-500/10 to-purple-500/0', icon: <Briefcase size={18} className="text-purple-600 dark:text-purple-300" /> },
+              { label: 'Actifs',         value: employesStatsDetailed.actifs,   color: 'from-vert-500/10 to-vert-500/0',     icon: <CheckCircle2 size={18} className="text-vert-600 dark:text-vert-300" /> },
+              { label: 'Inactifs',       value: employesStatsDetailed.inactifs, color: 'from-rouge-500/10 to-rouge-500/0',   icon: <XCircle size={18} className="text-rouge-600 dark:text-rouge-300" /> },
+              { label: 'Admin / Staff',  value: employesStatsDetailed.admins,   color: 'from-bleu-500/10 to-bleu-500/0',     icon: <Shield size={18} className="text-bleu-600 dark:text-bleu-300" /> },
+            ];
+          }
+
+          return cards.map((c, idx) => (
+            <Card
+              key={`${activeTab}-${idx}`}
+              className={cn(
+                'p-5 border-none backdrop-blur-sm relative overflow-hidden bg-gradient-to-br',
+                c.color,
+                'dark:bg-gray-900/40',
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1 truncate">{c.label}</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">{c.value}</p>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-white/70 dark:bg-white/5 flex items-center justify-center shrink-0">
+                  {c.icon}
+                </div>
+              </div>
+            </Card>
+          ));
+        })()}
+      </div>
+
+      {/* Barre de recherche seule — les onglets principaux et sous-onglets
+          sont désormais pilotés via la sidebar (sections Utilisateurs /
+          Pré-inscriptions / Inscriptions / Réinscriptions / Familles /
+          Enseignants / Employés). On évite ainsi de répéter la navigation
+          au centre de la page. */}
+      <Card className="p-4 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative w-full max-w-md mx-auto">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
             <input
               type="text"
@@ -1288,34 +1811,14 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         </div>
       </Card>
 
-      {/* SOUS-ONGLETS ÉLÈVES (Pré-inscription / Réinscription / Inscription) */}
+      {/* Filtres spécifiques à la sous-vue active (sans la barre de
+          sous-onglets puisque la sidebar joue ce rôle). */}
       {activeTab === 'eleves' && (
         <Card className="p-3 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
-              {eleveSubTabs.map(sub => {
-                const Icon = sub.icon;
-                const isActive = eleveSubTab === sub.id;
-                return (
-                  <button
-                    key={sub.id}
-                    onClick={e => { e.stopPropagation(); setEleveSubTab(sub.id); setSearchQuery(''); }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
-                      isActive
-                        ? 'bg-white dark:bg-bleu-600 text-bleu-700 dark:text-white shadow-sm'
-                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-                    }`}
-                  >
-                    <Icon size={14} />
-                    {sub.label}
-                  </button>
-                );
-              })}
-            </div>
-
+          <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-end">
             {/* Filtre statut pour la pré-inscription */}
             {eleveSubTab === 'preinscription' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Statut :</span>
                 {(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as const).map(s => (
                   <button
@@ -1387,44 +1890,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         </div>
       )}
 
-      {/* ── BANDEAU STATS FAMILLES ─────────────────────────────────────────── */}
-      {activeTab === 'familles' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="p-5 border-none bg-gradient-to-br from-bleu-50 to-white dark:from-bleu-900/20 dark:to-gray-900/30">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-bleu-100 dark:bg-bleu-900/40 flex items-center justify-center text-bleu-600 dark:text-bleu-300">
-                <UserCheck size={22} />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Familles</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{familyStats.totalFamilles}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5 border-none bg-gradient-to-br from-vert-50 to-white dark:from-vert-900/20 dark:to-gray-900/30">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-vert-100 dark:bg-vert-900/40 flex items-center justify-center text-vert-600 dark:text-vert-300">
-                <GraduationCap size={22} />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enfants</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{familyStats.totalEnfants}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5 border-none bg-gradient-to-br from-pink-50 to-white dark:from-pink-900/20 dark:to-gray-900/30">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-pink-100 dark:bg-pink-900/40 flex items-center justify-center text-pink-600 dark:text-pink-300">
-                <UsersIcon size={22} />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fratries</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{familyStats.fratries}</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* Les stats familles sont désormais affichées dans le bandeau
+          contextuel en haut de page (cards par tab). */}
 
       {/* TABLEAU / GRILLE */}
       <AnimatePresence mode="wait">
@@ -1581,18 +2048,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         </motion.div>
       </AnimatePresence>
 
-      {/* STATS RAPIDES */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
-        {tabs.map(t => (
-          <Card key={t.id} className="p-6 border-none bg-gradient-to-br from-bleu-500/5 to-or-500/5 dark:from-bleu-900/10 dark:to-or-900/10 backdrop-blur-sm relative overflow-hidden">
-            <p className="text-gray-400 text-[10px] font-semibold mb-1">{t.label}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t.id === 'eleves' ? students.length : t.id === 'enseignants' ? teachers.length : t.id === 'familles' ? parents.length : employees.length}
-            </p>
-          </Card>
-        ))}
-      </div>
-
       {/* ── MODALE PROFIL ──────────────────────────────────────────────────────── */}
       <ProfileModal
         isOpen={isProfileOpen}
@@ -1601,6 +2056,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         activeTab={activeTab}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
+        preEnrollments={preEnrollments}
       />
 
       {/* ── MODALE AJOUT / ÉDITION ─────────────────────────────────────────────── */}
@@ -1620,6 +2076,32 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         size="lg"
       >
         <div className="space-y-8 text-left py-2" onClick={e => e.stopPropagation()}>
+
+          {/* ─ Type d'inscription ─ */}
+          {activeTab === 'eleves' && (
+            <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-2xl w-full">
+              <button
+                type="button"
+                onClick={() => setStudentOptions(o => ({ ...o, isReturning: false }))}
+                className={cn(
+                  'flex-1 py-3 rounded-xl text-xs font-bold transition-all',
+                  !studentOptions.isReturning ? 'bg-white dark:bg-bleu-600 text-bleu-700 dark:text-white shadow-sm' : 'text-gray-400'
+                )}
+              >
+                🆕 Nouvelle Inscription
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentOptions(o => ({ ...o, isReturning: true }))}
+                className={cn(
+                  'flex-1 py-3 rounded-xl text-xs font-bold transition-all',
+                  studentOptions.isReturning ? 'bg-white dark:bg-bleu-600 text-bleu-700 dark:text-white shadow-sm' : 'text-gray-400'
+                )}
+              >
+                🔄 Réinscription
+              </button>
+            </div>
+          )}
 
           {/* ─ Identité (commun à tous) ─ */}
           <div>
@@ -1751,23 +2233,32 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             <>
               <div>
                 <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-bleu-500 rounded-full" /> 👨 Informations du Père
+                  <span className="w-1 h-3 bg-bleu-500 rounded-full" /> 👨 Informations du Parent Référent
                   <span className="ml-auto text-[8px] text-rouge-500 font-bold normal-case tracking-normal">obligatoire</span>
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Input label="Prénom du père" placeholder="ex: Mamadou"
+                  <Select label="Relation avec l'enfant"
+                    options={[
+                      { value: 'Pere', label: 'Père' },
+                      { value: 'Mere', label: 'Mère' },
+                      { value: 'Tuteur', label: 'Tuteur/Autre' },
+                    ]}
+                    value={familyForm.guardianRelationship ?? 'Pere'}
+                    onChange={e => setFamilyForm(f => ({ ...f, guardianRelationship: e.target.value }))}
+                  />
+                  <Input label="Prénom du parent" placeholder="ex: Mamadou"
                     value={familyForm.fatherFirstName}
                     onChange={e => setFamilyForm(f => ({ ...f, fatherFirstName: e.target.value }))}
                   />
-                  <Input label="Nom du père" placeholder="ex: Diallo"
+                  <Input label="Nom du parent" placeholder="ex: Diallo"
                     value={familyForm.fatherLastName}
                     onChange={e => setFamilyForm(f => ({ ...f, fatherLastName: e.target.value }))}
                   />
-                  <Input label="Email du père" type="email" placeholder="papa@exemple.com"
+                  <Input label="Email du parent" type="email" placeholder="parent@exemple.com"
                     value={familyForm.fatherEmail}
                     onChange={e => setFamilyForm(f => ({ ...f, fatherEmail: e.target.value }))}
                   />
-                  <Input label="Téléphone du père" placeholder="+224 ..."
+                  <Input label="Téléphone du parent" placeholder="+224 ..."
                     value={familyForm.fatherPhone}
                     onChange={e => setFamilyForm(f => ({ ...f, fatherPhone: e.target.value }))}
                   />
@@ -1775,11 +2266,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                    value={familyForm.fatherProfession}
                    onChange={e => setFamilyForm(f => ({ ...f, fatherProfession: e.target.value }))}
                   />
-                  <Input label="Mot de passe du Père" type="password" placeholder="Min. 8 caractères"
+                  <Input label="Mot de passe du Parent" type="password" placeholder="Min. 8 caractères"
                    value={familyForm.fatherTemporaryPassword}
                    onChange={e => setFamilyForm(f => ({ ...f, fatherTemporaryPassword: e.target.value }))}
                   />
-                  <Input label="Adresse de la famille" placeholder="Quartier, ville"
+                  <Input label="Adresse (Quartier/Ville)" placeholder="ex: Dixinn, Conakry"
                     value={familyForm.fatherAddress}
                     onChange={e => setFamilyForm(f => ({ ...f, fatherAddress: e.target.value }))}
                   />
@@ -1792,23 +2283,23 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
 
               <div>
                 <p className="text-[10px] font-bold text-rouge-500 dark:text-rouge-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-rouge-500 rounded-full" /> 👩 Informations de la Mère
+                  <span className="w-1 h-3 bg-rouge-500 rounded-full" /> 👩 Informations de l'Autre Parent
                   <span className="ml-auto text-[8px] text-gray-400 font-bold normal-case tracking-normal">optionnel</span>
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Input label="Prénom de la mère" placeholder="ex: Mariama"
+                  <Input label="Prénom" placeholder="ex: Mariama"
                     value={familyForm.motherFirstName}
                     onChange={e => setFamilyForm(f => ({ ...f, motherFirstName: e.target.value }))}
                   />
-                  <Input label="Nom de la mère" placeholder="ex: Diallo"
+                  <Input label="Nom" placeholder="ex: Diallo"
                     value={familyForm.motherLastName}
                     onChange={e => setFamilyForm(f => ({ ...f, motherLastName: e.target.value }))}
                   />
-                  <Input label="Email de la mère" type="email" placeholder="maman@exemple.com"
+                  <Input label="Email" type="email" placeholder="autre@exemple.com"
                     value={familyForm.motherEmail}
                     onChange={e => setFamilyForm(f => ({ ...f, motherEmail: e.target.value }))}
                   />
-                  <Input label="Téléphone de la mère" placeholder="+224 ..."
+                  <Input label="Téléphone" placeholder="+224 ..."
                     value={familyForm.motherPhone}
                     onChange={e => setFamilyForm(f => ({ ...f, motherPhone: e.target.value }))}
                   />
@@ -1818,16 +2309,18 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                   />
                 </div>
                 <p className="text-[10px] text-gray-400 italic mt-3">
-                  La famille (Père obligatoire, Mère optionnelle) est créée automatiquement lors de l'enregistrement de l'élève.
+                  La famille est créée automatiquement avec ce Parent Référent lors de l'enregistrement de l'élève.
                 </p>
               </div>
 
               {/* ─ Options pour cet enfant ─ */}
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-vert-500 rounded-full" /> ⚙️ Options pour cet enfant
+                  <span className="w-1 h-3 bg-vert-500 rounded-full" />
+                  <Settings size={12} className="text-vert-500" />
+                  Options pour cet enfant
                 </p>
-                
+
                 <div className="space-y-4">
                   {/* Cantine */}
                   <button
@@ -1846,11 +2339,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                     )}>
                       {studentOptions.cantine && <CheckCircle2 size={12} className="text-white" />}
                     </div>
-                    <span className="text-xl shrink-0">🍽️</span>
+                    <div className="rounded-xl bg-bleu-100 dark:bg-bleu-900/30 p-2 text-bleu-700 dark:text-bleu-300 shrink-0">
+                      <Utensils size={18} />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Cantine scolaire</h4>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 leading-tight">Repas chauds et équilibrés servis chaque jour à l'école.</p>
-                      <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-400">💰 400 000 GNF / mois</p>
+                      <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-400 flex items-center gap-1">
+                        <Coins size={10} /> 400 000 GNF / mois
+                      </p>
                     </div>
                   </button>
 
@@ -1868,76 +2365,267 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
                       )}>
                         {studentOptions.transport !== 'NONE' && <CheckCircle2 size={12} className="text-white" />}
                       </div>
-                      <span className="text-xl shrink-0">🚌</span>
+                      <div className="rounded-xl bg-bleu-100 dark:bg-bleu-900/30 p-2 text-bleu-700 dark:text-bleu-300 shrink-0">
+                        <Bus size={18} />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Transport scolaire</h4>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2 leading-tight">Navette aller-retour sécurisée avec chauffeur dédié.</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pl-9">
-                      {(['PETIT_TRAJET', 'LONG_TRAJET'] as const).map(mode => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setStudentOptions(p => ({ ...p, transport: p.transport === mode ? 'NONE' : mode }))}
-                          className={cn(
-                            'p-2 rounded-xl border text-[10px] font-bold transition-all',
-                            studentOptions.transport === mode
-                              ? 'bg-bleu-600 text-white border-bleu-600'
-                              : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400'
-                          )}
-                        >
-                          {mode === 'PETIT_TRAJET' ? '🚗 Petit (300k)' : '🚐 Long (350k)'}
-                        </button>
-                      ))}
+                      {(['PETIT_TRAJET', 'LONG_TRAJET'] as const).map(mode => {
+                        const ModeIcon = mode === 'PETIT_TRAJET' ? Car : Truck;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setStudentOptions(p => ({ ...p, transport: p.transport === mode ? 'NONE' : mode }))}
+                            className={cn(
+                              'flex items-center gap-2 p-2 rounded-xl border text-[10px] font-bold transition-all',
+                              studentOptions.transport === mode
+                                ? 'bg-bleu-600 text-white border-bleu-600'
+                                : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400'
+                            )}
+                          >
+                            <ModeIcon size={14} />
+                            <span>
+                              {mode === 'PETIT_TRAJET' ? 'Petit trajet — 300 000 GNF' : 'Long trajet — 350 000 GNF'}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Uniformes */}
                   <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
                     <div className="flex items-start gap-3 mb-4">
-                      <span className="text-xl">👔</span>
+                      <div className="rounded-xl bg-or-100 dark:bg-or-900/30 p-2 text-or-700 dark:text-or-300">
+                        <Shirt size={18} />
+                      </div>
                       <div>
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white">Uniformes & Équipements</h4>
                         <p className="text-[10px] text-gray-400">Sélectionnez les tenues souhaitées</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {[
-                        { id: 'tenueScolaire', icon: '👕', title: 'Scolaire', price: '350k / 450k' },
-                        { id: 'tenueSport',    icon: '🤸', title: 'Sport',    price: '100k' },
-                        { id: 'tenueScout',    icon: '⚜️', title: 'Scout',    price: '250k' },
-                        { id: 'tenueKarate',   icon: '🥋', title: 'Karaté',   price: '200k' },
+                        { id: 'tenueScolaire', Icon: Shirt,    title: 'Tenue scolaire (2 complets)', price: '350 000 GNF / 450 000 GNF' },
+                        { id: 'tenueSport',    Icon: Activity, title: 'Tenue de sport (EPS)',        price: '100 000 GNF' },
+                        { id: 'tenueScout',    Icon: Tent,     title: 'Tenue Scout',                 price: '250 000 GNF' },
+                        { id: 'tenueKarate',   Icon: Swords,   title: 'Tenue Karaté (kimono)',       price: '200 000 GNF' },
                       ].map(u => (
                         <button
                           key={u.id}
                           type="button"
                           onClick={() => setStudentOptions(p => ({ ...p, [u.id]: !(p as any)[u.id] }))}
                           className={cn(
-                            'flex items-center gap-2 p-2 rounded-xl border-2 text-left transition-all',
+                            'flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all',
                             (studentOptions as any)[u.id]
                               ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm'
                               : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200',
                           )}
                         >
                           <div className={cn(
-                            'w-4 h-4 rounded-full border flex items-center justify-center shrink-0',
+                            'w-4 h-4 rounded-full border items-center justify-center shrink-0 flex',
                             (studentOptions as any)[u.id] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
                           )}>
                             {(studentOptions as any)[u.id] && <CheckCircle2 size={10} className="text-white" />}
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-bold text-gray-900 dark:text-white truncate">{u.icon} {u.title}</p>
-                            <p className="text-[9px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
+                          <div className="rounded-lg bg-gray-100 dark:bg-white/5 p-1.5 text-gray-700 dark:text-gray-300 shrink-0">
+                            <u.Icon size={14} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-gray-900 dark:text-white">{u.title}</p>
+                            <p className="text-[10px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
                           </div>
                         </button>
                       ))}
                     </div>
                   </div>
+
+                  {/* Activités & Options Supplémentaires */}
+                  <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="rounded-xl bg-vert-100 dark:bg-vert-900/30 p-2 text-vert-700 dark:text-vert-300">
+                        <Rocket size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Activités & Options</h4>
+                        <p className="text-[10px] text-gray-400">Activités extrascolaires et cours spéciaux</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { id: 'activiteKarate',    Icon: Swords,   title: 'Cours Karaté',              price: '200 000 GNF / mois' },
+                        { id: 'activiteNatation',  Icon: Waves,    title: 'Cours de Natation',         price: '300 000 GNF / mois' },
+                        { id: 'activiteRobotique', Icon: Bot,      title: 'Robotique / Atelier+',      price: '200 000 GNF / mois' },
+                        { id: 'coursCoranique',    Icon: Moon,     title: 'Cours Coranique',           price: '100 000 GNF / mois' },
+                        { id: 'coursBiblique',     Icon: BookOpen, title: 'Cours Biblique',            price: '100 000 GNF / mois' },
+                        { id: 'garderie',          Icon: Baby,     title: 'Garderie',                  price: '100 000 GNF / mois' },
+                      ].map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => setStudentOptions(p => ({ ...p, [u.id]: !(p as any)[u.id] }))}
+                          className={cn(
+                            'flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all',
+                            (studentOptions as any)[u.id]
+                              ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm'
+                              : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200',
+                          )}
+                        >
+                          <div className={cn(
+                            'w-4 h-4 rounded-full border items-center justify-center shrink-0 flex',
+                            (studentOptions as any)[u.id] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
+                          )}>
+                            {(studentOptions as any)[u.id] && <CheckCircle2 size={10} className="text-white" />}
+                          </div>
+                          <div className="rounded-lg bg-gray-100 dark:bg-white/5 p-1.5 text-gray-700 dark:text-gray-300 shrink-0">
+                            <u.Icon size={14} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-gray-900 dark:text-white">{u.title}</p>
+                            <p className="text-[10px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* RÉSUMÉ FINANCIER & PLAN DE PAIEMENT */}
+                  {(() => {
+                    const { base, fee, total, installments } = calculateTotalScolarite();
+                    if (total === 0) return null;
+                    return (
+                      <div className="rounded-3xl bg-gradient-to-br from-bleu-600 to-bleu-700 p-6 text-white shadow-xl shadow-bleu-600/20">
+                        <div className="flex justify-between items-start mb-6">
+                          <div>
+                            <h4 className="text-xs font-bold uppercase tracking-widest opacity-75 mb-1">Total Scolarité</h4>
+                            <p className="text-3xl font-black">{total.toLocaleString()} GNF</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-bold opacity-75">Frais Inscr/Réinscr</p>
+                            <p className="text-sm font-bold">{fee === 0 ? 'GRATUIT (3+ enfants)' : `${fee.toLocaleString()} GNF`}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-bold uppercase tracking-widest opacity-75 flex items-center gap-2">
+                            <Calendar size={12} /> Échéancier de paiement
+                          </p>
+                          <div className="grid grid-cols-1 gap-2">
+                            {installments.map((inst, idx) => (
+                              <div key={idx} className="flex justify-between items-center py-2 px-3 rounded-xl bg-white/10 backdrop-blur-md border border-white/10">
+                                <span className="text-[10px] font-bold">{inst.label}</span>
+                                <span className="text-xs font-black">{inst.amount.toLocaleString()} GNF</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-white/10">
+                          <p className="text-[9px] opacity-75 italic">
+                            * Les frais de services (cantine, transport, etc.) seront facturés mensuellement en sus.
+                            L'exonération des frais d'inscription s'applique aux familles de 3 enfants ou plus.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Paiement initial (création uniquement) ─────────────── */}
+                  {!editingId && (
+                    <div className="rounded-3xl border-2 border-dashed border-vert-300 bg-vert-50/40 p-5 dark:border-vert-700 dark:bg-vert-900/10">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={initialPayment.enabled}
+                          onChange={(e) =>
+                            setInitialPayment((p) => ({ ...p, enabled: e.target.checked }))
+                          }
+                          className="mt-1 h-4 w-4 rounded border-vert-300 text-vert-600 focus:ring-vert-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-vert-900 dark:text-vert-200 flex items-center gap-2">
+                            <Wallet size={14} /> Enregistrer un paiement à l'inscription
+                          </p>
+                          <p className="text-[10px] text-vert-700 dark:text-vert-300 font-semibold">
+                            Saisir le montant que le parent a versé. Le paiement
+                            sera enregistré directement côté Finances et visible
+                            dans la Fiche Famille.
+                          </p>
+                        </div>
+                      </label>
+
+                      {initialPayment.enabled && (
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            type="number"
+                            label="Montant versé (GNF) *"
+                            placeholder="0"
+                            value={initialPayment.amount || ''}
+                            onChange={(e) =>
+                              setInitialPayment((p) => ({ ...p, amount: Number(e.target.value) }))
+                            }
+                          />
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                              Service couvert
+                            </label>
+                            <select
+                              value={initialPayment.service}
+                              onChange={(e) =>
+                                setInitialPayment((p) => ({
+                                  ...p,
+                                  service: e.target.value as typeof initialPayment.service,
+                                }))
+                              }
+                              className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
+                            >
+                              <option value="INSCRIPTION">Frais d'inscription</option>
+                              <option value="SCOLARITE">Scolarité</option>
+                              <option value="AUTRES">Autres / Tout</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                              Mode de paiement
+                            </label>
+                            <select
+                              value={initialPayment.method}
+                              onChange={(e) =>
+                                setInitialPayment((p) => ({
+                                  ...p,
+                                  method: e.target.value as typeof initialPayment.method,
+                                }))
+                              }
+                              className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
+                            >
+                              <option value="CASH">Espèces</option>
+                              <option value="MOBILE_MONEY">Mobile Money</option>
+                              <option value="BANK_TRANSFER">Virement bancaire</option>
+                              <option value="CHECK">Chèque</option>
+                            </select>
+                          </div>
+                          <Input
+                            label="Référence / reçu (optionnel)"
+                            placeholder="Auto-généré si vide"
+                            value={initialPayment.reference}
+                            onChange={(e) =>
+                              setInitialPayment((p) => ({ ...p, reference: e.target.value }))
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
           )}
+
 
           {/* ─ Champs spécifiques enseignants ─ */}
           {activeTab === 'enseignants' && (
@@ -2038,7 +2726,59 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
         </div>
       </Modal>
 
+      {/* ── MODALE CONFIRM DELETE PRE-INSCRIPTION ─────────────────────────────── */}
+      <Modal
+        isOpen={!!deletePreTarget}
+        onClose={() => !deletingPre && setDeletePreTarget(null)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-600">
+              <Trash2 size={22} />
+            </div>
+            <span className="font-bold text-red-600">Confirmer la suppression</span>
+          </div>
+        }
+        size="sm"
+      >
+        <div className="text-left space-y-6 py-2">
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+              <AlertCircle className="text-red-600" size={32} />
+            </div>
+            <div className="text-center">
+              <p className="text-gray-900 dark:text-white font-bold text-lg">Suppression irréversible</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                Êtes-vous sûr de vouloir supprimer définitivement la pré-inscription de{' '}
+                <span className="font-black text-gray-900 dark:text-white">
+                  {deletePreTarget?.studentFirstName} {deletePreTarget?.studentLastName}
+                </span> ?
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeletePreTarget(null)}
+              disabled={deletingPre}
+              className="flex-1 h-12"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleDeletePre}
+              disabled={deletingPre}
+              className="flex-1 h-12 bg-red-600 hover:bg-red-700 border-none text-white shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
+            >
+              {deletingPre && <Loader2 size={16} className="animate-spin" />}
+              Supprimer définitivement
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* ── MODALE CONFIRM DELETE ─────────────────────────────────────────────── */}
+
       <Modal
         isOpen={!!deleteTarget}
         onClose={() => !deleting && setDeleteTarget(null)}
@@ -2128,23 +2868,23 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <span className="w-1 h-3 rounded-full bg-purple-500" /> Options souhaitées
               </p>
-              <DetailRow 
-                icon={<span>🍽️</span>} 
-                label="Cantine scolaire" 
-                value={preDetail.hasCantine ? "Oui (400 000 GNF/mois)" : "Non"} 
+              <DetailRow
+                icon={<Utensils size={14} />}
+                label="Cantine scolaire"
+                value={preDetail.hasCantine ? "Oui (400 000 GNF/mois)" : "Non"}
               />
-              <DetailRow 
-                icon={<span>🚌</span>} 
-                label="Transport scolaire" 
+              <DetailRow
+                icon={<Bus size={14} />}
+                label="Transport scolaire"
                 value={
                   preDetail.transportMode === 'PETIT_TRAJET' ? "Oui - Petit trajet (300 000 GNF/mois)" :
                   preDetail.transportMode === 'LONG_TRAJET' ? "Oui - Long trajet (350 000 GNF/mois)" : "Non"
                 } 
               />
               {(preDetail.hasTenueScolaire || preDetail.hasTenueSport || preDetail.hasTenueScout || preDetail.hasTenueKarate) && (
-                <DetailRow 
-                  icon={<span>👔</span>} 
-                  label="Uniformes & Équipements" 
+                <DetailRow
+                  icon={<Shirt size={14} />}
+                  label="Uniformes & Équipements"
                   value={[
                     preDetail.hasTenueScolaire ? "Tenue scolaire" : null,
                     preDetail.hasTenueSport ? "Tenue de sport" : null,
@@ -2344,12 +3084,104 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false }) => 
             <Input
               label="Date d'inscription (optionnel)"
               type="date"
+              min="2026-01-01"
               value={reenrollForm.enrollmentDate}
               onChange={e => setReenrollForm(f => ({ ...f, enrollmentDate: e.target.value }))}
             />
 
+            {/* ── Paiement initial à la réinscription ──────────────────── */}
+            <div className="rounded-3xl border-2 border-dashed border-vert-300 bg-vert-50/40 p-5 dark:border-vert-700 dark:bg-vert-900/10">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={initialPayment.enabled}
+                  onChange={(e) =>
+                    setInitialPayment((p) => ({ ...p, enabled: e.target.checked }))
+                  }
+                  className="mt-1 h-4 w-4 rounded border-vert-300 text-vert-600 focus:ring-vert-500"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-vert-900 dark:text-vert-200 flex items-center gap-2">
+                    <Wallet size={14} /> Enregistrer un paiement à la réinscription
+                  </p>
+                  <p className="text-[10px] text-vert-700 dark:text-vert-300 font-semibold">
+                    Saisir le montant déjà versé par le parent. Le paiement
+                    sera enregistré directement côté Finances.
+                  </p>
+                </div>
+              </label>
+
+              {initialPayment.enabled && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    type="number"
+                    label="Montant versé (GNF) *"
+                    placeholder="0"
+                    value={initialPayment.amount || ''}
+                    onChange={(e) =>
+                      setInitialPayment((p) => ({ ...p, amount: Number(e.target.value) }))
+                    }
+                  />
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                      Service couvert
+                    </label>
+                    <select
+                      value={initialPayment.service}
+                      onChange={(e) =>
+                        setInitialPayment((p) => ({
+                          ...p,
+                          service: e.target.value as typeof initialPayment.service,
+                        }))
+                      }
+                      className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
+                    >
+                      <option value="INSCRIPTION">Frais de réinscription</option>
+                      <option value="SCOLARITE">Scolarité</option>
+                      <option value="AUTRES">Autres / Tout</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                      Mode de paiement
+                    </label>
+                    <select
+                      value={initialPayment.method}
+                      onChange={(e) =>
+                        setInitialPayment((p) => ({
+                          ...p,
+                          method: e.target.value as typeof initialPayment.method,
+                        }))
+                      }
+                      className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
+                    >
+                      <option value="CASH">Espèces</option>
+                      <option value="MOBILE_MONEY">Mobile Money</option>
+                      <option value="BANK_TRANSFER">Virement bancaire</option>
+                      <option value="CHECK">Chèque</option>
+                    </select>
+                  </div>
+                  <Input
+                    label="Référence / reçu (optionnel)"
+                    placeholder="Auto-généré si vide"
+                    value={initialPayment.reference}
+                    onChange={(e) =>
+                      setInitialPayment((p) => ({ ...p, reference: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
-              <Button variant="outline" onClick={() => setReenrollTarget(null)} disabled={reenrolling} className="flex-1 h-12">Annuler</Button>
+              <Button
+                variant="outline"
+                onClick={() => { setReenrollTarget(null); resetInitialPayment(); }}
+                disabled={reenrolling}
+                className="flex-1 h-12"
+              >
+                Annuler
+              </Button>
               <Button
                 onClick={handleReenroll}
                 disabled={reenrolling}

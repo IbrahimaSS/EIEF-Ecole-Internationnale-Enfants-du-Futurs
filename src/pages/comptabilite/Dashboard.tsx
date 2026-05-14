@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, GraduationCap, Wallet,
-  AlertCircle, BookOpen, ShoppingBag, Clock, ArrowRight, Package,
+  AlertCircle, BookOpen, ShoppingBag, Clock, ArrowRight, Package, PieChart as PieChartIcon, BarChart2
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { StatCard, Card, Badge, Button } from '../../components/ui';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import { getLowStockProducts, ProductResponse } from '../../services/storeServices';
@@ -11,6 +13,7 @@ import { getLowStockProducts, ProductResponse } from '../../services/storeServic
 const ComptableDashboard: React.FC = () => {
   const { data, loading, error } = useAdminDashboard();
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchLowStockProducts = async () => {
@@ -68,7 +71,7 @@ const ComptableDashboard: React.FC = () => {
         <div>
           <h1 className="text-xl font-semibold gradient-bleu-or-text">Tableau de Bord</h1>
           <p className="text-gray-500 dark:text-gray-400 font-medium">
-            Aperçu stratégique de l'EIEF | Bienvenue, Administrateur !
+            Aperçu stratégique et état des paiements | Bienvenue, Comptable !
           </p>
         </div>
       </div>
@@ -76,36 +79,32 @@ const ComptableDashboard: React.FC = () => {
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Effectif Élèves"
+          title="Élèves Inscrits"
           value={data.totalStudents.toString()}
-          subtitle="Inscrits cette année"
+          subtitle="Total des effectifs"
           icon={<GraduationCap />}
           color="bleu"
         />
         <StatCard
-          title="Corps Enseignant"
-          value={data.totalTeachers.toString()}
-          subtitle="Personnel actif"
-          icon={<Users />}
+          title="Élèves à Jour"
+          value={data.studentsUpToDate.toString()}
+          subtitle="Paiements régularisés"
+          icon={<Wallet />}
           color="vert"
+        />
+        <StatCard
+          title="Élèves en Retard"
+          value={data.studentsWithArrears.toString()}
+          subtitle="Paiements en attente/retard"
+          icon={<AlertCircle />}
+          color="rouge"
         />
         <StatCard
           title="Recettes Totales"
           value={formatCurrency(data.totalRevenue)}
           subtitle="Encaissements cumulés"
-          icon={<Wallet />}
+          icon={<ShoppingBag />}
           color="or"
-          trend={{
-            value: formatCurrency(data.netResult),
-            direction: data.netResult >= 0 ? "up" : "down"
-          }}
-        />
-        <StatCard
-          title="Paiements en Attente"
-          value={data.pendingPayments.toString()}
-          subtitle="À traiter"
-          icon={<AlertCircle />}
-          color="rouge"
         />
       </div>
 
@@ -113,42 +112,83 @@ const ComptableDashboard: React.FC = () => {
         {/* COLONNE GAUCHE */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* RÉPARTITION DES RECETTES */}
-          <Card className="border-none shadow-soft p-0 overflow-hidden dark:bg-gray-900/50 dark:backdrop-blur-md">
-            <div className="p-6 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-white dark:bg-transparent">
-              <h3 className="font-semibold gradient-bleu-or-text flex items-center gap-2">
-                <Clock className="text-bleu-600 dark:text-bleu-400" size={20} />
+          {/* GRAPHIQUES */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* PIE CHART - ETAT DES PAIEMENTS */}
+            <Card className="border-none shadow-soft p-6 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md">
+              <h3 className="font-semibold gradient-bleu-or-text flex items-center gap-2 mb-6">
+                <PieChartIcon className="text-bleu-600 dark:text-bleu-400" size={20} />
+                État des Paiements
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'À Jour', value: data.studentsUpToDate, color: '#22c55e' }, // Vert
+                        { name: 'En Retard', value: data.studentsWithArrears, color: '#ef4444' } // Rouge
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {[{ color: '#22c55e' }, { color: '#ef4444' }].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip 
+                      formatter={(value: any) => [`${value} élèves`, '']}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* BAR CHART - REPARTITION DES RECETTES */}
+            <Card className="border-none shadow-soft p-6 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md">
+              <h3 className="font-semibold gradient-bleu-or-text flex items-center gap-2 mb-6">
+                <BarChart2 className="text-or-600 dark:text-or-400" size={20} />
                 Répartition des Recettes
               </h3>
-              <Button variant="outline" className="text-[10px] font-semibold px-3 py-1.5 h-auto dark:border-white/10 dark:text-white">
-                Voir tout
-              </Button>
-            </div>
-            <div className="divide-y divide-gray-50 dark:divide-white/5 bg-white dark:bg-transparent">
-              {[
-                { label: 'Scolarité', montant: data.tuitionRevenue },
-                { label: 'Cafétéria', montant: data.cafeteriaRevenue },
-                { label: 'Transport', montant: data.transportRevenue },
-                { label: 'Boutique', montant: data.storeRevenue },
-              ].map((item, i) => (
-                <div key={i} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center justify-between group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center group-hover:bg-vert-100 dark:group-hover:bg-vert-900/30 group-hover:text-vert-600 dark:group-hover:text-vert-400 transition-colors">
-                      <Wallet size={18} />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.label}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">Recette par catégorie</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900 dark:text-white text-sm">{formatCurrency(item.montant)}</p>
-                    <Badge variant="success" className="text-[9px] py-0 px-2 font-semibold">Validé</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: 'Scolarité', value: data.tuitionRevenue, fill: '#3b82f6' }, // Bleu
+                      { name: 'Cantine', value: data.cafeteriaRevenue, fill: '#eab308' }, // Or
+                      { name: 'Transport', value: data.transportRevenue, fill: '#10b981' }, // Vert
+                      { name: 'Boutique', value: data.storeRevenue, fill: '#8b5cf6' }, // Violet
+                    ]}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} tickFormatter={(val) => `${val / 1000}k`} />
+                    <RechartsTooltip 
+                      formatter={(value: any) => [formatCurrency(Number(value) || 0), 'Recettes']}
+                      cursor={{ fill: 'transparent' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {[
+                        { fill: '#3b82f6' },
+                        { fill: '#eab308' },
+                        { fill: '#10b981' },
+                        { fill: '#8b5cf6' }
+                      ].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
 
           {/* RÉSULTAT NET */}
           <Card className="border-none shadow-soft p-8 bg-gradient-to-br from-gray-900 to-gray-800 dark:from-black dark:to-gray-900 text-white relative overflow-hidden ring-1 ring-white/5">
@@ -188,12 +228,12 @@ const ComptableDashboard: React.FC = () => {
             <h3 className="font-semibold gradient-bleu-or-text mb-6">Raccourcis Stratégiques</h3>
             <div className="space-y-3">
               {[
-                { label: "Nouveau Dossier Élève", icon: GraduationCap, color: "bg-bleu-100 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-400" },
-                { label: "Émettre Facture Scolarité", icon: Wallet, color: "bg-vert-100 dark:bg-vert-900/30 text-vert-600 dark:text-vert-400" },
-                { label: "Rapport Bibliothèque", icon: BookOpen, color: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400" },
-                { label: "Annonce aux Parents", icon: AlertCircle, color: "bg-or-100 dark:bg-or-900/30 text-or-600 dark:text-or-400" },
+                { label: "Nouveau Dossier Élève", icon: GraduationCap, color: "bg-bleu-100 dark:bg-bleu-900/30 text-bleu-600 dark:text-bleu-400", path: "/comptable/utilisateurs" },
+                { label: "Émettre Facture Scolarité", icon: Wallet, color: "bg-vert-100 dark:bg-vert-900/30 text-vert-600 dark:text-vert-400", path: "/comptable/comptabilite" },
+                { label: "Rapport Bibliothèque", icon: BookOpen, color: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400", path: "/comptable/bibliotheque" },
+                { label: "Annonce aux Parents", icon: AlertCircle, color: "bg-or-100 dark:bg-or-900/30 text-or-600 dark:text-or-400", path: "/comptable/communication" },
               ].map((action, i) => (
-                <button key={i} className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-50/50 dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 border border-transparent hover:border-gray-100 dark:hover:border-white/5 transition-all group">
+                <button key={i} onClick={() => navigate(action.path)} className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-50/50 dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 border border-transparent hover:border-gray-100 dark:hover:border-white/5 transition-all group">
                   <div className="flex items-center gap-4">
                     <div className={`p-3 rounded-xl transition-transform group-hover:scale-110 ${action.color}`}>
                       <action.icon size={20} />

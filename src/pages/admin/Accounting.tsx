@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet,
@@ -163,6 +164,25 @@ interface TuitionFeePaymentPayload {
   payerUserId?: string;
 }
 
+interface FamilyTuitionPaymentPayload {
+  familyId: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string;
+  payerType: TuitionFeePayerType;
+  payerUserId?: string;
+}
+
+interface TuitionFeeFamilyStatusResponse {
+  familyId: string;
+  totalExpected: number;
+  totalPaid: number;
+  totalRemaining: number;
+  hasOverdue: boolean;
+  overdueCount: number;
+  studentStatuses: TuitionFeeStudentStatusResponse[];
+}
+
 interface TuitionFeePaymentResponse {
   id: string;
   tuitionFeeId: string;
@@ -180,15 +200,41 @@ interface TuitionFeePaymentResponse {
   paidAt: string;
 }
 
+interface Parent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  familyId?: string;
+}
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 const AdminAccounting: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'payments' | 'expenses' | 'tuition'>('payments');
+  // L'onglet courant est pilotable via ?tab=payments|tuition|expenses dans
+  // l'URL. La sidebar pointe directement sur le bon onglet via ces query
+  // params (ex: /admin/comptabilite?tab=tuition).
+  const location = useLocation();
+  type FinanceTab = 'payments' | 'expenses' | 'tuition';
+  const isFinanceTab = (v: string | null): v is FinanceTab =>
+    v === 'payments' || v === 'expenses' || v === 'tuition';
+  const initialFinanceTab = (() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    return isFinanceTab(t) ? t : 'payments';
+  })();
+  const [activeTab, setActiveTab] = useState<FinanceTab>(initialFinanceTab);
+
+  // Resynchronisation à chaque navigation depuis la sidebar.
+  useEffect(() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    if (isFinanceTab(t)) setActiveTab(t);
+  }, [location.search]);
 
   // Payments state
   const [payments, setPayments] = useState<PaymentResponse[]>([]);
   const [overduePayments, setOverduePayments] = useState<PaymentResponse[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [parents, setParents] = useState<Parent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -201,6 +247,7 @@ const AdminAccounting: React.FC = () => {
 
   // Payment modals
   const [isEncaissementModalOpen, setIsEncaissementModalOpen] = useState(false);
+  const [isFamilyPaymentModalOpen, setIsFamilyPaymentModalOpen] = useState(false);
   const [isRapportsModalOpen, setIsRapportsModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentResponse | null>(null);
@@ -215,6 +262,14 @@ const AdminAccounting: React.FC = () => {
     method: 'CASH',
     studentId: '',
     categoryId: null,
+  });
+
+  const [familyPaymentForm, setFamilyPaymentForm] = useState<FamilyTuitionPaymentPayload>({
+    familyId: '',
+    amount: 0,
+    method: 'CASH',
+    reference: '',
+    payerType: 'PARENT',
   });
 
   // Expenses state
@@ -238,8 +293,61 @@ const AdminAccounting: React.FC = () => {
   const [tuitionLoading, setTuitionLoading] = useState(false);
   const [tuitionActionLoading, setTuitionActionLoading] = useState(false);
   const [selectedStudentStatus, setSelectedStudentStatus] = useState<TuitionFeeStudentStatusResponse | null>(null);
+  const [selectedFamilyStatus, setSelectedFamilyStatus] = useState<TuitionFeeFamilyStatusResponse | null>(null);
   const [statusStudentId, setStatusStudentId] = useState('');
+  const [statusFamilyId, setStatusFamilyId] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
+
+  // ── Autocomplete pour "Statut individuel" et "Statut Global" ───────────
+  // (champs texte avec menu déroulant filtré, plus pratiques que les selects
+  //  natifs quand il y a beaucoup d'élèves / familles.)
+  const [statusStudentQuery, setStatusStudentQuery] = useState('');
+  const [statusStudentOpen, setStatusStudentOpen] = useState(false);
+  const statusStudentRef = useRef<HTMLDivElement | null>(null);
+  const [statusFamilyQuery, setStatusFamilyQuery] = useState('');
+  const [statusFamilyOpen, setStatusFamilyOpen] = useState(false);
+  const statusFamilyRef = useRef<HTMLDivElement | null>(null);
+
+  // Ferme les menus déroulants au clic en dehors.
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (statusStudentRef.current && !statusStudentRef.current.contains(event.target as Node)) {
+        setStatusStudentOpen(false);
+      }
+      if (statusFamilyRef.current && !statusFamilyRef.current.contains(event.target as Node)) {
+        setStatusFamilyOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Listes filtrées (recherche sur nom, matricule, classe, parent).
+  const filteredStatusStudents = useMemo(() => {
+    const q = statusStudentQuery.trim().toLowerCase();
+    if (!q) return students.slice(0, 15);
+    return students
+      .filter((s: any) => {
+        const haystack = [
+          s.firstName, s.lastName, s.registrationNumber, s.className, s.parentName,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 30);
+  }, [statusStudentQuery, students]);
+
+  const filteredStatusFamilies = useMemo(() => {
+    const q = statusFamilyQuery.trim().toLowerCase();
+    if (!q) return parents.slice(0, 15);
+    return parents
+      .filter((p: any) => {
+        const haystack = [
+          p.firstName, p.lastName, p.email, p.phone, p.familyId,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 30);
+  }, [statusFamilyQuery, parents]);
   const [isTuitionPaymentModalOpen, setIsTuitionPaymentModalOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<TuitionFeeInstallmentStatusResponse | null>(null);
   const [tuitionPaymentForm, setTuitionPaymentForm] = useState<TuitionFeePaymentPayload>({
@@ -252,6 +360,7 @@ const AdminAccounting: React.FC = () => {
     payerUserId: undefined,
   });
   const [tuitionSubmitting, setTuitionSubmitting] = useState(false);
+  const [familySubmitting, setFamilySubmitting] = useState(false);
 
   const [paymentCategories, setPaymentCategories] = useState<ExpenseCategoryResponse[]>([]);
 
@@ -328,10 +437,11 @@ const AdminAccounting: React.FC = () => {
       const query = params.toString();
       const endpoint = query ? `/payments/filter?${query}` : '/payments/filter';
       const data = await apiRequest<PaymentResponse[]>(endpoint, { method: 'GET' });
-      setPayments(data);
+      setPayments(Array.isArray(data) ? data : []);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Erreur lors du chargement des paiements');
+      setPayments([]);
     } finally {
       setLoading(false);
     }
@@ -340,18 +450,31 @@ const AdminAccounting: React.FC = () => {
   const fetchOverduePayments = useCallback(async () => {
     try {
       const data = await apiRequest<PaymentResponse[]>('/payments/overdue', { method: 'GET' });
-      setOverduePayments(data);
+      setOverduePayments(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Erreur chargement impayés:', err);
+      setOverduePayments([]);
     }
   }, []);
 
   const fetchStudents = useCallback(async () => {
     try {
       const data = await apiRequest<Student[]>('/users/students', { method: 'GET' });
-      setStudents(data);
+      setStudents(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Erreur chargement élèves:', err);
+      setStudents([]);
+    }
+  }, []);
+
+  const fetchParents = useCallback(async () => {
+    try {
+      const data = await apiRequest<any[]>('/users', { method: 'GET' });
+      const safe = Array.isArray(data) ? data : [];
+      setParents(safe.filter(u => u.roleName === 'PARENT' && u.familyId));
+    } catch (err: any) {
+      console.error('Erreur chargement parents:', err);
+      setParents([]);
     }
   }, []);
 
@@ -361,9 +484,10 @@ const AdminAccounting: React.FC = () => {
     try {
       const module = filterCategory !== 'Tous' ? `?module=${encodeURIComponent(filterCategory)}` : '';
       const data = await apiRequest<ExpenseCategoryResponse[]>(`/expenses/categories${module}`, { method: 'GET' });
-      setExpenseCategories(data);
+      setExpenseCategories(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      console.error('Erreur chargement catÃ©gories dÃ©penses:', err);
+      console.error('Erreur chargement catégories dépenses:', err);
+      setExpenseCategories([]);
     }
   }, [filterCategory]);
 
@@ -385,10 +509,11 @@ const AdminAccounting: React.FC = () => {
       const query = params.toString();
       const endpoint = query ? `/expenses?${query}` : '/expenses';
       const data = await apiRequest<ExpenseResponse[]>(endpoint, { method: 'GET' });
-      setExpenses(data);
+      setExpenses(Array.isArray(data) ? data : []);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des dÃ©penses');
+      setError(err.message || 'Erreur lors du chargement des dépenses');
+      setExpenses([]);
     } finally {
       setExpenseLoading(false);
     }
@@ -396,17 +521,25 @@ const AdminAccounting: React.FC = () => {
 
   const fetchTuitionFees = useCallback(async () => {
     const data = await apiRequest<TuitionFeeResponse[]>('/tuition-fees/modalities', { method: 'GET' });
-    setTuitionFees(data);
+    // Garde-fou : on normalise pour que classNames/installments soient toujours
+    // des arrays (le backend peut renvoyer null si vide).
+    const normalized = (Array.isArray(data) ? data : []).map((fee) => ({
+      ...fee,
+      classNames: fee.classNames ?? [],
+      classIds: fee.classIds ?? [],
+      installments: fee.installments ?? [],
+    }));
+    setTuitionFees(normalized);
   }, []);
 
   const fetchAcademicYears = useCallback(async () => {
     const data = await apiRequest<AcademicYearOption[]>('/courses/academic-years', { method: 'GET' });
-    setAcademicYears(data);
+    setAcademicYears(Array.isArray(data) ? data : []);
   }, []);
 
   const fetchSchoolClasses = useCallback(async () => {
     const data = await apiRequest<ClassOption[]>('/courses/classes', { method: 'GET' });
-    setSchoolClasses(data);
+    setSchoolClasses(Array.isArray(data) ? data : []);
   }, []);
 
   const refreshTuitionCatalog = useCallback(async () => {
@@ -431,6 +564,7 @@ const AdminAccounting: React.FC = () => {
         { method: 'GET' }
       );
       setSelectedStudentStatus(data);
+      setSelectedFamilyStatus(null);
     } catch (err: any) {
       setError(err.message || 'Erreur chargement du statut élève');
     } finally {
@@ -438,10 +572,28 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
+  const fetchFamilyTuitionStatus = async (familyId: string) => {
+    if (!familyId) return;
+    try {
+      setStatusLoading(true);
+      const data = await apiRequest<TuitionFeeFamilyStatusResponse>(
+        `/tuition-fees/families/${familyId}/status`,
+        { method: 'GET' }
+      );
+      setSelectedFamilyStatus(data);
+      setSelectedStudentStatus(null);
+    } catch (err: any) {
+      setError(err.message || 'Erreur chargement du statut famille');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchStudents();
+    fetchParents();
     fetchOverduePayments();
-  }, [fetchStudents, fetchOverduePayments]);
+  }, [fetchStudents, fetchParents, fetchOverduePayments]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { fetchPayments(); }, 300);
@@ -611,7 +763,7 @@ const AdminAccounting: React.FC = () => {
   const handleCreateExpense = async () => {
     if (expenseSubmitting) return;
     if (!expenseForm.amount || !expenseForm.description.trim() || !expenseForm.expenseDate || !expenseForm.categoryId) {
-      setError('Veuillez renseigner la catÃ©gorie, la description, la date et le montant de la dÃ©pense.');
+      setError('Veuillez renseigner la catégorie, la description, la date et le montant de la dépense.');
       return;
     }
 
@@ -626,7 +778,7 @@ const AdminAccounting: React.FC = () => {
           categoryId: expenseForm.categoryId,
         }),
       });
-      showSuccess('DÃ©pense enregistrÃ©e avec succÃ¨s');
+      showSuccess('Dépense enregistrée avec succès');
       setIsExpenseModalOpen(false);
       setExpenseForm({
         amount: 0,
@@ -636,20 +788,20 @@ const AdminAccounting: React.FC = () => {
       });
       await Promise.all([fetchExpenses(), fetchExpenseSummary(), fetchExpenseCategories()]);
     } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement de la dÃ©pense");
+      setError(err.message || "Erreur lors de l'enregistrement de la dépense");
     } finally {
       setExpenseSubmitting(false);
     }
   };
 
   const handleDeleteExpense = async (id: string) => {
-    if (!window.confirm('ÃŠtes-vous sÃ»r de vouloir supprimer cette dÃ©pense ?')) return;
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) return;
     try {
       await apiRequest<void>(`/expenses/${id}`, { method: 'DELETE' });
-      showSuccess('DÃ©pense supprimÃ©e');
+      showSuccess('Dépense supprimée');
       await Promise.all([fetchExpenses(), fetchExpenseSummary()]);
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la suppression de la dÃ©pense');
+      setError(err.message || 'Erreur lors de la suppression de la dépense');
     }
   };
 
@@ -688,6 +840,30 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
+  const handleRegisterFamilyPayment = async () => {
+    if (familySubmitting) return;
+    try {
+      setFamilySubmitting(true);
+      await apiRequest<TuitionFeePaymentResponse[]>('/tuition-fees/families/payments', {
+        method: 'POST',
+        body: JSON.stringify(familyPaymentForm),
+      });
+      showSuccess('Versement global famille enregistré avec succès');
+      setIsFamilyPaymentModalOpen(false);
+      if (statusFamilyId) await fetchFamilyTuitionStatus(statusFamilyId);
+      setFamilyPaymentForm({
+        familyId: '',
+        amount: 0,
+        method: 'CASH',
+        reference: '',
+        payerType: 'PARENT',
+      });
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'enregistrement du versement famille');
+    } finally {
+      setFamilySubmitting(false);
+    }
+  };
   const createTuitionFee = async (payload: TuitionFeePayload) => {
     try {
       setTuitionActionLoading(true);
@@ -1174,7 +1350,7 @@ const AdminAccounting: React.FC = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Wallet className="text-bleu-600 dark:text-bleu-400" size={28} />
-            <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight">Comptabilité & Finances</h1>
+            <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight">Finances</h1>
             {overdueCount > 0 && (
               <span className="flex items-center justify-center w-6 h-6 bg-rouge-500 text-white rounded-full text-[10px] font-black">
                 {overdueCount > 99 ? '99+' : overdueCount}
@@ -1198,12 +1374,12 @@ const AdminAccounting: React.FC = () => {
           >
             <Download size={18} /> Rapports
           </Button>
-          {activeTab === 'payments' && (
+          {(activeTab === 'payments' || activeTab === 'tuition') && (
             <Button
               onClick={() => setIsEncaissementModalOpen(true)}
               className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 shadow-blue border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-bleu-600/20"
             >
-              <Plus size={20} /> Nouvel Encaissement
+              <Plus size={20} /> {activeTab === 'tuition' ? 'Nouveau Paiement Scolarité' : 'Nouvel Encaissement'}
             </Button>
           )}
           {activeTab === 'expenses' && (
@@ -1295,44 +1471,9 @@ const AdminAccounting: React.FC = () => {
         </Card>
       </div>
 
-      {/* TABS */}
-      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-2xl w-fit">
-        <button
-          onClick={() => setActiveTab('payments')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'payments'
-              ? 'bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <Wallet size={14} /> Encaissements
-          {overdueCount > 0 && activeTab !== 'payments' && (
-            <span className="w-4 h-4 bg-rouge-500 text-white rounded-full text-[9px] flex items-center justify-center font-black">
-              {overdueCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('tuition')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'tuition'
-              ? 'bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <BookOpen size={14} /> Frais de Scolarité
-        </button>
-        <button
-          onClick={() => setActiveTab('expenses')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'expenses'
-              ? 'bg-white dark:bg-gray-800 text-rouge-600 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <AlertTriangle size={14} /> Dépenses
-        </button>
-      </div>
+      {/* La barre d'onglets (Encaissements / Frais de Scolarité / Dépenses)
+          a été retirée : la sidebar (section Finances) joue désormais ce
+          rôle. Le tab actif est pris en compte via le query param ?tab=…. */}
 
       {/* ── TAB: ENCAISSEMENTS ──────────────────────────────────────────────── */}
       {activeTab === 'payments' && (
@@ -1354,18 +1495,6 @@ const AdminAccounting: React.FC = () => {
               ))}
             </div>
             <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
-              <select
-                value={selectedStudentFilter}
-                onChange={e => setSelectedStudentFilter(e.target.value)}
-                className="w-full sm:w-72 px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
-              >
-                <option value="all">Tous les élèves</option>
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.firstName} {s.lastName}{s.registrationNumber ? ` (${s.registrationNumber})` : ''}
-                  </option>
-                ))}
-              </select>
               <div className="relative w-full lg:w-96">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
                 <input
@@ -1446,6 +1575,23 @@ const AdminAccounting: React.FC = () => {
 
       {activeTab === 'tuition' && (
         <div className="space-y-6">
+          {/* Bandeau d'aide expliquant les 3 étapes du flux scolarité. */}
+          <Card className="border-2 border-dashed border-bleu-200 bg-bleu-50/60 dark:border-bleu-800/40 dark:bg-bleu-900/10 p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-white dark:bg-white/10 p-2 text-bleu-600 dark:text-bleu-300 shrink-0">
+                <BookOpen size={18} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-bleu-900 dark:text-bleu-100">Comment encaisser un paiement de scolarité</p>
+                <ol className="mt-1 list-decimal pl-5 text-xs font-semibold text-bleu-800/90 dark:text-bleu-100/90 space-y-0.5">
+                  <li>Définissez une <strong>modalité de scolarité</strong> par classe (montant total + échéancier).</li>
+                  <li>Recherchez ensuite l'<strong>élève ou la famille</strong> dans les sections en bas — un bouton <em>Payer cette échéance</em> apparaît pour chaque versement.</li>
+                  <li>Vous pouvez aussi cliquer directement sur <strong>« Nouveau Paiement Scolarité »</strong> en haut à droite pour saisir un montant libre.</li>
+                </ol>
+              </div>
+            </div>
+          </Card>
+
           <TuitionModalityManager
             tuitionFees={tuitionFees}
             academicYears={academicYears}
@@ -1457,160 +1603,279 @@ const AdminAccounting: React.FC = () => {
             onDelete={deleteTuitionFee}
           />
 
-          {/* Recherche statut élève */}
-          <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-bleu-50 dark:bg-bleu-900/20 rounded-xl text-bleu-600">
-                <Users size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Statut de scolarité d'un élève</h3>
-                <p className="text-[10px] text-gray-400 font-medium">Consultez les versements effectués et les échéances restantes</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <select
-                value={statusStudentId}
-                onChange={e => setStatusStudentId(e.target.value)}
-                className="flex-1 px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
-              >
-                <option value="">Sélectionner un élève...</option>
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.firstName} {s.lastName}{s.registrationNumber ? ` (${s.registrationNumber})` : ''}
-                    {s.className ? ` — ${s.className}` : ''}
-                  </option>
-                ))}
-              </select>
-              <Button
-                onClick={() => fetchStudentTuitionStatus(statusStudentId)}
-                disabled={!statusStudentId || statusLoading}
-                className="h-11 px-6 font-bold text-[10px] uppercase tracking-widest"
-              >
-                {statusLoading ? <Loader2 size={16} className="animate-spin" /> : 'Consulter'}
-              </Button>
-            </div>
-
-            {/* ── FIX: motion.div fermé correctement + </Card> présent ── */}
-            {selectedStudentStatus && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6 space-y-4"
-              >
-                {/* En-tête élève */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={selectedStudentStatus.studentName} size="md" />
-                    <div>
-                      <p className="font-bold text-gray-900 dark:text-white">{selectedStudentStatus.studentName}</p>
-                      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-                        {selectedStudentStatus.className} · {selectedStudentStatus.academicYearName}
-                      </p>
-                    </div>
-                  </div>
-                  {selectedStudentStatus.hasOverdue && (
-                    <Badge variant="error" className="text-[9px] px-3 font-bold uppercase tracking-widest">
-                      {selectedStudentStatus.overdueCount} en retard
-                    </Badge>
-                  )}
+          {/* Recherche statut élève ou famille */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-bleu-50 dark:bg-bleu-900/20 rounded-xl text-bleu-600">
+                  <Users size={18} />
                 </div>
-
-                {/* KPIs scolarité élève */}
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Attendu', value: formatCurrency(Number(selectedStudentStatus.totalExpected)), color: 'text-gray-900 dark:text-white' },
-                    { label: 'Payé', value: formatCurrency(Number(selectedStudentStatus.totalPaid)), color: 'text-vert-600' },
-                    { label: 'Restant', value: formatCurrency(Number(selectedStudentStatus.totalRemaining)), color: selectedStudentStatus.totalRemaining > 0 ? 'text-rouge-500' : 'text-vert-600' },
-                  ].map(kpi => (
-                    <div key={kpi.label} className="p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl text-center">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{kpi.label}</p>
-                      <p className={`text-sm font-black ${kpi.color}`}>{kpi.value}</p>
-                    </div>
-                  ))}
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Statut individuel (Élève)</h3>
+                  <p className="text-[10px] text-gray-400 font-medium">Suivi détaillé par enfant</p>
                 </div>
-
-                {/* Barre de progression */}
-                {Number(selectedStudentStatus.totalExpected) > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      <span>Progression du paiement</span>
-                      <span>{Math.round((Number(selectedStudentStatus.totalPaid) / Number(selectedStudentStatus.totalExpected)) * 100)}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-bleu-500 to-vert-500 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, Math.round((Number(selectedStudentStatus.totalPaid) / Number(selectedStudentStatus.totalExpected)) * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Liste des échéances */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Détail des échéances</p>
-                  {selectedStudentStatus.installments.map((inst, i) => (
-                    <div
-                      key={inst.installmentId}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        inst.overdue
-                          ? 'bg-rouge-50 dark:bg-rouge-900/10 border-rouge-200 dark:border-rouge-800/30'
-                          : inst.remainingAmount <= 0
-                          ? 'bg-vert-50 dark:bg-vert-900/10 border-vert-200 dark:border-vert-800/30'
-                          : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${
-                            inst.remainingAmount <= 0
-                              ? 'bg-vert-100 text-vert-700'
-                              : inst.overdue
-                              ? 'bg-rouge-100 text-rouge-700'
-                              : 'bg-bleu-100 text-bleu-700'
-                          }`}>
-                            {i + 1}
-                          </div>
-                          <div>
-                            {/* ── FIX: inst.installmentLabel (était inst.label) ── */}
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {inst.installmentLabel || `Echeance ${i + 1}`}
-                            </p>
-                            <p className="text-[10px] text-gray-500">
-                              {inst.dueDate ? new Date(inst.dueDate).toLocaleDateString('fr-FR') : '-'}
-                              {inst.overdue && <span className="ml-2 text-rouge-600 font-bold">EN RETARD</span>}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {/* ── FIX: inst.installmentAmount (était inst.expectedAmount) ── */}
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('fr-GN').format(Number(inst.installmentAmount) || 0)} GNF
-                          </p>
-                          <p className="text-[10px] text-gray-500">
-                            Restant : {new Intl.NumberFormat('fr-GN').format(Number(inst.remainingAmount) || 0)} GNF
-                          </p>
-                        </div>
-                      </div>
-                      {/* Bouton payer si montant restant > 0 */}
-                      {inst.remainingAmount > 0 && (
-                        <div className="mt-3 flex justify-end">
-                          <Button
-                            onClick={() => openTuitionPaymentModal(inst, selectedStudentStatus.studentId)}
-                            className="h-8 px-4 text-[10px] font-bold uppercase tracking-widest"
+              </div>
+              <div className="flex gap-3">
+                <div className="relative flex-1" ref={statusStudentRef}>
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={16} />
+                  <input
+                    type="text"
+                    value={statusStudentQuery}
+                    onChange={(e) => {
+                      setStatusStudentQuery(e.target.value);
+                      setStatusStudentOpen(true);
+                      if (e.target.value === '') setStatusStudentId('');
+                    }}
+                    onFocus={() => { if (!statusStudentId) setStatusStudentOpen(true); }}
+                    placeholder="Rechercher un élève (nom, classe, matricule, parent)..."
+                    className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
+                  />
+                  {statusStudentOpen && (
+                    <div className="absolute z-30 mt-1 w-full max-h-72 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900">
+                      {filteredStatusStudents.length === 0 ? (
+                        <p className="px-4 py-3 text-xs italic text-gray-400">Aucun élève trouvé.</p>
+                      ) : (
+                        filteredStatusStudents.map((s: any) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              setStatusStudentId(s.id);
+                              setStatusStudentQuery(
+                                `${s.firstName} ${s.lastName}${s.className ? ` — ${s.className}` : ''}${s.registrationNumber ? ` · ${s.registrationNumber}` : ''}`,
+                              );
+                              setStatusStudentOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 border-b border-gray-50 last:border-0 dark:border-white/5"
                           >
-                            Enregistrer un versement
-                          </Button>
-                        </div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{s.firstName} {s.lastName}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">
+                              {s.className || '—'}
+                              {s.registrationNumber && <span> · {s.registrationNumber}</span>}
+                              {s.parentName && <span> · {s.parentName}</span>}
+                            </p>
+                          </button>
+                        ))
                       )}
                     </div>
-                  ))}
+                  )}
                 </div>
-              </motion.div>
-              /* ── FIX: motion.div fermé ici ── */
-            )}
-          </Card>
-          {/* ── FIX: </Card> était manquant ── */}
+                <Button
+                  onClick={() => fetchStudentTuitionStatus(statusStudentId)}
+                  disabled={!statusStudentId || statusLoading}
+                  className="h-11 px-6 font-bold text-[10px] uppercase tracking-widest"
+                >
+                  {statusLoading ? <Loader2 size={16} className="animate-spin" /> : 'Consulter'}
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50 border-2 border-bleu-100 dark:border-bleu-900/20">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-or-50 dark:bg-or-900/20 rounded-xl text-or-600">
+                    <Users size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Statut Global (Famille)</h3>
+                    <p className="text-[10px] text-gray-400 font-medium">Suivi consolidé pour tous les enfants</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsFamilyPaymentModalOpen(true)}
+                  className="h-9 px-4 text-[9px] font-black uppercase tracking-tighter bg-bleu-600 text-white border-none hover:bg-bleu-700"
+                >
+                  💳 Paiement Global Famille
+                </Button>
+              </div>
+              <div className="flex gap-3">
+                <div className="relative flex-1" ref={statusFamilyRef}>
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={16} />
+                  <input
+                    type="text"
+                    value={statusFamilyQuery}
+                    onChange={(e) => {
+                      setStatusFamilyQuery(e.target.value);
+                      setStatusFamilyOpen(true);
+                      if (e.target.value === '') setStatusFamilyId('');
+                    }}
+                    onFocus={() => { if (!statusFamilyId) setStatusFamilyOpen(true); }}
+                    placeholder="Rechercher une famille (nom, prénom du parent, email)..."
+                    className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
+                  />
+                  {statusFamilyOpen && (
+                    <div className="absolute z-30 mt-1 w-full max-h-72 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900">
+                      {filteredStatusFamilies.length === 0 ? (
+                        <p className="px-4 py-3 text-xs italic text-gray-400">Aucune famille trouvée.</p>
+                      ) : (
+                        filteredStatusFamilies.map((p: any) => (
+                          <button
+                            key={p.familyId || p.id}
+                            type="button"
+                            onClick={() => {
+                              setStatusFamilyId(p.familyId || '');
+                              setStatusFamilyQuery(`Famille ${p.lastName} (${p.firstName})`);
+                              setStatusFamilyOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-or-50 dark:hover:bg-or-900/20 border-b border-gray-50 last:border-0 dark:border-white/5"
+                          >
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              Famille {p.lastName}{' '}
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400">({p.firstName})</span>
+                            </p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">
+                              {p.email || '—'}
+                              {p.phone && <span> · {p.phone}</span>}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  onClick={() => fetchFamilyTuitionStatus(statusFamilyId)}
+                  disabled={!statusFamilyId || statusLoading}
+                  className="h-11 px-6 font-bold text-[10px] uppercase tracking-widest"
+                >
+                  {statusLoading ? <Loader2 size={16} className="animate-spin" /> : 'Consulter'}
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          {/* Résultats recherche */}
+          {(selectedStudentStatus || selectedFamilyStatus) && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              {selectedFamilyStatus && (
+                <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-2 h-4 bg-or-500 rounded-full" /> État Consolidé de la Famille
+                    </h3>
+                    <Badge variant={selectedFamilyStatus.totalRemaining > 0 ? 'error' : 'success'} className="text-[10px] px-4 py-1">
+                      {selectedFamilyStatus.totalRemaining > 0 ? 'Impayés' : 'À jour'}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div className="p-5 bg-bleu-50 dark:bg-bleu-900/10 rounded-3xl border border-bleu-100 dark:border-bleu-900/20">
+                      <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-400 uppercase tracking-widest mb-1">Total Scolarité</p>
+                      <p className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrency(selectedFamilyStatus.totalExpected)}</p>
+                    </div>
+                    <div className="p-5 bg-vert-50 dark:bg-vert-900/10 rounded-3xl border border-vert-100 dark:border-vert-900/20">
+                      <p className="text-[10px] font-bold text-vert-600 dark:text-vert-400 uppercase tracking-widest mb-1">Total Versé</p>
+                      <p className="text-2xl font-black text-vert-600">{formatCurrency(selectedFamilyStatus.totalPaid)}</p>
+                    </div>
+                    <div className="p-5 bg-rouge-50 dark:bg-rouge-900/10 rounded-3xl border border-rouge-100 dark:border-rouge-900/20">
+                      <p className="text-[10px] font-bold text-rouge-600 dark:text-rouge-400 uppercase tracking-widest mb-1">Reste à Payer</p>
+                      <p className="text-2xl font-black text-rouge-600">{formatCurrency(selectedFamilyStatus.totalRemaining)}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Détail par enfant</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(selectedFamilyStatus.studentStatuses || []).map(st => (
+                        <div key={st.studentId} className="p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-sm text-gray-900 dark:text-white">{st.studentName}</p>
+                            <p className="text-[10px] text-gray-400">{st.className}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-black text-gray-900 dark:text-white">{formatCurrency(st.totalRemaining)}</p>
+                            <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Restant</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {selectedStudentStatus && (
+                <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50">
+                  {/* ... Contenu élève existant ... */}
+                  {/* (I'll keep the existing student status UI here but simplified or same as before) */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={selectedStudentStatus.studentName} size="md" />
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-white">{selectedStudentStatus.studentName}</p>
+                        <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+                          {selectedStudentStatus.className} · {selectedStudentStatus.academicYearName}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    {[
+                      { label: 'Attendu', value: formatCurrency(Number(selectedStudentStatus.totalExpected)), color: 'text-gray-900 dark:text-white' },
+                      { label: 'Payé', value: formatCurrency(Number(selectedStudentStatus.totalPaid)), color: 'text-vert-600' },
+                      { label: 'Restant', value: formatCurrency(Number(selectedStudentStatus.totalRemaining)), color: selectedStudentStatus.totalRemaining > 0 ? 'text-rouge-500' : 'text-vert-600' },
+                    ].map(kpi => (
+                      <div key={kpi.label} className="p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl text-center">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{kpi.label}</p>
+                        <p className={`text-sm font-black ${kpi.color}`}>{kpi.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Échéancier de paiement (Prévu)</p>
+                    {(selectedStudentStatus.installments || []).map((inst, i) => (
+                      <div
+                        key={inst.installmentId}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          inst.overdue
+                            ? 'bg-rouge-50 dark:bg-rouge-900/10 border-rouge-200 dark:border-rouge-800/30'
+                            : inst.remainingAmount <= 0
+                            ? 'bg-vert-50 dark:bg-vert-900/10 border-vert-200 dark:border-vert-800/30'
+                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${
+                              inst.remainingAmount <= 0 ? 'bg-vert-100 text-vert-700' : inst.overdue ? 'bg-rouge-100 text-rouge-700' : 'bg-bleu-100 text-bleu-700'
+                            }`}>
+                              {i + 1}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">{inst.installmentLabel}</p>
+                              <p className="text-[10px] text-gray-500">
+                                {formatDate(inst.dueDate)} {inst.overdue && <span className="ml-2 text-rouge-600 font-bold">EN RETARD</span>}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(inst.installmentAmount)}</p>
+                            <p className="text-[10px] text-gray-500">Restant : {formatCurrency(inst.remainingAmount)}</p>
+                          </div>
+                        </div>
+                        {inst.remainingAmount > 0 && (
+                          <div className="mt-3 flex justify-end">
+                            <Button
+                              onClick={() => openTuitionPaymentModal(inst, selectedStudentStatus.studentId)}
+                              className="h-8 px-4 text-[10px] font-bold uppercase tracking-widest"
+                            >
+                              Payer cette échéance
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </motion.div>
+          )}
         </div>
       )}
 
@@ -1766,6 +2031,7 @@ const AdminAccounting: React.FC = () => {
                 <Input
                   type="date"
                   value={expenseForm.expenseDate}
+                  min="2026-01-01"
                   onChange={e => setExpenseForm(f => ({ ...f, expenseDate: e.target.value }))}
                 />
               </div>
@@ -1902,6 +2168,79 @@ const AdminAccounting: React.FC = () => {
             >
               <AlertCircle size={16} className="text-rouge-600" /> Rapport des impayés (CSV)
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {isFamilyPaymentModalOpen && (
+        <Modal
+          isOpen={isFamilyPaymentModalOpen}
+          onClose={() => setIsFamilyPaymentModalOpen(false)}
+          title="Paiement Global Famille"
+        >
+          <div className="space-y-4 p-1">
+            <div className="p-4 bg-bleu-50 dark:bg-bleu-900/10 rounded-2xl border border-bleu-100 dark:border-bleu-900/20 text-left">
+              <p className="text-xs text-bleu-700 dark:text-bleu-300 font-medium">
+                Ce paiement sera automatiquement réparti sur toutes les échéances dues de tous les enfants de la famille (du plus ancien au plus récent).
+              </p>
+            </div>
+            <div className="text-left">
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Famille *</label>
+              <select
+                value={familyPaymentForm.familyId}
+                onChange={e => setFamilyPaymentForm(f => ({ ...f, familyId: e.target.value }))}
+                className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
+              >
+                <option value="">Sélectionner une famille...</option>
+                {parents.map(p => (
+                  <option key={p.familyId} value={p.familyId}>
+                    Famille {p.lastName} ({p.firstName})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="text-left">
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Montant Total à Payer (GNF) *</label>
+              <Input
+                type="number"
+                value={familyPaymentForm.amount || ''}
+                onChange={e => setFamilyPaymentForm(f => ({ ...f, amount: Number(e.target.value) }))}
+                placeholder="Ex: 10 000 000"
+              />
+            </div>
+            <div className="text-left">
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Référence / Motif *</label>
+              <Input
+                value={familyPaymentForm.reference}
+                onChange={e => setFamilyPaymentForm(f => ({ ...f, reference: e.target.value }))}
+                placeholder="Ex: Versement scolarité groupé"
+              />
+            </div>
+            <div className="text-left">
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Mode de paiement</label>
+              <select
+                value={familyPaymentForm.method}
+                onChange={e => setFamilyPaymentForm(f => ({ ...f, method: e.target.value as PaymentMethod }))}
+                className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
+              >
+                <option value="CASH">Espèces</option>
+                <option value="MOBILE_MONEY">Mobile Money</option>
+                <option value="BANK_TRANSFER">Virement bancaire</option>
+                <option value="CHECK">Chèque</option>
+              </select>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={() => setIsFamilyPaymentModalOpen(false)} className="flex-1 h-11">
+                Annuler
+              </Button>
+              <Button
+                onClick={handleRegisterFamilyPayment}
+                disabled={familySubmitting || !familyPaymentForm.familyId || !familyPaymentForm.amount || !familyPaymentForm.reference}
+                className="flex-1 bg-bleu-600 hover:bg-bleu-700 text-white border-none h-11 font-bold text-[10px] uppercase tracking-widest"
+              >
+                {familySubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Confirmer le Paiement Global'}
+              </Button>
+            </div>
           </div>
         </Modal>
       )}

@@ -105,6 +105,12 @@ interface Options {
   tenueSport: boolean;
   tenueScout: boolean;
   tenueKarate: boolean;
+  activiteKarate: boolean;
+  activiteNatation: boolean;
+  activiteRobotique: boolean;
+  coursCoranique: boolean;
+  coursBiblique: boolean;
+  garderie: boolean;
 }
 
 const makeEnfant = (id: number): Enfant => ({
@@ -123,6 +129,12 @@ const makeEnfant = (id: number): Enfant => ({
     tenueSport: false,
     tenueScout: false,
     tenueKarate: false,
+    activiteKarate: false,
+    activiteNatation: false,
+    activiteRobotique: false,
+    coursCoranique: false,
+    coursBiblique: false,
+    garderie: false,
   },
 });
 
@@ -327,6 +339,12 @@ const PreInscription: React.FC = () => {
           hasTenueSport: enfant.options.tenueSport,
           hasTenueScout: enfant.options.tenueScout,
           hasTenueKarate: enfant.options.tenueKarate,
+          hasActiviteKarate: enfant.options.activiteKarate,
+          hasActiviteNatation: enfant.options.activiteNatation,
+          hasActiviteRobotique: enfant.options.activiteRobotique,
+          hasCoursCoranique: enfant.options.coursCoranique,
+          hasCoursBiblique: enfant.options.coursBiblique,
+          hasGarderie: enfant.options.garderie,
         });
         refs.push(resp.referenceNumber);
       } catch (err: any) {
@@ -1043,6 +1061,64 @@ const OptionsSection: React.FC<{
             icon="🥋"
             title="Tenue de Karaté"
             lines={['200 000 GNF']}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-vert-50/60 dark:bg-vert-900/10 border border-vert-100 dark:border-vert-900/30 p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <span className="text-2xl">🚀</span>
+          <div>
+            <h4 className="text-base font-black text-gray-900 dark:text-white">
+              Activités & Cours Supplémentaires
+            </h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Sélectionnez les activités extrascolaires souhaitées
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <UniformOption
+            checked={options.activiteKarate}
+            onToggle={() => toggle('activiteKarate')}
+            icon="🥋"
+            title="Cours de Karaté"
+            lines={['200 000 GNF / mois']}
+          />
+          <UniformOption
+            checked={options.activiteNatation}
+            onToggle={() => toggle('activiteNatation')}
+            icon="🏊"
+            title="Cours de Natation"
+            lines={['300 000 GNF / mois']}
+          />
+          <UniformOption
+            checked={options.activiteRobotique}
+            onToggle={() => toggle('activiteRobotique')}
+            icon="🤖"
+            title="Robotique / Pâtisserie..."
+            lines={['200 000 GNF / mois']}
+          />
+          <UniformOption
+            checked={options.coursCoranique}
+            onToggle={() => toggle('coursCoranique')}
+            icon="☪️"
+            title="Cours Coranique"
+            lines={['100 000 GNF / mois']}
+          />
+          <UniformOption
+            checked={options.coursBiblique}
+            onToggle={() => toggle('coursBiblique')}
+            icon="📖"
+            title="Cours Biblique"
+            lines={['100 000 GNF / mois']}
+          />
+          <UniformOption
+            checked={options.garderie}
+            onToggle={() => toggle('garderie')}
+            icon="🧸"
+            title="Service Garderie"
+            lines={['100 000 GNF / mois']}
           />
         </div>
       </div>

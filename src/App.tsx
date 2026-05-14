@@ -20,7 +20,6 @@ import AdminGamification from './pages/admin/Gamification';
 import ManagerScolarite from './pages/manager/Scolarite';
 import ManagerUsers from './pages/manager/Users';
 import ComptableDashboard from './pages/comptabilite/Dashboard';
-import ComptableAccounting from './pages/comptabilite/Accounting';
 import CoordinatorDashboard from './pages/coordinator/Dashboard';
 import CoordinatorScolarite from './pages/coordinator/Scolarite';
 import CoordinatorTeachers from './pages/coordinator/Teachers';
@@ -148,7 +147,10 @@ function App() {
             <Route path="profil" element={<AdminProfile />} />
           </Route>
           
-          {/* Routes protégées - Comptable (mêmes pages que l'admin) */}
+          {/* Routes protégées - Comptable.
+              Périmètre : finances, ventes/abonnements (cantine, supérette,
+              bibliothèque, transport) et communication. Pas de Scolarité ni
+              d'Administration : ces modules restent réservés à l'admin. */}
           <Route path="/comptable" element={
             <ProtectedRoute allowedRoles={['comptable']}>
               <LayoutRoutes role="comptable" />
@@ -156,15 +158,16 @@ function App() {
           }>
             <Route index element={<ComptableDashboard />} />
             <Route path="dashboard" element={<ComptableDashboard />} />
-            <Route path="utilisateurs" element={<AdminUsers />} />
-            <Route path="scolarite" element={<AdminScolarite />} />
-            <Route path="comptabilite" element={<ComptableAccounting />} />
+            <Route path="utilisateurs" element={<AdminUsers hideEmployeesTab hideTeachersTab />} />
+            {/* Le comptable réutilise désormais exactement la même page Finances
+                que l'admin (encaissements, frais de scolarité, dépenses,
+                statuts individuels & globaux par autocomplete). */}
+            <Route path="comptabilite" element={<AdminAccounting />} />
             <Route path="cantine" element={<AdminCanteen />} />
             <Route path="superette" element={<AdminStore />} />
             <Route path="bibliotheque" element={<AdminLibrary />} />
             <Route path="transport" element={<AdminTransport />} />
             <Route path="communication" element={<AdminCommunication />} />
-            <Route path="administration" element={<AdminSettings />} />
             <Route path="profil" element={<AdminProfile />} />
           </Route>
 
@@ -268,7 +271,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'dashboard': { title: 'Tableau de bord', subtitle: `Bienvenue, ${user?.firstName} !` },
           'utilisateurs': { title: 'Gestion des Utilisateurs', subtitle: 'Gérez les élèves, enseignants et le personnel' },
           'scolarite': { title: 'Scolarité', subtitle: 'Organisation des classes et inscriptions' },
-          'comptabilite': { title: 'Comptabilité', subtitle: 'Suivi financier et encaissements' },
+          'comptabilite': { title: 'Finances', subtitle: 'Suivi financier et encaissements' },
           'cantine': { title: 'Cantine Scolaire', subtitle: 'Gestion des menus et planification' },
           'superette': { title: 'Supérette', subtitle: 'Inventaire et ventes de fournitures' },
           'bibliotheque': { title: 'Bibliothèque', subtitle: 'Catalogue et gestion des emprunts' },
@@ -292,15 +295,13 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
       case 'comptable':
         const comptablePages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Comptable', subtitle: `Bienvenue, ${user?.firstName} !` },
-          'utilisateurs': { title: 'Gestion des Utilisateurs', subtitle: 'Gérez les élèves, enseignants et le personnel' },
-          'scolarite': { title: 'Scolarité', subtitle: 'Organisation des classes et inscriptions' },
-          'comptabilite': { title: 'Comptabilité', subtitle: 'Suivi financier et encaissements' },
-          'cantine': { title: 'Cantine Scolaire', subtitle: 'Gestion des menus et planification' },
-          'superette': { title: 'Supérette', subtitle: 'Inventaire et ventes de fournitures' },
+          'utilisateurs': { title: 'Gestion des Utilisateurs', subtitle: 'Inscriptions, réinscriptions et familles' },
+          'comptabilite': { title: 'Finances', subtitle: 'Suivi financier et encaissements' },
+          'cantine': { title: 'Cantine Scolaire', subtitle: 'Abonnés et facturation' },
+          'superette': { title: 'Supérette', subtitle: 'Inventaire et saisie des ventes' },
           'bibliotheque': { title: 'Bibliothèque', subtitle: 'Catalogue et gestion des emprunts' },
-          'transport': { title: 'Transport Scolaire', subtitle: 'Gestion des lignes et des bus' },
+          'transport': { title: 'Transport Scolaire', subtitle: 'Abonnés et tournées' },
           'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
-          'administration': { title: 'Administration', subtitle: 'Configuration système et sécurité' },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
         };
         return comptablePages[currentPage] || comptablePages['dashboard'];
