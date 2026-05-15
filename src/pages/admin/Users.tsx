@@ -3056,6 +3056,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
         )}
       </Modal>
 
+
+      {/* ── MODALE RÉINSCRIPTION ──────────────────────────────────────────── */}
       <Modal
         isOpen={!!reenrollTarget}
         onClose={() => !reenrolling && setReenrollTarget(null)}
@@ -3064,7 +3066,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             <div className="p-2 bg-or-100 dark:bg-or-900/30 rounded-xl text-or-600">
               <RefreshCw size={22} />
             </div>
-            <span className="font-bold gradient-bleu-or-text">Reinscrire l'eleve</span>
+            <span className="font-bold gradient-bleu-or-text">Réinscrire l'élève</span>
           </div>
         }
         size="md"
@@ -3075,15 +3077,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
               <Avatar name={`${reenrollTarget.firstName} ${reenrollTarget.lastName}`} size="sm" />
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">{reenrollTarget.firstName} {reenrollTarget.lastName}</p>
-                <p className="text-[11px] text-gray-400">Matricule : {reenrollTarget.registrationNumber} - Classe actuelle : {reenrollTarget.className}</p>
+                <p className="text-[11px] text-gray-400">Matricule : {reenrollTarget.registrationNumber} — Classe actuelle : {reenrollTarget.className}</p>
               </div>
             </div>
 
             <Select
               label="Nouvelle classe"
               options={[
-                { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Selectionner une classe...' },
-                ...classes.map(c => ({ value: c.id, label: c.level ? `${c.name} - ${c.level}` : c.name })),
+                { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
+                ...classes.map(c => ({ value: c.id, label: c.level ? `${c.name} — ${c.level}` : c.name })),
               ]}
               value={reenrollForm.classId}
               onChange={e => setReenrollForm(f => ({ ...f, classId: e.target.value }))}
@@ -3091,94 +3093,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             <Input
               label="Date d'inscription (optionnel)"
               type="date"
-              min="2026-01-01"
               value={reenrollForm.enrollmentDate}
               onChange={e => setReenrollForm(f => ({ ...f, enrollmentDate: e.target.value }))}
             />
-
-            {/* ── Paiement initial à la réinscription ──────────────────── */}
-            <div className="rounded-3xl border-2 border-dashed border-vert-300 bg-vert-50/40 p-5 dark:border-vert-700 dark:bg-vert-900/10">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={initialPayment.enabled}
-                  onChange={(e) =>
-                    setInitialPayment((p) => ({ ...p, enabled: e.target.checked }))
-                  }
-                  className="mt-1 h-4 w-4 rounded border-vert-300 text-vert-600 focus:ring-vert-500"
-                />
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-vert-900 dark:text-vert-200 flex items-center gap-2">
-                    <Wallet size={14} /> Enregistrer un paiement à la réinscription
-                  </p>
-                  <p className="text-[10px] text-vert-700 dark:text-vert-300 font-semibold">
-                    Saisir le montant déjà versé par le parent. Le paiement
-                    sera enregistré directement côté Finances.
-                  </p>
-                </div>
-              </label>
-
-              {initialPayment.enabled && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    type="number"
-                    label="Montant versé (GNF) *"
-                    placeholder="0"
-                    value={initialPayment.amount || ''}
-                    onChange={(e) =>
-                      setInitialPayment((p) => ({ ...p, amount: Number(e.target.value) }))
-                    }
-                  />
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Service couvert
-                    </label>
-                    <select
-                      value={initialPayment.service}
-                      onChange={(e) =>
-                        setInitialPayment((p) => ({
-                          ...p,
-                          service: e.target.value as typeof initialPayment.service,
-                        }))
-                      }
-                      className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
-                    >
-                      <option value="INSCRIPTION">Frais de réinscription</option>
-                      <option value="SCOLARITE">Scolarité</option>
-                      <option value="AUTRES">Autres / Tout</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Mode de paiement
-                    </label>
-                    <select
-                      value={initialPayment.method}
-                      onChange={(e) =>
-                        setInitialPayment((p) => ({
-                          ...p,
-                          method: e.target.value as typeof initialPayment.method,
-                        }))
-                      }
-                      className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
-                    >
-                      <option value="CASH">Espèces</option>
-                      <option value="MOBILE_MONEY">Mobile Money</option>
-                      <option value="BANK_TRANSFER">Virement bancaire</option>
-                      <option value="CHECK">Chèque</option>
-                    </select>
-                  </div>
-                  <Input
-                    label="Référence / reçu (optionnel)"
-                    placeholder="Auto-généré si vide"
-                    value={initialPayment.reference}
-                    onChange={(e) =>
-                      setInitialPayment((p) => ({ ...p, reference: e.target.value }))
-                    }
-                  />
-                </div>
-              )}
-            </div>
 
             <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
               <Button
@@ -3195,7 +3112,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                 className="flex-1 h-12 bg-or-600 hover:bg-or-500 border-none text-gray-950 flex items-center justify-center gap-2"
               >
                 {reenrolling && <Loader2 size={16} className="animate-spin" />}
-                Confirmer la reinscription
+                Confirmer la réinscription
               </Button>
             </div>
           </div>
