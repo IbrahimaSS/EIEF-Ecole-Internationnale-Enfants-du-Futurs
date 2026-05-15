@@ -1,19 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ArrowRight,
-  CheckCircle2,
-  GraduationCap,
-  Globe,
-  Zap,
-  Brain,
-  Palette,
-  Atom,
-  Languages,
-  Heart,
-  ArrowRightCircle,
-  Award,
+  ArrowRight, CheckCircle2, GraduationCap, Globe, Zap, Brain, Palette,
+  Atom, Languages, Heart, ArrowRightCircle, Award, Baby, BookOpen, Sparkles,
+  Trophy, Clock, Users, Calendar, ChevronRight, Wallet,
 } from 'lucide-react';
 import { Button, Badge, Card } from '../components/ui';
 import { cn } from '../utils/cn';
@@ -21,62 +12,154 @@ import PublicNav from '../components/shared/PublicNav';
 import PageHero from '../components/shared/PageHero';
 import PublicFooter from '../components/shared/PublicFooter';
 
+// ─── Données réelles EIEF ──────────────────────────────────────────────────
+const formatGNF = (n: number) => `${new Intl.NumberFormat('fr-GN').format(n)} GNF`;
+
+interface Cycle {
+  id: string;
+  title: string;
+  subtitle: string;
+  niveauLabel: string;
+  ageMin: number;
+  ageMax: number;
+  desc: string;
+  image: string;
+  features: string[];
+  highlights: { label: string; value: string }[];
+  fraisInscription: number;
+  fraisScolarite: number;
+  gradient: string;
+  accentText: string;
+  accentBg: string;
+  icon: any;
+  classes: string[];
+}
+
+const CYCLES: Cycle[] = [
+  {
+    id: 'creche',
+    title: 'Crèche & Garderie',
+    subtitle: 'Les tout-petits (0-3 ans)',
+    niveauLabel: 'Petite enfance',
+    ageMin: 0, ageMax: 3,
+    desc: "Un cocon chaleureux pour les premières années. Stimulation sensorielle, motricité globale et premiers échanges sociaux dans un cadre sécurisé.",
+    image: '/Maternelle.jpeg',
+    features: ['Encadrement spécialisé', 'Espace de jeu adapté', "Éveil sensoriel", 'Repas équilibrés'],
+    highlights: [
+      { label: 'Effectif max', value: '12 / classe' },
+      { label: 'Encadrants', value: '1 pour 4' },
+      { label: 'Horaires', value: '07h - 17h' },
+    ],
+    fraisInscription: 1500000,
+    fraisScolarite: 4500000,
+    gradient: 'from-pink-500 to-rose-600',
+    accentText: 'text-pink-600 dark:text-pink-400',
+    accentBg: 'bg-pink-500/10',
+    icon: Baby,
+    classes: ['Crèche', 'Garderie'],
+  },
+  {
+    id: 'maternelle',
+    title: 'Cycle Maternelle',
+    subtitle: 'Éveil & Découverte (3-6 ans)',
+    niveauLabel: 'PS · MS · GS',
+    ageMin: 3, ageMax: 6,
+    desc: "Un environnement ludique et sécurisé pour favoriser l'épanouissement, l'autonomie et les premières découvertes linguistiques en français et anglais.",
+    image: '/Maternelle.jpeg',
+    features: ['Bilinguisme précoce', 'Motricité globale', 'Éveil artistique', 'Jardin pédagogique'],
+    highlights: [
+      { label: 'Effectif max', value: '18 / classe' },
+      { label: 'Langues', value: 'FR + EN' },
+      { label: 'Niveaux', value: 'PS, MS, GS' },
+    ],
+    fraisInscription: 1800000,
+    fraisScolarite: 5500000,
+    gradient: 'from-rouge-500 to-rose-600',
+    accentText: 'text-rouge-500 dark:text-rouge-300',
+    accentBg: 'bg-rouge-500/10',
+    icon: Heart,
+    classes: ['Petite Section', 'Moyenne Section', 'Grande Section'],
+  },
+  {
+    id: 'primaire',
+    title: 'Cycle Primaire',
+    subtitle: 'Fondamentaux & Bilinguisme (6-11 ans)',
+    niveauLabel: 'CP · CE · CM',
+    ageMin: 6, ageMax: 11,
+    desc: 'Acquisition des savoirs fondamentaux (lecture, écriture, calcul) avec une immersion linguistique quotidienne pour un bilinguisme naturel.',
+    image: '/Img3.jpeg',
+    features: ['Programme bilingue', 'Méthodes actives', 'Informatique dès le CP', 'Sorties éducatives'],
+    highlights: [
+      { label: 'Effectif max', value: '24 / classe' },
+      { label: 'Examen', value: 'CEE en CM2' },
+      { label: 'Niveaux', value: 'CP → CM2' },
+    ],
+    fraisInscription: 2000000,
+    fraisScolarite: 6500000,
+    gradient: 'from-bleu-600 to-indigo-600',
+    accentText: 'text-bleu-600 dark:text-bleu-300',
+    accentBg: 'bg-bleu-500/10',
+    icon: Globe,
+    classes: ['CP', 'CE1', 'CE2', 'CM1', 'CM2'],
+  },
+  {
+    id: 'college',
+    title: 'Cycle Collège',
+    subtitle: 'Approfondissement & Orientation (11-15 ans)',
+    niveauLabel: '6ème → 3ème',
+    ageMin: 11, ageMax: 15,
+    desc: "Structuration de la pensée critique, maîtrise des disciplines scientifiques et littéraires, et initiation aux parcours d'orientation.",
+    image: '/Img7.jpeg',
+    features: ['Option STEM', 'Laboratoire de langues', 'Arts & Culture', 'Préparation au BEPC'],
+    highlights: [
+      { label: 'Effectif max', value: '28 / classe' },
+      { label: 'Examen', value: 'BEPC en 3ème' },
+      { label: 'Options', value: 'STEM, Arts' },
+    ],
+    fraisInscription: 2200000,
+    fraisScolarite: 7500000,
+    gradient: 'from-or-500 to-amber-600',
+    accentText: 'text-or-600 dark:text-or-300',
+    accentBg: 'bg-or-500/10',
+    icon: Brain,
+    classes: ['6ème', '5ème', '4ème', '3ème'],
+  },
+  {
+    id: 'lycee',
+    title: 'Cycle Lycée',
+    subtitle: 'Excellence & Spécialisation (15-18 ans)',
+    niveauLabel: '2nde → Terminale',
+    ageMin: 15, ageMax: 18,
+    desc: 'Préparation intensive au baccalauréat national, avec un accompagnement personnalisé vers les études supérieures et les concours.',
+    image: '/Lycee.jpeg',
+    features: ['Spécialités variées', 'Coaching post-bac', 'Projets de recherche', '100% de réussite'],
+    highlights: [
+      { label: 'Effectif max', value: '30 / classe' },
+      { label: 'Examen', value: 'BAC en Terminale' },
+      { label: 'Réussite', value: '100% au BAC' },
+    ],
+    fraisInscription: 2500000,
+    fraisScolarite: 8500000,
+    gradient: 'from-vert-500 to-emerald-600',
+    accentText: 'text-vert-600 dark:text-vert-300',
+    accentBg: 'bg-vert-500/10',
+    icon: Zap,
+    classes: ['Seconde', 'Première', 'Terminale'],
+  },
+];
+
+const TOOLS = [
+  { title: 'Bilinguisme', desc: 'Français & Anglais maîtrisés dès la maternelle.', icon: Languages, col: 'text-bleu-500', bg: 'bg-bleu-500/10' },
+  { title: 'Sciences & Tech', desc: 'Laboratoires équipés & cours d\'informatique.', icon: Atom, col: 'text-rouge-500', bg: 'bg-rouge-500/10' },
+  { title: 'Arts & Culture', desc: 'Théâtre, musique, dessin, expression corporelle.', icon: Palette, col: 'text-or-500', bg: 'bg-or-500/10' },
+  { title: 'E-Learning', desc: 'Plateforme & contenus en ligne 24h/24.', icon: GraduationCap, col: 'text-vert-600', bg: 'bg-vert-500/10' },
+];
+
 const Programmes: React.FC = () => {
   const navigate = useNavigate();
-
-  const cycles = [
-    {
-      id: 'maternelle',
-      title: 'Cycle Maternelle',
-      subtitle: 'Éveil & Découverte (Petite, Moyenne et Grande Section)',
-      desc: "Un environnement ludique et sécurisé pour favoriser l'épanouissement, l'autonomie et les premières découvertes linguistiques.",
-      image: '/Maternelle.jpeg',
-      features: ['Bilinguisme précoce', 'Motricité globale', 'Éveil artistique', 'Jardin pédagogique'],
-      gradient: 'from-rouge-500 to-rose-600',
-      accentText: 'text-rouge-500',
-      icon: Heart,
-    },
-    {
-      id: 'primaire',
-      title: 'Cycle Primaire',
-      subtitle: 'Fondamentaux & Bilinguisme (CP au CM2)',
-      desc: 'Acquisition des savoirs fondamentaux (lecture, écriture, calcul) avec une immersion linguistique quotidienne pour un bilinguisme naturel.',
-      image: '/Img3.jpeg',
-      features: ['Programme bilingue', 'Méthodes actives', 'Informatique dès le CP', 'Sorties éducatives'],
-      gradient: 'from-bleu-600 to-indigo-600',
-      accentText: 'text-bleu-600',
-      icon: Globe,
-    },
-    {
-      id: 'college',
-      title: 'Cycle Collège',
-      subtitle: 'Approfondissement & Orientation (6ème à la 3ème)',
-      desc: "Structuration de la pensée critique, maîtrise des disciplines scientifiques et littéraires, et initiation aux parcours d'orientation.",
-      image: '/Img7.jpeg',
-      features: ['Option STEM', 'Laboratoire de langues', 'Arts & Culture', 'Préparation au Brevet'],
-      gradient: 'from-or-500 to-amber-600',
-      accentText: 'text-or-600',
-      icon: Brain,
-    },
-    {
-      id: 'lycee',
-      title: 'Cycle Lycée',
-      subtitle: 'Excellence & Spécialisation (Seconde à la Terminale)',
-      desc: 'Préparation intensive aux baccalauréats nationaux et internationaux, avec un accompagnement personnalisé vers les études supérieures.',
-      image: '/Lycee.jpeg',
-      features: ['Spécialités variées', 'Coaching post-bac', 'Projets de recherche', '100% de réussite'],
-      gradient: 'from-vert-500 to-emerald-600',
-      accentText: 'text-vert-600',
-      icon: Zap,
-    },
-  ];
-
-  const tools = [
-    { title: 'Bilinguisme', desc: 'Français & Anglais maîtrisés.', icon: Languages, col: 'text-bleu-500', bg: 'bg-bleu-500/10' },
-    { title: 'Sciences & Tech', desc: 'Laboratoires & Informatique.', icon: Atom, col: 'text-rouge-500', bg: 'bg-rouge-500/10' },
-    { title: 'Arts & Culture', desc: 'Théâtre, Musique, Dessin.', icon: Palette, col: 'text-or-500', bg: 'bg-or-500/10' },
-    { title: 'E-Learning', desc: 'Contenus en ligne 24/7.', icon: GraduationCap, col: 'text-vert-600', bg: 'bg-vert-500/10' },
-  ];
+  const [activeCycleId, setActiveCycleId] = useState<string>('primaire');
+  const activeCycle = CYCLES.find(c => c.id === activeCycleId) ?? CYCLES[2];
+  const ActiveIcon = activeCycle.icon;
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white font-sans selection:bg-vert-500/30 overflow-x-hidden transition-colors duration-500">
@@ -85,113 +168,246 @@ const Programmes: React.FC = () => {
       <PageHero
         imageSrc="/Img7.jpeg"
         imageFallback="/Img3.jpeg"
-        badge="Cursus Académique"
-        title={
-          <>
-            Un parcours vers{' '}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-or-300 via-or-400 to-or-500">
-              l'excellence
-            </span>
-            .
-          </>
-        }
+        badge="Cursus Académique 2026 — 2027"
+        title={<>Un parcours vers <span className="bg-clip-text text-transparent bg-gradient-to-r from-or-300 via-or-400 to-or-500">l'excellence</span>.</>}
         subtitle="Découvrez nos programmes d'enseignement innovants, conçus pour former les leaders de demain — de la crèche à la Terminale."
-        tagline="De la Maternelle au Lycée"
+        tagline="De la crèche au Bac"
         actions={[
           { label: 'Voir nos cycles', onClick: () => { document.getElementById('cycles')?.scrollIntoView({ behavior: 'smooth' }); }, variant: 'primary' },
           { label: "S'inscrire", onClick: () => navigate('/preinscription'), variant: 'secondary' },
         ]}
       />
 
-      {/* CYCLES — sections alternées */}
-      <section id="cycles" className="py-20 md:py-28 relative z-10 bg-white dark:bg-gray-950">
-        <div className="max-w-[1400px] mx-auto px-6 space-y-24 md:space-y-32">
-          {cycles.map((c, i) => {
-            const Icon = c.icon;
-            return (
-              <motion.div
-                key={c.id}
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center"
+      {/* PARCOURS VISUEL — Selecteur de cycle (timeline) */}
+      <section className="py-16 md:py-20 bg-[#fafafa] dark:bg-gray-900/50 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6">
+          <div className="text-center mb-12">
+            <Badge className="mb-4 bg-bleu-600/10 text-bleu-700 dark:text-bleu-400 border border-bleu-600/20 font-black text-[9px] uppercase tracking-[0.3em] px-4 h-8 rounded-full">Parcours complet</Badge>
+            <h2 className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight mb-3">
+              5 cycles, <span className="bg-clip-text text-transparent bg-gradient-to-r from-bleu-600 to-or-500">18 années</span> d'accompagnement
+            </h2>
+            <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 font-medium max-w-2xl mx-auto">
+              Sélectionnez un cycle pour voir le détail des classes, des effectifs et des frais associés.
+            </p>
+          </div>
+
+          {/* Timeline de cycles cliquable */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-10">
+            {CYCLES.map((c) => {
+              const Icon = c.icon;
+              const isActive = activeCycleId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setActiveCycleId(c.id)}
+                  className={cn(
+                    'relative p-4 md:p-5 rounded-2xl border-2 text-left transition-all overflow-hidden group',
+                    isActive
+                      ? 'border-transparent bg-gradient-to-br shadow-2xl scale-[1.02] ' + c.gradient + ' text-white'
+                      : 'border-gray-100 dark:border-white/5 bg-white dark:bg-gray-900/40 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-lg'
+                  )}
+                >
+                  <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-all', isActive ? 'bg-white/20' : c.accentBg + ' ' + c.accentText)}>
+                    <Icon size={18} />
+                  </div>
+                  <p className={cn('text-[9px] font-black uppercase tracking-widest mb-1', isActive ? 'text-white/80' : 'text-gray-400')}>
+                    {c.niveauLabel}
+                  </p>
+                  <p className={cn('text-sm font-black leading-tight', isActive ? 'text-white' : 'text-gray-900 dark:text-white')}>
+                    {c.title.replace('Cycle ', '')}
+                  </p>
+                  <p className={cn('text-[10px] mt-1 font-medium', isActive ? 'text-white/70' : 'text-gray-400')}>
+                    {c.ageMin}-{c.ageMax} ans
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Détail du cycle actif */}
+          <motion.div
+            key={activeCycle.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-900/40 rounded-3xl shadow-2xl border border-gray-100 dark:border-white/5 overflow-hidden grid grid-cols-1 lg:grid-cols-2"
+          >
+            {/* Image */}
+            <div className="relative h-64 lg:h-auto min-h-[320px]">
+              <img src={activeCycle.image} alt={activeCycle.title} className="absolute inset-0 w-full h-full object-cover" />
+              <div className={cn('absolute inset-0 bg-gradient-to-t opacity-60', activeCycle.gradient)} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute top-6 left-6 right-6 flex items-center justify-between">
+                <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-2xl bg-gradient-to-br', activeCycle.gradient)}>
+                  <ActiveIcon size={24} />
+                </div>
+                <Badge className="bg-white/90 text-gray-900 font-black text-[9px] uppercase tracking-widest border-none">
+                  Année 2026-2027
+                </Badge>
+              </div>
+              <div className="absolute bottom-6 left-6 right-6 text-white">
+                <p className="text-[10px] font-black uppercase tracking-widest text-or-300 mb-2">{activeCycle.niveauLabel}</p>
+                <h3 className="text-2xl md:text-3xl font-black tracking-tight">{activeCycle.title}</h3>
+              </div>
+            </div>
+
+            {/* Contenu */}
+            <div className="p-8 md:p-10">
+              <p className={cn('text-[10px] font-black uppercase tracking-[0.3em] mb-3', activeCycle.accentText)}>
+                {activeCycle.subtitle}
+              </p>
+              <p className="text-sm md:text-base text-gray-600 dark:text-gray-300 font-medium leading-relaxed mb-6">
+                {activeCycle.desc}
+              </p>
+
+              {/* Highlights */}
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {activeCycle.highlights.map((h, i) => (
+                  <div key={i} className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 text-center">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{h.label}</p>
+                    <p className="text-sm font-black text-gray-900 dark:text-white leading-tight">{h.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Classes */}
+              <div className="mb-6">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Classes concernées</p>
+                <div className="flex flex-wrap gap-2">
+                  {activeCycle.classes.map((cl) => (
+                    <span key={cl} className={cn('px-3 py-1.5 rounded-full text-[11px] font-black border', activeCycle.accentBg, activeCycle.accentText, 'border-current/20')}>
+                      {cl}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-7">
+                {activeCycle.features.map((f) => (
+                  <div key={f} className="flex gap-2 items-center text-xs font-bold text-gray-700 dark:text-gray-300">
+                    <CheckCircle2 size={16} className="text-vert-500 shrink-0" /> {f}
+                  </div>
+                ))}
+              </div>
+
+              {/* Tarifs */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-bleu-50 to-white dark:from-bleu-900/20 dark:to-gray-900/40 border border-bleu-100 dark:border-bleu-900/20">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-bleu-600 dark:text-bleu-400 mb-1">Inscription</p>
+                  <p className="text-base md:text-lg font-black text-gray-900 dark:text-white">{formatGNF(activeCycle.fraisInscription)}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-or-50 to-white dark:from-or-900/20 dark:to-gray-900/40 border border-or-100 dark:border-or-900/20">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-or-600 dark:text-or-400 mb-1">Scolarité / an</p>
+                  <p className="text-base md:text-lg font-black text-gray-900 dark:text-white">{formatGNF(activeCycle.fraisScolarite)}</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => navigate('/preinscription')}
+                className={cn('h-12 px-7 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-2 shadow-xl bg-gradient-to-r', activeCycle.gradient)}
               >
-                <div className={cn('relative group', i % 2 !== 0 ? 'lg:order-2' : '')}>
-                  <div className="relative h-[380px] md:h-[500px] rounded-3xl overflow-hidden shadow-2xl border-4 border-white dark:border-white/10">
-                    <img
-                      src={c.image}
-                      alt={c.title}
-                      className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900/40 via-transparent to-transparent" />
-                  </div>
-                  <div className="absolute -bottom-6 -right-6 bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-2xl border border-gray-100 dark:border-white/5">
-                    <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xl bg-gradient-to-br', c.gradient)}>
-                      <Icon size={24} />
-                    </div>
-                  </div>
-                </div>
+                Inscrire mon enfant <ArrowRight size={16} />
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
-                <div className="text-left">
-                  <p className={cn('text-[10px] font-black uppercase tracking-[0.3em] mb-3', c.accentText)}>
-                    Cycle {i + 1} sur {cycles.length}
-                  </p>
-                  <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 dark:text-white mb-4 tracking-tighter">
-                    {c.title}
-                  </h3>
-                  <p className={cn('text-sm font-black uppercase tracking-widest mb-6', c.accentText)}>{c.subtitle}</p>
-                  <p className="text-base md:text-lg text-gray-500 dark:text-gray-400 font-medium leading-relaxed mb-8">
-                    {c.desc}
-                  </p>
+      {/* TABLEAU TARIFS COMPLET */}
+      <section className="py-16 md:py-20 bg-white dark:bg-gray-950 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6">
+          <div className="text-center mb-12">
+            <Badge className="mb-4 bg-or-600/10 text-or-700 dark:text-or-400 border border-or-600/20 font-black text-[9px] uppercase tracking-[0.3em] px-4 h-8 rounded-full">
+              Tarification transparente
+            </Badge>
+            <h2 className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight mb-3">
+              Nos frais de scolarité <span className="bg-clip-text text-transparent bg-gradient-to-r from-or-500 to-vert-600">2026 — 2027</span>
+            </h2>
+            <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 font-medium max-w-2xl mx-auto">
+              Frais d'inscription unique + scolarité annuelle. Possibilité de paiement échelonné.
+            </p>
+          </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-                    {c.features.map((f) => (
-                      <div key={f} className="flex gap-2 items-center text-sm font-bold text-gray-700 dark:text-gray-300">
-                        <CheckCircle2 size={18} className="text-vert-500 shrink-0" /> {f}
-                      </div>
-                    ))}
-                  </div>
+          <div className="overflow-hidden rounded-3xl shadow-2xl border border-gray-100 dark:border-white/5 bg-white dark:bg-gray-900/40">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-bleu-800 via-bleu-700 to-vert-700 text-white">
+                <tr>
+                  <th className="text-left p-5 text-[10px] font-black uppercase tracking-widest">Cycle</th>
+                  <th className="text-left p-5 text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Classes</th>
+                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Inscription</th>
+                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Scolarité / an</th>
+                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {CYCLES.map((c, i) => {
+                  const Icon = c.icon;
+                  const total = c.fraisInscription + c.fraisScolarite;
+                  return (
+                    <tr key={c.id} className={cn('border-t border-gray-100 dark:border-white/5 transition-colors hover:bg-gray-50 dark:hover:bg-white/5', i % 2 === 0 ? 'bg-white dark:bg-gray-900/30' : 'bg-gray-50/50 dark:bg-gray-900/50')}>
+                      <td className="p-5">
+                        <div className="flex items-center gap-3">
+                          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', c.accentBg, c.accentText)}>
+                            <Icon size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-black text-gray-900 dark:text-white">{c.title.replace('Cycle ', '')}</p>
+                            <p className="text-[10px] text-gray-400 font-medium">{c.ageMin}-{c.ageMax} ans</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-5 hidden md:table-cell">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{c.classes.join(', ')}</p>
+                      </td>
+                      <td className="p-5 text-right">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGNF(c.fraisInscription)}</p>
+                      </td>
+                      <td className="p-5 text-right">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGNF(c.fraisScolarite)}</p>
+                      </td>
+                      <td className="p-5 text-right">
+                        <p className={cn('text-sm font-black', c.accentText)}>{formatGNF(total)}</p>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-                  <Button
-                    onClick={() => navigate('/preinscription')}
-                    className="h-12 px-8 bg-gradient-to-r from-vert-600 to-vert-700 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:from-vert-500 hover:to-vert-600 transition-all flex items-center gap-2 shadow-lg"
-                  >
-                    Découvrir le cursus <ArrowRight size={16} />
-                  </Button>
-                </div>
-              </motion.div>
-            );
-          })}
+          <div className="mt-6 p-5 bg-gradient-to-r from-or-50 to-vert-50 dark:from-or-900/10 dark:to-vert-900/10 rounded-2xl border border-or-200 dark:border-or-900/30 flex items-start gap-3">
+            <Wallet size={18} className="text-or-600 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-black text-gray-900 dark:text-white mb-1">Modalités de paiement flexibles</p>
+              <p className="text-gray-600 dark:text-gray-400 font-medium leading-relaxed">
+                Paiement annuel, trimestriel ou mensuel. Réductions appliquées pour les fratries (à partir du 2ème enfant). Frais hors cantine, transport et tenues — disponibles en option à l'inscription.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* OUTILS & MÉTHODES */}
-      <section className="py-20 md:py-24 bg-[#fafafa] dark:bg-gray-900/50 relative z-10">
+      <section className="py-16 md:py-20 bg-[#fafafa] dark:bg-gray-900/50 relative z-10">
         <div className="max-w-[1400px] mx-auto px-6">
-          <div className="text-center mb-14">
-            <Badge className="mb-4 bg-or-600/10 text-or-700 dark:text-or-400 border border-or-600/20 font-black text-[9px] uppercase tracking-[0.3em] px-4 h-8 rounded-full">
+          <div className="text-center mb-12">
+            <Badge className="mb-4 bg-vert-600/10 text-vert-700 dark:text-vert-400 border border-vert-600/20 font-black text-[9px] uppercase tracking-[0.3em] px-4 h-8 rounded-full">
               Outils & Méthodes
             </Badge>
             <h2 className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight">
-              Une pédagogie complète
+              Une pédagogie <span className="bg-clip-text text-transparent bg-gradient-to-r from-vert-600 to-bleu-600">complète</span>
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {tools.map((f, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-              >
-                <Card className="p-8 bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-white/5 shadow-soft hover:shadow-2xl rounded-3xl transition-all hover:-translate-y-1 text-left">
+            {TOOLS.map((f, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} viewport={{ once: true }}>
+                <Card className="p-8 bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-white/5 shadow-soft hover:shadow-2xl rounded-3xl transition-all hover:-translate-y-1 text-left h-full">
                   <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-6 shadow-lg', f.bg, f.col)}>
                     <f.icon size={26} />
                   </div>
                   <h4 className="text-xl font-black text-gray-900 dark:text-white mb-2">{f.title}</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{f.desc}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed">{f.desc}</p>
                 </Card>
               </motion.div>
             ))}
@@ -201,13 +417,7 @@ const Programmes: React.FC = () => {
 
       {/* CTA */}
       <section className="relative py-20 overflow-hidden bg-gradient-to-br from-bleu-800 via-vert-700 to-vert-800">
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `radial-gradient(circle at 30% 30%, white 1px, transparent 1px)`,
-            backgroundSize: '30px 30px',
-          }}
-        />
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `radial-gradient(circle at 30% 30%, white 1px, transparent 1px)`, backgroundSize: '30px 30px' }} />
         <div className="relative max-w-4xl mx-auto px-6 text-center">
           <Award size={48} className="mx-auto text-or-300 mb-6" />
           <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-4 italic">
@@ -219,16 +429,10 @@ const Programmes: React.FC = () => {
             Commencez les démarches dès aujourd'hui pour l'année scolaire 2026 — 2027.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <Button
-              onClick={() => navigate('/preinscription')}
-              className="h-14 px-10 bg-or-500 hover:bg-or-400 text-gray-950 rounded-xl font-black text-xs uppercase tracking-widest shadow-gold transition-all hover:scale-105 flex items-center gap-2"
-            >
+            <Button onClick={() => navigate('/preinscription')} className="h-14 px-10 bg-or-500 hover:bg-or-400 text-gray-950 rounded-xl font-black text-xs uppercase tracking-widest shadow-gold transition-all hover:scale-105 flex items-center gap-2">
               S'inscrire <ArrowRightCircle size={18} />
             </Button>
-            <Button
-              onClick={() => navigate('/contact')}
-              className="h-14 px-10 bg-white/10 backdrop-blur-md text-white rounded-xl font-bold text-xs uppercase tracking-widest border border-white/30 hover:bg-white/20 transition-all"
-            >
+            <Button onClick={() => navigate('/contact')} className="h-14 px-10 bg-white/10 backdrop-blur-md text-white rounded-xl font-bold text-xs uppercase tracking-widest border border-white/30 hover:bg-white/20 transition-all">
               Nous contacter
             </Button>
           </div>

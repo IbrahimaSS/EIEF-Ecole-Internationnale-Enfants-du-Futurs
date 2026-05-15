@@ -18,14 +18,16 @@ import {
   X,
   Loader2,
   Printer,
-  BookOpen,
   Users,
   AlertTriangle,
 } from 'lucide-react';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
 import { apiRequest } from '../../services/api';
-import TuitionModalityManager from './components/TuitionModalityManager';
 import { AcademicYearOption, ClassOption, TuitionFeePayload } from './types';
+import FamilyBillingPanel from './components/FamilyBillingPanel';
+import { FamilyBillingInput } from './computeFamilyBalance';
+import { TypeInscription } from './tarifs';
+import { formatCurrency as formatCurrencyShared } from './utils';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -181,10 +183,488 @@ interface TuitionFeePaymentResponse {
   paidAt: string;
 }
 
+// ─── Sous-composant : onglet "Fiche famille" ─────────────────────────────────
+//
+// Permet au comptable de :
+//   1) choisir un élève "pivot",
+//   2) reconstruire la famille en regroupant les élèves portant le même
+//      `parentName` (heuristique pragmatique tant que le backend n'expose pas
+//      un endpoint /families/{id}/billing dédié),
+//   3) afficher la fiche calculée par `computeFamilyBalance` (inscription
+//      offerte si ≥ 3 enfants, scolarité selon cycle, options...),
+//   4) saisir un paiement libre — sans tranche ni échéance.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface FamilyBillingTabProps {
+  students: Student[];
+  payments: PaymentResponse[];
+  pivotStudentId: string;
+  onPickStudent: (id: string) => void;
+  onPaymentSubmit: (payload: {
+    familyId: string;
+    studentId: string;
+    amount: number;
+    reference: string;
+    note?: string;
+  }) => Promise<unknown>;
+  submitting: boolean;
+  /** État de la modale "Nouveau paiement" piloté par le header. */
+  isPaymentOpen: boolean;
+  onPaymentClose: () => void;
+}
+
+const FamilyBillingTab: React.FC<FamilyBillingTabProps> = ({
+  students,
+  payments,
+  pivotStudentId,
+  onPickStudent,
+  onPaymentSubmit,
+  submitting,
+  isPaymentOpen,
+  onPaymentClose,
+}) => {
+  // ── Autocomplete élève ────────────────────────────────────────────────
+  // Champ unique, filtre simultané sur nom, prénom, matricule, classe, parent.
+  const [query, setQuery] = React.useState('');
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Fermer le menu déroulant au clic en dehors.
+  React.useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredStudents = React.useMemo(() => {
+    if (!normalizedQuery) return students.slice(0, 12);
+    return students
+      .filter((s) => {
+        const haystack = [
+          s.firstName,
+          s.lastName,
+          s.registrationNumber,
+          s.className,
+          s.parentName,
+          s.email,
+          s.phone,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+      .slice(0, 30);
+  }, [normalizedQuery, students]);
+
+  const pivot = students.find((s) => s.id === pivotStudentId);
+  const pivotDisplay = pivot
+    ? `${pivot.firstName} ${pivot.lastName}${pivot.className ? ` — ${pivot.className}` : ''}`
+    : '';
+
+  // ── Reconstruction famille à partir du pivot ──────────────────────────
+  const family = React.useMemo(() => {
+    if (!pivot) return null;
+    const key = (pivot.parentName || '').trim().toLowerCase();
+    const siblings = key
+      ? students.filter(
+          (s) => (s.parentName || '').trim().toLowerCase() === key,
+        )
+      : [pivot];
+
+    const totalPaid = payments
+      .filter((p) =>
+        siblings.some((s) => `${s.firstName} ${s.lastName}` === p.studentName),
+      )
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const input: FamilyBillingInput = {
+      familyId: pivot.parentName || pivot.id,
+      familyName: pivot.parentName || `Famille de ${pivot.lastName}`,
+      totalPaid,
+      students: siblings.map((s) => ({
+        id: s.id,
+        fullName: `${s.firstName} ${s.lastName}`,
+        className: s.className,
+        typeInscription: 'INSCRIPTION' as TypeInscription,
+        options: {
+          hasCantine: false,
+          transportMode: 'NONE',
+          hasTenueScolaire: false,
+          hasTenueSport: false,
+          hasTenueScout: false,
+          hasTenueKarate: false,
+        },
+      })),
+    };
+    return input;
+  }, [pivot, students, payments]);
+
+  // ── Modale "Nouveau paiement" — ouverte/fermée par le parent via props.
+  const [payStudentId, setPayStudentId] = React.useState<string>('');
+  const [payAmount, setPayAmount] = React.useState<number>(0);
+  const [payReference, setPayReference] = React.useState<string>('');
+  const [payStudentQuery, setPayStudentQuery] = React.useState<string>('');
+  const [payDropdownOpen, setPayDropdownOpen] = React.useState(false);
+  const payDropdownRef = React.useRef<HTMLDivElement | null>(null);
+
+  // À l'ouverture de la modale (déclenchée par le header), pré-remplir avec
+  // l'enfant de la famille active s'il y en a une, sinon laisser vide.
+  React.useEffect(() => {
+    if (!isPaymentOpen) return;
+    setPayAmount(0);
+    setPayReference('');
+    setPayDropdownOpen(false);
+    // Si une famille est sélectionnée, on pré-sélectionne son premier enfant.
+    const pivotStudent = students.find((s) => s.id === pivotStudentId);
+    if (pivotStudent) {
+      setPayStudentId(pivotStudent.id);
+      setPayStudentQuery(
+        `${pivotStudent.firstName} ${pivotStudent.lastName}${pivotStudent.className ? ` — ${pivotStudent.className}` : ''}`,
+      );
+    } else {
+      setPayStudentId('');
+      setPayStudentQuery('');
+    }
+  }, [isPaymentOpen, pivotStudentId, students]);
+
+  // Fermer le menu d'autocomplete élève dans la modale au clic extérieur.
+  React.useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (payDropdownRef.current && !payDropdownRef.current.contains(event.target as Node)) {
+        setPayDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Liste filtrée pour l'autocomplete de la modale.
+  const paymentStudentChoices = React.useMemo(() => {
+    // On propose en priorité les enfants de la famille sélectionnée.
+    const familyIds = new Set(family?.students.map((s) => s.id) ?? []);
+    const sortedStudents = [...students].sort((a, b) => {
+      const aInFamily = familyIds.has(a.id) ? 0 : 1;
+      const bInFamily = familyIds.has(b.id) ? 0 : 1;
+      if (aInFamily !== bInFamily) return aInFamily - bInFamily;
+      return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+    });
+    if (!payStudentQuery.trim()) return sortedStudents.slice(0, 12);
+    const q = payStudentQuery.trim().toLowerCase();
+    return sortedStudents
+      .filter((s) => {
+        const haystack = [
+          s.firstName,
+          s.lastName,
+          s.registrationNumber,
+          s.className,
+          s.parentName,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 30);
+  }, [payStudentQuery, students, family]);
+
+  const handleSubmitPayment = async () => {
+    if (!payStudentId || payAmount <= 0) return;
+    await onPaymentSubmit({
+      familyId: family?.familyId ?? '',
+      studentId: payStudentId,
+      amount: payAmount,
+      reference: payReference || `PMT-${Date.now()}`,
+    });
+    setPayDropdownOpen(false);
+    onPaymentClose();
+  };
+
+  // Montant déjà encaissé par la famille (affiché dans la modale).
+  const familyAlreadyPaid = family ? family.totalPaid : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Barre de recherche famille ── */}
+      <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-bleu-50 p-3 text-bleu-700 dark:bg-bleu-900/20 dark:text-bleu-300">
+            <Users size={18} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-white">
+              Recherche d'une famille
+            </h3>
+            <p className="text-[10px] font-medium text-gray-400">
+              Tapez un nom, une classe, un matricule ou le chef de famille — la
+              fiche s'ouvre dès la sélection. Pour enregistrer un paiement,
+              utilisez le bouton « Nouveau Paiement » en haut à droite.
+            </p>
+          </div>
+        </div>
+
+        {/* Autocomplete élève principal */}
+        <div className="mt-4 relative" ref={dropdownRef}>
+          <Search
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            size={18}
+          />
+          <input
+            type="text"
+            value={dropdownOpen ? query : pivotDisplay || query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setDropdownOpen(true);
+            }}
+            onFocus={() => {
+              setQuery('');
+              setDropdownOpen(true);
+            }}
+            placeholder="Rechercher un élève (nom, classe, matricule, parent...)"
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
+          />
+          {dropdownOpen && (
+            <div className="absolute z-30 mt-2 w-full max-h-80 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900">
+              {filteredStudents.length === 0 ? (
+                <p className="px-4 py-3 text-xs italic text-gray-400">
+                  Aucun élève ne correspond à "{query}".
+                </p>
+              ) : (
+                filteredStudents.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      onPickStudent(s.id);
+                      setQuery('');
+                      setDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 border-b border-gray-50 last:border-0 dark:border-white/5"
+                  >
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {s.firstName} {s.lastName}
+                      {s.registrationNumber && (
+                        <span className="ml-2 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                          {s.registrationNumber}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">
+                      {s.className || '—'}
+                      {s.parentName && <span> · {s.parentName}</span>}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* ── Fiche famille (panneau de balance) ── */}
+      {family ? (
+        <FamilyBillingPanel
+          initialInput={family}
+          submitting={false}
+          // Pas de formulaire inline — la saisie passe par la modale.
+        />
+      ) : (
+        <Card className="border-none shadow-soft p-8 text-center dark:bg-gray-900/60">
+          <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+            Sélectionnez un élève via la recherche pour afficher la fiche
+            famille.
+          </p>
+        </Card>
+      )}
+
+      {/* ── Modale "Nouveau paiement" ── */}
+      {isPaymentOpen && (
+        <Modal
+          isOpen={isPaymentOpen}
+          onClose={onPaymentClose}
+          title="Enregistrer un paiement"
+        >
+          {/* La div externe utilise un layout flex pour que la barre des
+              boutons reste collée en bas et toujours visible, même si le
+              dropdown autocomplete est ouvert. */}
+          <div className="flex flex-col gap-4 p-1">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+              Saisie libre — pas de tranche ni d'échéance. Le reste à payer
+              de la famille est recalculé après enregistrement.
+            </p>
+
+            {/* Autocomplete élève dans la modale */}
+            <div className="relative" ref={payDropdownRef}>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                Élève *
+              </label>
+              <div className="relative">
+                <Search
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                  size={16}
+                />
+                <input
+                  type="text"
+                  value={payStudentQuery}
+                  onChange={(e) => {
+                    setPayStudentQuery(e.target.value);
+                    setPayDropdownOpen(true);
+                    // Si l'utilisateur efface, on désélectionne l'élève courant.
+                    if (e.target.value === '') setPayStudentId('');
+                  }}
+                  onFocus={() => {
+                    // N'ouvre le dropdown que si le champ est vide ou que la
+                    // valeur ne correspond pas à un élève déjà sélectionné.
+                    if (!payStudentId) setPayDropdownOpen(true);
+                  }}
+                  placeholder="Rechercher un élève (nom, classe, matricule, parent)..."
+                  className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
+                />
+              </div>
+              {payDropdownOpen && (
+                <div className="absolute z-40 mt-1 w-full max-h-44 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900">
+                  {paymentStudentChoices.length === 0 ? (
+                    <p className="px-4 py-3 text-xs italic text-gray-400">
+                      Aucun élève trouvé.
+                    </p>
+                  ) : (
+                    paymentStudentChoices.map((s) => {
+                      const inFamily = family?.students.some((fs) => fs.id === s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            setPayStudentId(s.id);
+                            setPayStudentQuery(
+                              `${s.firstName} ${s.lastName}${s.className ? ` — ${s.className}` : ''}`,
+                            );
+                            setPayDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 border-b border-gray-50 last:border-0 dark:border-white/5 ${
+                            inFamily ? 'bg-vert-50/40 dark:bg-vert-900/10' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              {s.firstName} {s.lastName}
+                            </p>
+                            {inFamily && (
+                              <Badge variant="success" className="text-[9px] font-bold uppercase tracking-widest">
+                                Famille active
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">
+                            {s.className || '—'}
+                            {s.registrationNumber && <span> · {s.registrationNumber}</span>}
+                            {s.parentName && <span> · {s.parentName}</span>}
+                          </p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Montant versé */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                Montant versé (GNF) *
+              </label>
+              <Input
+                type="number"
+                value={payAmount || ''}
+                onChange={(e) => setPayAmount(Number(e.target.value))}
+                placeholder="0"
+              />
+            </div>
+
+            {/* Référence / reçu */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                Référence / reçu (optionnel)
+              </label>
+              <Input
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
+                placeholder="Ex: REC-2026-042"
+              />
+            </div>
+
+            {/* Aperçu solde */}
+            {family && (
+              <div className="rounded-2xl bg-gray-50 dark:bg-white/5 p-4 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-500 dark:text-gray-400">
+                    Déjà payé par la famille
+                  </span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {formatCurrencyShared(familyAlreadyPaid)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-500 dark:text-gray-400">
+                    Nouveau versement
+                  </span>
+                  <span className="font-bold text-vert-600">
+                    + {formatCurrencyShared(payAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Footer collé en bas pour que les boutons soient toujours visibles. */}
+            <div className="sticky bottom-0 -mx-1 -mb-1 mt-2 flex gap-3 border-t border-gray-100 bg-white px-1 pt-4 pb-1 dark:border-white/10 dark:bg-gray-900">
+              <Button
+                variant="outline"
+                onClick={onPaymentClose}
+                className="flex-1"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSubmitPayment}
+                disabled={!payStudentId || payAmount <= 0 || submitting}
+                className="flex-1 bg-gradient-to-r from-vert-600 to-vert-500 border-none shadow-lg shadow-vert-600/20"
+              >
+                {submitting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} /> Valider le paiement
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 const ComptableAccounting: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'payments' | 'expenses' | 'tuition'>('payments');
+  const [activeTab, setActiveTab] = useState<'payments' | 'expenses' | 'family'>('payments');
+
+  // ── Onglet "Fiche famille" — calcule le total dû depuis la fiche de
+  //    renseignements (cantine, transport, tenues, scolarité par cycle) et
+  //    applique la règle "3+ enfants → inscription gratuite". Pas de tranche
+  //    ni d'échéance : la famille verse librement.
+  const [familyPivotStudentId, setFamilyPivotStudentId] = useState<string>('');
+
+  // Modale "Nouveau paiement" (déclenchée depuis le header) — état remonté
+  // pour que le bouton "+ Nouveau paiement" du header puisse l'ouvrir sans
+  // exiger qu'une famille soit déjà sélectionnée.
+  const [isFamilyPaymentOpen, setIsFamilyPaymentOpen] = useState(false);
 
   // Payments state
   const [payments, setPayments] = useState<PaymentResponse[]>([]);
@@ -451,11 +931,9 @@ const ComptableAccounting: React.FC = () => {
     fetchExpenseSummary();
   }, [fetchExpenseSummary]);
 
-  useEffect(() => {
-    if (activeTab === 'tuition') {
-      void refreshTuitionCatalog();
-    }
-  }, [activeTab, refreshTuitionCatalog]);
+  // L'ancien onglet "Frais de scolarité" (tranches/échéances) a été retiré.
+  // La fonction `refreshTuitionCatalog` reste disponible pour usage admin
+  // mais n'est plus déclenchée depuis cet écran comptable.
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
 
@@ -1162,7 +1640,7 @@ const ComptableAccounting: React.FC = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Wallet className="text-bleu-600 dark:text-bleu-400" size={28} />
-            <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight">Comptabilité & Finances</h1>
+            <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight">Finances</h1>
             {overdueCount > 0 && (
               <span className="flex items-center justify-center w-6 h-6 bg-rouge-500 text-white rounded-full text-[10px] font-black">
                 {overdueCount > 99 ? '99+' : overdueCount}
@@ -1200,6 +1678,14 @@ const ComptableAccounting: React.FC = () => {
               className="flex gap-2 bg-gradient-to-r from-rouge-600 to-rouge-500 border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-rouge-600/20"
             >
               <Plus size={20} /> Nouvelle Dépense
+            </Button>
+          )}
+          {activeTab === 'family' && (
+            <Button
+              onClick={() => setIsFamilyPaymentOpen(true)}
+              className="flex gap-2 bg-gradient-to-r from-vert-600 to-vert-500 border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-vert-600/20"
+            >
+              <Plus size={20} /> Nouveau Paiement
             </Button>
           )}
         </div>
@@ -1301,14 +1787,14 @@ const ComptableAccounting: React.FC = () => {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('tuition')}
+          onClick={() => setActiveTab('family')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'tuition'
+            activeTab === 'family'
               ? 'bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-sm'
               : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
         >
-          <BookOpen size={14} /> Frais de Scolarité
+          <Users size={14} /> Fiche Famille
         </button>
         <button
           onClick={() => setActiveTab('expenses')}
@@ -1432,174 +1918,44 @@ const ComptableAccounting: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'tuition' && (
-        <div className="space-y-6">
-          <TuitionModalityManager
-            tuitionFees={tuitionFees}
-            academicYears={academicYears}
-            classes={schoolClasses}
-            loading={tuitionLoading}
-            actionLoading={tuitionActionLoading}
-            onCreate={createTuitionFee}
-            onUpdate={updateTuitionFee}
-            onDelete={deleteTuitionFee}
-          />
-
-          {/* Recherche statut élève */}
-          <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-bleu-50 dark:bg-bleu-900/20 rounded-xl text-bleu-600">
-                <Users size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Statut de scolarité d'un élève</h3>
-                <p className="text-[10px] text-gray-400 font-medium">Consultez les versements effectués et les échéances restantes</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <select
-                value={statusStudentId}
-                onChange={e => setStatusStudentId(e.target.value)}
-                className="flex-1 px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
-              >
-                <option value="">Sélectionner un élève...</option>
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.firstName} {s.lastName}{s.registrationNumber ? ` (${s.registrationNumber})` : ''}
-                    {s.className ? ` — ${s.className}` : ''}
-                  </option>
-                ))}
-              </select>
-              <Button
-                onClick={() => fetchStudentTuitionStatus(statusStudentId)}
-                disabled={!statusStudentId || statusLoading}
-                className="h-11 px-6 font-bold text-[10px] uppercase tracking-widest"
-              >
-                {statusLoading ? <Loader2 size={16} className="animate-spin" /> : 'Consulter'}
-              </Button>
-            </div>
-
-            {/* ── FIX: motion.div fermé correctement + </Card> présent ── */}
-            {selectedStudentStatus && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6 space-y-4"
-              >
-                {/* En-tête élève */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={selectedStudentStatus.studentName} size="md" />
-                    <div>
-                      <p className="font-bold text-gray-900 dark:text-white">{selectedStudentStatus.studentName}</p>
-                      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-                        {selectedStudentStatus.className} · {selectedStudentStatus.academicYearName}
-                      </p>
-                    </div>
-                  </div>
-                  {selectedStudentStatus.hasOverdue && (
-                    <Badge variant="error" className="text-[9px] px-3 font-bold uppercase tracking-widest">
-                      {selectedStudentStatus.overdueCount} en retard
-                    </Badge>
-                  )}
-                </div>
-
-                {/* KPIs scolarité élève */}
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Attendu', value: formatCurrency(Number(selectedStudentStatus.totalExpected)), color: 'text-gray-900 dark:text-white' },
-                    { label: 'Payé', value: formatCurrency(Number(selectedStudentStatus.totalPaid)), color: 'text-vert-600' },
-                    { label: 'Restant', value: formatCurrency(Number(selectedStudentStatus.totalRemaining)), color: selectedStudentStatus.totalRemaining > 0 ? 'text-rouge-500' : 'text-vert-600' },
-                  ].map(kpi => (
-                    <div key={kpi.label} className="p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl text-center">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{kpi.label}</p>
-                      <p className={`text-sm font-black ${kpi.color}`}>{kpi.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Barre de progression */}
-                {Number(selectedStudentStatus.totalExpected) > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      <span>Progression du paiement</span>
-                      <span>{Math.round((Number(selectedStudentStatus.totalPaid) / Number(selectedStudentStatus.totalExpected)) * 100)}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-bleu-500 to-vert-500 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, Math.round((Number(selectedStudentStatus.totalPaid) / Number(selectedStudentStatus.totalExpected)) * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Liste des échéances */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Détail des échéances</p>
-                  {selectedStudentStatus.installments.map((inst, i) => (
-                    <div
-                      key={inst.installmentId}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        inst.overdue
-                          ? 'bg-rouge-50 dark:bg-rouge-900/10 border-rouge-200 dark:border-rouge-800/30'
-                          : inst.remainingAmount <= 0
-                          ? 'bg-vert-50 dark:bg-vert-900/10 border-vert-200 dark:border-vert-800/30'
-                          : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${
-                            inst.remainingAmount <= 0
-                              ? 'bg-vert-100 text-vert-700'
-                              : inst.overdue
-                              ? 'bg-rouge-100 text-rouge-700'
-                              : 'bg-bleu-100 text-bleu-700'
-                          }`}>
-                            {i + 1}
-                          </div>
-                          <div>
-                            {/* ── FIX: inst.installmentLabel (était inst.label) ── */}
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {inst.installmentLabel || `Echeance ${i + 1}`}
-                            </p>
-                            <p className="text-[10px] text-gray-500">
-                              {inst.dueDate ? new Date(inst.dueDate).toLocaleDateString('fr-FR') : '-'}
-                              {inst.overdue && <span className="ml-2 text-rouge-600 font-bold">EN RETARD</span>}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {/* ── FIX: inst.installmentAmount (était inst.expectedAmount) ── */}
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('fr-GN').format(Number(inst.installmentAmount) || 0)} GNF
-                          </p>
-                          <p className="text-[10px] text-gray-500">
-                            Restant : {new Intl.NumberFormat('fr-GN').format(Number(inst.remainingAmount) || 0)} GNF
-                          </p>
-                        </div>
-                      </div>
-                      {/* Bouton payer si montant restant > 0 */}
-                      {inst.remainingAmount > 0 && (
-                        <div className="mt-3 flex justify-end">
-                          <Button
-                            onClick={() => openTuitionPaymentModal(inst, selectedStudentStatus.studentId)}
-                            className="h-8 px-4 text-[10px] font-bold uppercase tracking-widest"
-                          >
-                            Enregistrer un versement
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-              /* ── FIX: motion.div fermé ici ── */
-            )}
-          </Card>
-          {/* ── FIX: </Card> était manquant ── */}
-        </div>
+      {activeTab === 'family' && (
+        <FamilyBillingTab
+          students={students}
+          payments={payments}
+          pivotStudentId={familyPivotStudentId}
+          onPickStudent={setFamilyPivotStudentId}
+          onPaymentSubmit={async ({ studentId, amount, reference }) => {
+            // Réutilise l'endpoint d'encaissement existant POST /payments.
+            // Le backend (PaymentRequest record) attend strictement :
+            //   amount, reference (non vide), method, studentId, categoryId.
+            // Toute note libre est intégrée dans `reference`.
+            setIsSubmitting(true);
+            try {
+              const token = getToken();
+              if (!token) throw new Error('Token manquant.');
+              await apiRequest(`/payments`, {
+                method: 'POST',
+                token,
+                body: JSON.stringify({
+                  studentId,
+                  amount,
+                  reference: reference || `PMT-${Date.now()}`,
+                  method: 'CASH',
+                  categoryId: null,
+                }),
+              });
+              showSuccess('Paiement enregistré.');
+              await fetchPayments();
+            } catch (err: any) {
+              setError(err?.message ?? "L'enregistrement du paiement a échoué.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+          submitting={isSubmitting}
+          isPaymentOpen={isFamilyPaymentOpen}
+          onPaymentClose={() => setIsFamilyPaymentOpen(false)}
+        />
       )}
 
       {/* ── MODAL : Nouvel encaissement ──────────────────────────────────────── */}
