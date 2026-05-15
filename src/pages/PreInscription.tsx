@@ -13,6 +13,11 @@ import {
   FileText,
   CheckCircle2,
   Loader2,
+  Sparkles,
+  ShieldCheck,
+  Clock,
+  Wallet,
+  Users as UsersIcon,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import PublicNav from '../components/shared/PublicNav';
@@ -373,33 +378,90 @@ const PreInscription: React.FC = () => {
     <div className="min-h-screen bg-[#f5f7fa] dark:bg-gray-950 text-gray-900 dark:text-white font-sans selection:bg-vert-500/30 transition-colors duration-500">
       <PublicNav active="PreInscription" forceSolid />
 
-      {/* HEADER */}
-      <section className="pt-32 pb-10 px-4 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="inline-flex items-center gap-2 mb-6 px-5 py-2 rounded-full bg-gradient-to-r from-bleu-100 to-vert-50 dark:from-bleu-900/30 dark:to-vert-900/20 text-bleu-700 dark:text-bleu-300 border border-bleu-200 dark:border-bleu-800/40"
-        >
-          <GraduationCap size={14} />
-          <span className="text-xs font-black uppercase tracking-widest">Inscription simplifiée</span>
-        </motion.div>
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="text-4xl md:text-6xl font-black text-gray-900 dark:text-white tracking-tight mb-4"
-        >
-          Pré-inscription en ligne
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-base md:text-lg text-gray-500 dark:text-gray-400 font-medium max-w-2xl mx-auto leading-relaxed"
-        >
-          Remplissez ce formulaire pour soumettre une demande de pré-inscription. Vous pouvez inscrire plusieurs enfants en une seule demande.
-        </motion.p>
+      {/* HERO PREMIUM */}
+      <section className="relative pt-32 pb-16 px-4 overflow-hidden">
+        <div className="absolute top-20 left-1/4 w-96 h-96 bg-bleu-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-or-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-40 right-10 w-64 h-64 bg-vert-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="relative max-w-5xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="inline-flex items-center gap-2 mb-6 px-5 py-2 rounded-full bg-gradient-to-r from-bleu-100 to-vert-50 dark:from-bleu-900/30 dark:to-vert-900/20 text-bleu-700 dark:text-bleu-300 border border-bleu-200 dark:border-bleu-800/40"
+          >
+            <Sparkles size={14} className="text-or-500" />
+            <span className="text-xs font-black uppercase tracking-widest">Année scolaire 2026 — 2027</span>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-4xl md:text-6xl lg:text-7xl font-black text-gray-900 dark:text-white tracking-tighter mb-5 leading-[0.95]"
+          >
+            Pré-inscription
+            <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-bleu-600 via-vert-600 to-or-500">en ligne</span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-base md:text-lg text-gray-600 dark:text-gray-400 font-medium max-w-2xl mx-auto leading-relaxed mb-10"
+          >
+            Soumettez votre demande en quelques minutes. Vous pouvez inscrire <strong className="text-gray-900 dark:text-white">plusieurs enfants</strong> en une seule demande. Réponse de notre équipe sous <strong className="text-gray-900 dark:text-white">48 h ouvrées</strong>.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 max-w-3xl mx-auto"
+          >
+            {[
+              { icon: ShieldCheck, label: 'Données sécurisées', color: 'text-vert-600 dark:text-vert-300', bg: 'bg-vert-500/10' },
+              { icon: Clock, label: 'Réponse sous 48 h', color: 'text-bleu-600 dark:text-bleu-300', bg: 'bg-bleu-500/10' },
+              { icon: UsersIcon, label: 'Plusieurs enfants', color: 'text-or-600 dark:text-or-300', bg: 'bg-or-500/10' },
+              { icon: Wallet, label: 'Paiement flexible', color: 'text-rouge-500 dark:text-rouge-300', bg: 'bg-rouge-500/10' },
+            ].map((g, i) => (
+              <div
+                key={i}
+                className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/80 dark:bg-gray-900/40 backdrop-blur border border-gray-100 dark:border-white/5 shadow-soft"
+              >
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', g.bg, g.color)}>
+                  <g.icon size={18} />
+                </div>
+                <p className="text-[11px] font-black text-gray-700 dark:text-gray-300 text-center leading-tight">{g.label}</p>
+              </div>
+            ))}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="mt-12 inline-flex items-center gap-2 md:gap-4 px-5 md:px-8 py-3 md:py-4 rounded-full bg-white dark:bg-gray-900/60 backdrop-blur shadow-xl border border-gray-100 dark:border-white/10"
+          >
+            {[
+              { num: 1, label: 'Enfant(s)' },
+              { num: 2, label: 'Parent' },
+              { num: 3, label: 'Dossier' },
+            ].map((s, i) => (
+              <React.Fragment key={s.num}>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-bleu-600 to-vert-600 text-white text-xs md:text-sm font-black flex items-center justify-center shadow-md">
+                    {s.num}
+                  </div>
+                  <span className="text-[11px] md:text-xs font-black text-gray-700 dark:text-gray-300 uppercase tracking-wider hidden sm:inline">{s.label}</span>
+                </div>
+                {i < 2 && <div className="w-6 md:w-12 h-0.5 bg-gradient-to-r from-bleu-300 to-vert-300 dark:from-bleu-700 dark:to-vert-700" />}
+              </React.Fragment>
+            ))}
+          </motion.div>
+        </div>
       </section>
 
       <main className="max-w-4xl mx-auto px-4 pb-20 space-y-8">
