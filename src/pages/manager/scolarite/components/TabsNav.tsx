@@ -1,6 +1,6 @@
 // src/pages/manager/scolarite/components/TabsNav.tsx
 import React from 'react';
-import { CalendarDays, ClipboardList, Clock, Search } from 'lucide-react';
+import { CalendarDays, ClipboardList, Clock, IdCard, Search } from 'lucide-react';
 import { Card } from '../../../../components/ui';
 import { TabId } from '../types';
 
@@ -9,19 +9,30 @@ interface Props {
   onChangeTab: (id: TabId) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  allowStudentCards?: boolean;
 }
 
-const TABS: ReadonlyArray<{ id: TabId; label: string; icon: typeof CalendarDays }> = [
+const BASE_TABS: ReadonlyArray<{ id: TabId; label: string; icon: typeof CalendarDays }> = [
   { id: 'emplois',  label: 'Emplois du temps', icon: CalendarDays },
   { id: 'notes',    label: 'Relevés de notes', icon: ClipboardList },
   { id: 'pointage', label: 'Pointage',         icon: Clock },
+  { id: 'cartes',   label: 'Cartes scolaires', icon: IdCard },
 ];
 
-const TabsNav: React.FC<Props> = ({ activeTab, onChangeTab, searchQuery, onSearchChange }) => (
-  <Card className="p-4 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none overflow-x-auto">
-    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-      <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
-        {TABS.map(tab => {
+const TabsNav: React.FC<Props> = ({
+  activeTab,
+  onChangeTab,
+  searchQuery,
+  onSearchChange,
+  allowStudentCards = false,
+}) => {
+  const tabs = allowStudentCards ? BASE_TABS : BASE_TABS.filter(tab => tab.id !== 'cartes');
+
+  return (
+    <Card className="p-4 bg-white dark:bg-gray-900/50 dark:backdrop-blur-md shadow-soft border-none overflow-x-auto">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
+          {tabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
@@ -41,29 +52,30 @@ const TabsNav: React.FC<Props> = ({ activeTab, onChangeTab, searchQuery, onSearc
               <Icon size={15} /> {tab.label}
             </button>
           );
-        })}
-      </div>
+          })}
+        </div>
 
-      <div className="relative flex-1 max-w-md">
-        <Search
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-          size={18}
-        />
-        <input
-          type="text"
-          placeholder={
-            activeTab === 'emplois'
-              ? 'Rechercher une classe...'
-              : 'Rechercher un élève...'
-          }
-          value={searchQuery}
-          onChange={e => onSearchChange(e.target.value)}
-          onClick={e => e.stopPropagation()}
-          className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm text-sm"
-        />
+        <div className="relative flex-1 max-w-md">
+          <Search
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            size={18}
+          />
+          <input
+            type="text"
+            placeholder={
+              activeTab === 'emplois'
+                ? 'Rechercher une classe...'
+                : 'Rechercher un élève...'
+            }
+            value={searchQuery}
+            onChange={e => onSearchChange(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm text-sm"
+          />
+        </div>
       </div>
-    </div>
-  </Card>
-);
+    </Card>
+  );
+};
 
 export default TabsNav;

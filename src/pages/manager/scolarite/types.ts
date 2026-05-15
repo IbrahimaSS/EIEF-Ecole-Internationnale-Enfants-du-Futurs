@@ -58,7 +58,48 @@ export interface StudentResponse {
   gender: string;
   className: string;
   parentName: string;
+  avatarUrl?: string;
+  photoUrl?: string;
   isActive: boolean;
+}
+
+export interface StudentCardSummary {
+  studentId: string;
+  studentName: string;
+  registrationNumber: string;
+  className: string | null;
+  avatarUrl: string | null;
+  qrToken: string | null;
+  generated: boolean;
+}
+
+export interface StudentSubjectGradeSummary {
+  subjectId: string | null;
+  subjectName: string | null;
+  coefficient: number;
+  average: number;
+  progression: number;
+  comment: string | null;
+}
+
+export interface StudentNotesSummary {
+  semester: number;
+  overallAverage: number;
+  rank: number;
+  classSize: number;
+  progression: number;
+  absences: number;
+  appreciation: string;
+  subjects: StudentSubjectGradeSummary[];
+}
+
+export interface StudentCardScanData {
+  studentId: string;
+  studentName: string;
+  registrationNumber: string;
+  className: string | null;
+  avatarUrl: string | null;
+  notes: StudentNotesSummary;
 }
 
 export interface TeacherResponse {
@@ -97,9 +138,9 @@ export interface StudentAttendanceResponse {
 
 // ─── Types UI ────────────────────────────────────────────────────────────────
 
-export type TabId = 'emplois' | 'notes' | 'pointage';
-export type PointageTab = 'eleves' | 'professeurs';
-export type NotifKind = 'success' | 'error';
+export type TabId = "emplois" | "notes" | "pointage" | "cartes";
+export type PointageTab = "eleves" | "professeurs";
+export type NotifKind = "success" | "error";
 
 export interface Notif {
   kind: NotifKind;

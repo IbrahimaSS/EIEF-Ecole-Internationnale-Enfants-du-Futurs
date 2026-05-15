@@ -19,6 +19,7 @@ export interface StudentResponse {
   className: string;
   /** UUID de la famille — backend renvoie familyId */
   familyId?: string;
+  avatarUrl?: string | null;
   /** @deprecated conservé pour rétrocompat, alimenté manuellement côté UI */
   parentName?: string;
   isActive: boolean;
@@ -34,6 +35,7 @@ export interface StudentRequest {
   birthDate?: string;
   arrivalDate?: string;
   gender?: string;
+  avatarUrl?: string;
   classId?: string;
   /** Backend : Student rattaché à une Family (et non plus à un parent unique) */
   familyId?: string;
@@ -134,6 +136,7 @@ export interface PreEnrollmentApprovalRequest {
   parentTemporaryPassword?: string;
   arrivalYear?: number;
   registrationNumber?: string;
+  studentAvatarUrl?: string;
   arrivalDate?: string;
 }
 
@@ -216,6 +219,7 @@ export interface FamilyEnrollmentRequest {
   studentEmail: string;
   studentPassword: string;
   registrationNumber?: string;
+  studentAvatarUrl?: string;
   // ─── Père (= guardian principal) ───
   fatherFirstName: string;
   fatherLastName: string;
@@ -491,10 +495,14 @@ export const userService = {
       studentPassword: payload.studentPassword,
       parentTemporaryPassword: payload.fatherTemporaryPassword || undefined,
       registrationNumber: payload.registrationNumber,
+      studentAvatarUrl: payload.studentAvatarUrl || undefined,
     };
 
     if (payload.studentArrivalDate) {
-      if (payload.studentArrivalDate.length === 4 && /^\d+$/.test(payload.studentArrivalDate)) {
+      if (
+        payload.studentArrivalDate.length === 4 &&
+        /^\d+$/.test(payload.studentArrivalDate)
+      ) {
         approvalPayload.arrivalYear = parseInt(payload.studentArrivalDate, 10);
       } else {
         approvalPayload.arrivalDate = payload.studentArrivalDate.slice(0, 10);
