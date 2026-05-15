@@ -56,7 +56,7 @@ export interface StudentResponse {
   registrationNumber: string;
   birthDate: string;
   gender: string;
-  className: string;
+  className: string | null;
   parentName: string;
   avatarUrl?: string;
   photoUrl?: string;

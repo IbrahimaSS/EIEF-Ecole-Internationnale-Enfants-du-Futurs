@@ -197,7 +197,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     s =>
       `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
       s.registrationNumber.toLowerCase().includes(q) ||
-      s.className.toLowerCase().includes(q),
+      (s.className ?? '').toLowerCase().includes(q),
   );
 
   // ── Handlers : Schedules ──────────────────────────────────────────────────
