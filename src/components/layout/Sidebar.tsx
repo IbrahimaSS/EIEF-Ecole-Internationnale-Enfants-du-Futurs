@@ -196,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
   const coordinatorSections: SidebarSection[] = [{
     items: [
       { id: 'dashboard', label: 'Tableau de bord', icon: <LayoutDashboard size={18} />, href: '/coordinator/dashboard' },
-      { id: 'scolarite', label: 'Scolarité', icon: <GraduationCap size={18} />, href: '/coordinator/scolarite' },
+      { id: 'scolarite', label: 'Scolarité & matières', icon: <GraduationCap size={18} />, href: '/coordinator/scolarite' },
       { id: 'enseignants', label: 'Enseignants', icon: <Users size={18} />, href: '/coordinator/enseignants' },
     ],
   }];

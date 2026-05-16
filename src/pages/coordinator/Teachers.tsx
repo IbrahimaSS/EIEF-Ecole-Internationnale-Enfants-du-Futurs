@@ -9,13 +9,14 @@ import {
   Loader2,
   Mail,
   Phone,
+  Plus,
   Search,
   UserCheck,
   Users,
 } from 'lucide-react';
-import { Badge, Button, Card, Input, StatCard } from '../../components/ui';
+import { Badge, Button, Card, Input, Modal, StatCard } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
-import { TeacherResponse, userService } from '../../services/userService';
+import { TeacherRequest, TeacherResponse, userService } from '../../services/userService';
 import { teacherService } from '../../services/teacherService';
 import { scheduleService } from '../../services/scheduleService';
 import { TeacherClassDetailResponse } from '../../types/academic';
@@ -74,6 +75,17 @@ const getAttendanceLabel = (status?: string) => {
   }
 };
 
+const emptyTeacher = (): TeacherRequest => ({
+  email: '',
+  password: '',
+  firstName: '',
+  lastName: '',
+  phone: '',
+  employeeNumber: '',
+  specialty: '',
+  hireDate: '',
+});
+
 const CoordinatorTeachers: React.FC = () => {
   const token = useAuthStore((state) => state.token);
   const [teachers, setTeachers] = useState<TeacherResponse[]>([]);
@@ -86,6 +98,10 @@ const CoordinatorTeachers: React.FC = () => {
   const [selectedTeacherClasses, setSelectedTeacherClasses] = useState<TeacherClassDetailResponse[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+  const [teacherForm, setTeacherForm] = useState<TeacherRequest>(emptyTeacher());
+  const [teacherSubmitError, setTeacherSubmitError] = useState<string | null>(null);
+  const [creatingTeacher, setCreatingTeacher] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -225,6 +241,68 @@ const CoordinatorTeachers: React.FC = () => {
     }
   };
 
+  const handleOpenTeacherModal = () => {
+    setTeacherForm(emptyTeacher());
+    setTeacherSubmitError(null);
+    setIsTeacherModalOpen(true);
+  };
+
+  const handleCreateTeacher = async () => {
+    if (!token) {
+      setTeacherSubmitError('Session expirée. Veuillez vous reconnecter.');
+      return;
+    }
+
+    if (
+      !teacherForm.firstName.trim()
+      || !teacherForm.lastName.trim()
+      || !teacherForm.email.trim()
+      || !teacherForm.password.trim()
+      || !teacherForm.employeeNumber.trim()
+    ) {
+      setTeacherSubmitError('Prénom, nom, email, mot de passe et matricule sont requis.');
+      return;
+    }
+
+    if (teacherForm.password.trim().length < 8) {
+      setTeacherSubmitError('Le mot de passe doit contenir au moins 8 caractères.');
+      return;
+    }
+
+    setCreatingTeacher(true);
+    setTeacherSubmitError(null);
+
+    try {
+      const createdTeacher = await userService.createTeacher(token, {
+        firstName: teacherForm.firstName.trim(),
+        lastName: teacherForm.lastName.trim(),
+        email: teacherForm.email.trim(),
+        password: teacherForm.password.trim(),
+        employeeNumber: teacherForm.employeeNumber.trim(),
+        phone: teacherForm.phone?.trim() || undefined,
+        specialty: teacherForm.specialty?.trim() || undefined,
+        hireDate: teacherForm.hireDate || undefined,
+      });
+
+      setTeachers((currentTeachers) => [
+        createdTeacher,
+        ...currentTeachers.filter((teacher) => teacher.id !== createdTeacher.id),
+      ]);
+      setSelectedTeacherId(createdTeacher.id);
+      setSelectedTeacherClasses([]);
+      setDetailError(null);
+      setSearch('');
+      setIsTeacherModalOpen(false);
+      setTeacherForm(emptyTeacher());
+    } catch (err) {
+      setTeacherSubmitError(
+        err instanceof Error ? err.message : 'Impossible de créer cet enseignant.',
+      );
+    } finally {
+      setCreatingTeacher(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 18 }}
@@ -274,18 +352,27 @@ const CoordinatorTeachers: React.FC = () => {
               Gestion opérationnelle des enseignants
             </h2>
             <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-              Le pointage enseignant reste centralisé dans la page Scolarité & Pointage. Cette vue sert au suivi de l’effectif pédagogique.
+              Le pointage enseignant reste centralisé dans la page Scolarité & Pointage. Cette vue sert au suivi de l’effectif pédagogique et à l’ajout de nouveaux enseignants.
             </p>
           </div>
 
-          <div className="relative w-full lg:max-w-sm">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Rechercher un enseignant"
-              className="h-12 rounded-2xl pl-11"
-            />
+          <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center">
+            <Button
+              onClick={handleOpenTeacherModal}
+              className="h-12 rounded-2xl bg-gradient-to-r from-bleu-600 to-bleu-500 border-none px-5 text-[11px] font-bold shadow-lg shadow-bleu-600/20"
+            >
+              <Plus size={16} className="mr-2" /> Nouvel enseignant
+            </Button>
+
+            <div className="relative w-full lg:min-w-[320px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Rechercher un enseignant"
+                className="h-12 rounded-2xl pl-11"
+              />
+            </div>
           </div>
         </div>
 
@@ -508,6 +595,105 @@ const CoordinatorTeachers: React.FC = () => {
         )}
       </Card>
       </div>
+
+      <Modal
+        isOpen={isTeacherModalOpen}
+        onClose={() => {
+          setIsTeacherModalOpen(false);
+          setTeacherSubmitError(null);
+        }}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-bleu-100 p-2 text-bleu-600 dark:bg-bleu-900/30 dark:text-bleu-300">
+              <Users size={22} />
+            </div>
+            <span className="font-bold gradient-bleu-or-text">Nouvel enseignant</span>
+          </div>
+        }
+        size="lg"
+      >
+        <div className="space-y-5 py-2" onClick={(event) => event.stopPropagation()}>
+          {teacherSubmitError && (
+            <div className="rounded-2xl border border-rouge-100 bg-rouge-50 px-4 py-3 text-left text-sm font-semibold text-rouge-700 dark:border-rouge-900/30 dark:bg-rouge-950/20 dark:text-rouge-300">
+              {teacherSubmitError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="Prénom"
+              value={teacherForm.firstName}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, firstName: event.target.value }))}
+              placeholder="ex: Fatou"
+            />
+            <Input
+              label="Nom"
+              value={teacherForm.lastName}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, lastName: event.target.value }))}
+              placeholder="ex: Camara"
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={teacherForm.email}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, email: event.target.value }))}
+              placeholder="enseignant@eief.edu.gn"
+            />
+            <Input
+              label="Mot de passe"
+              type="password"
+              value={teacherForm.password}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, password: event.target.value }))}
+              placeholder="Minimum 8 caractères"
+            />
+            <Input
+              label="Matricule enseignant"
+              value={teacherForm.employeeNumber}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, employeeNumber: event.target.value }))}
+              placeholder="ex: EMP-024"
+            />
+            <Input
+              label="Spécialité"
+              value={teacherForm.specialty ?? ''}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, specialty: event.target.value }))}
+              placeholder="ex: Mathématiques"
+            />
+            <Input
+              label="Téléphone"
+              value={teacherForm.phone ?? ''}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, phone: event.target.value }))}
+              placeholder="+224..."
+            />
+            <Input
+              label="Date d'embauche"
+              type="date"
+              value={teacherForm.hireDate ?? ''}
+              onChange={(event) => setTeacherForm((form) => ({ ...form, hireDate: event.target.value }))}
+            />
+          </div>
+
+          <div className="flex gap-4 border-t border-gray-100 pt-4 dark:border-white/5">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsTeacherModalOpen(false);
+                setTeacherSubmitError(null);
+              }}
+              className="h-12 flex-1"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={() => void handleCreateTeacher()}
+              disabled={creatingTeacher}
+              className="h-12 flex-1 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none text-white shadow-lg shadow-bleu-600/20"
+            >
+              {creatingTeacher ? <Loader2 className="mr-2 animate-spin" size={18} /> : null}
+              Créer l'enseignant
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 };

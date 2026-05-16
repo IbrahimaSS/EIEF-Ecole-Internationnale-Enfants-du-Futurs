@@ -61,11 +61,13 @@ import {
 
 interface ManagerScolariteProps {
   allowCatalogManagement?: boolean;
+  allowSubjectCreation?: boolean;
   allowStudentCards?: boolean;
 }
 
 const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
   allowCatalogManagement = true,
+  allowSubjectCreation = allowCatalogManagement,
   allowStudentCards = false,
 }) => {
   // ── Données initiales ─────────────────────────────────────────────────────
@@ -414,7 +416,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
         classCount={classes.length}
         studentCount={students.length}
         scheduleCount={schedules.length}
-        onAddSubject={allowCatalogManagement ? onAddSubjectClick : undefined}
+        onAddSubject={allowSubjectCreation ? onAddSubjectClick : undefined}
         onAddClass={onAddClassClick}
         onAddSchedule={() => openAddSchedule()}
       />
@@ -600,7 +602,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
         onOpenYearModal={allowCatalogManagement ? () => setIsAcademicYearModalOpen(true) : undefined}
       />
 
-      {allowCatalogManagement && (
+      {allowSubjectCreation && (
         <SubjectModal
           isOpen={isSubjectModalOpen}
           form={subjectForm}

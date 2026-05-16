@@ -8,7 +8,7 @@ import {
   Users,
   UserCheck,
 } from 'lucide-react';
-import { Card, StatCard } from '../../components/ui';
+import { Button, Card, StatCard } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { classService } from '../../services/classService';
 import { scheduleService } from '../../services/scheduleService';
@@ -156,8 +156,21 @@ const CoordinatorDashboard: React.FC = () => {
               Le coordinateur centralise les opérations pédagogiques.
             </h2>
             <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-gray-600 dark:text-gray-300">
-              Gérez les classes, les emplois du temps, les notes, les bulletins et le pointage des enseignants depuis un espace dédié.
+              Gérez les classes, les matières, les emplois du temps, les notes, les bulletins et le pointage des enseignants depuis un espace dédié.
             </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link to="/coordinator/enseignants">
+              <Button className="h-11 rounded-2xl bg-gradient-to-r from-bleu-600 to-bleu-500 border-none px-5 text-[11px] font-bold shadow-lg shadow-bleu-600/20">
+                Ajouter un enseignant
+              </Button>
+            </Link>
+            <Link to="/coordinator/scolarite">
+              <Button variant="outline" className="h-11 rounded-2xl px-5 text-[11px] font-bold">
+                Ajouter une matière
+              </Button>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -170,7 +183,10 @@ const CoordinatorDashboard: React.FC = () => {
               </div>
               <h3 className="text-base font-black text-gray-900 dark:text-white">Coordination académique</h3>
               <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-                Notes, bulletins, classes, horaires et pointage enseignant.
+                Matières, notes, bulletins, classes, horaires et pointage enseignant.
+              </p>
+              <p className="mt-4 text-[11px] font-black uppercase tracking-[0.22em] text-bleu-600 dark:text-bleu-300">
+                Ouvrir la gestion des matières
               </p>
             </Link>
 
@@ -183,7 +199,10 @@ const CoordinatorDashboard: React.FC = () => {
               </div>
               <h3 className="text-base font-black text-gray-900 dark:text-white">Suivi des enseignants</h3>
               <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-                Consultez l’équipe, les spécialités et l’activité du jour.
+                Ajoutez des enseignants, consultez l’équipe, les spécialités et l’activité du jour.
+              </p>
+              <p className="mt-4 text-[11px] font-black uppercase tracking-[0.22em] text-or-700 dark:text-or-300">
+                Ouvrir la gestion des enseignants
               </p>
             </Link>
           </div>
