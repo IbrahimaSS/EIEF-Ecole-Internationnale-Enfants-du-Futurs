@@ -108,7 +108,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     {
       title: 'Scolarité',
       items: [
-        { id: 'scolarite', label: 'Scolarité', icon: <GraduationCap size={18} />, href: '/admin/scolarite' },
+        { id: 'coordination',           label: 'Tableau Scolarité',    icon: <LayoutDashboard size={18} />, href: '/admin/coordination' },
+        { 
+          id: 'coordination-scolarite', 
+          label: 'Classes & Pointage',   
+          icon: <GraduationCap size={18} />,   
+          href: '/admin/coordination/scolarite?tab=emplois',
+          subItems: [
+            { id: 'emplois', label: 'Emplois du temps', icon: <Calendar size={16} />, href: '/admin/coordination/scolarite?tab=emplois' },
+            { id: 'notes',   label: 'Relevés de notes', icon: <ClipboardList size={16} />, href: '/admin/coordination/scolarite?tab=notes' },
+            { id: 'pointage', label: 'Pointage',        icon: <UserCheck size={16} />,    href: '/admin/coordination/scolarite?tab=pointage' },
+            { id: 'cartes',   label: 'Cartes scolaires', icon: <TrendingDown size={16} />, href: '/admin/coordination/scolarite?tab=cartes' },
+          ]
+        },
+        { id: 'coordination-teachers',  label: 'Enseignants',          icon: <UserCheck size={18} />,       href: '/admin/coordination/enseignants' },
       ],
     },
     {
@@ -196,7 +209,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
   const coordinatorSections: SidebarSection[] = [{
     items: [
       { id: 'dashboard', label: 'Tableau de bord', icon: <LayoutDashboard size={18} />, href: '/coordinator/dashboard' },
-      { id: 'scolarite', label: 'Scolarité & matières', icon: <GraduationCap size={18} />, href: '/coordinator/scolarite' },
+      { 
+        id: 'scolarite', 
+        label: 'Classes & Pointage', 
+        icon: <GraduationCap size={18} />, 
+        href: '/coordinator/scolarite?tab=emplois',
+        subItems: [
+          { id: 'emplois', label: 'Emplois du temps', icon: <Calendar size={16} />, href: '/coordinator/scolarite?tab=emplois' },
+          { id: 'notes',   label: 'Relevés de notes', icon: <ClipboardList size={16} />, href: '/coordinator/scolarite?tab=notes' },
+          { id: 'pointage', label: 'Pointage',        icon: <UserCheck size={16} />,    href: '/coordinator/scolarite?tab=pointage' },
+          { id: 'cartes',   label: 'Cartes scolaires', icon: <TrendingDown size={16} />, href: '/coordinator/scolarite?tab=cartes' },
+        ]
+      },
       { id: 'enseignants', label: 'Enseignants', icon: <Users size={18} />, href: '/coordinator/enseignants' },
     ],
   }];
@@ -215,6 +239,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     items: [
       { id: 'dashboard',     label: 'Tableau de bord', icon: <LayoutDashboard size={18} />, href: '/parent/dashboard' },
       { id: 'eleves',        label: 'Mes enfants',     icon: <GraduationCap size={18} />, href: '/parent/eleves' },
+      { id: 'notes',         label: 'Relevés de notes', icon: <ClipboardList size={18} />, href: '/parent/notes' },
+      { id: 'emploi',        label: 'Emploi du temps',   icon: <Calendar size={18} />,      href: '/parent/emploi' },
       { id: 'paiements',     label: 'Paiements',       icon: <Wallet size={18} />,        href: '/parent/paiements' },
       { id: 'communication', label: 'Communication',   icon: <MessageSquare size={18} />, href: '/parent/communication' },
     ],
@@ -234,7 +260,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
   const managerSections: SidebarSection[] = [{
     items: [
       { id: 'dashboard',    label: 'Tableau de bord',    icon: <LayoutDashboard size={18} />, href: '/manager/dashboard' },
-      { id: 'scolarite',    label: 'Scolarité & Pointage', icon: <GraduationCap size={18} />, href: '/manager/scolarite' },
+      { 
+        id: 'scolarite', 
+        label: 'Classes & Pointage', 
+        icon: <GraduationCap size={18} />, 
+        href: '/manager/scolarite?tab=emplois',
+        subItems: [
+          { id: 'emplois', label: 'Emplois du temps', icon: <Calendar size={16} />, href: '/manager/scolarite?tab=emplois' },
+          { id: 'notes',   label: 'Relevés de notes', icon: <ClipboardList size={16} />, href: '/manager/scolarite?tab=notes' },
+          { id: 'pointage', label: 'Pointage',        icon: <UserCheck size={16} />,    href: '/manager/scolarite?tab=pointage' },
+          { id: 'cartes',   label: 'Cartes scolaires', icon: <TrendingDown size={16} />, href: '/manager/scolarite?tab=cartes' },
+        ]
+      },
       { id: 'utilisateurs', label: 'Utilisateurs',       icon: <Users size={18} />,         href: '/manager/utilisateurs' },
     ],
   }];

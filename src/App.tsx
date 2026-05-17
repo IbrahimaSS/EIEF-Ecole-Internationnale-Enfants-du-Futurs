@@ -7,7 +7,7 @@ import { useAuthStore } from './store/authStore';
 // Pages Admin
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
-import AdminScolarite from './pages/admin/Scolarite';
+// AdminScolarite supprimé : l'admin utilise les composants Coordinator pour la Scolarité.
 import AdminAccounting from './pages/admin/Accounting';
 import AdminCanteen from './pages/admin/Canteen';
 import AdminStore from './pages/admin/Store';
@@ -124,7 +124,10 @@ function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="utilisateurs" element={<AdminUsers />} />
-            <Route path="scolarite" element={<AdminScolarite />} />
+            {/* Section Scolarité de l'admin — réutilise les composants Coordinator. */}
+            <Route path="coordination" element={<CoordinatorDashboard />} />
+            <Route path="coordination/scolarite" element={<CoordinatorScolarite />} />
+            <Route path="coordination/enseignants" element={<CoordinatorTeachers />} />
             <Route path="comptabilite" element={<AdminAccounting />} />
             <Route path="cantine" element={<AdminCanteen />} />
             <Route path="superette" element={<AdminStore />} />
@@ -272,7 +275,9 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         const adminPages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Tableau de bord', subtitle: `Bienvenue, ${user?.firstName} !` },
           'utilisateurs': { title: 'Gestion des Utilisateurs', subtitle: 'Gérez les élèves, enseignants et le personnel' },
-          'scolarite': { title: 'Scolarité', subtitle: 'Organisation des classes et inscriptions' },
+          'coordination': { title: 'Tableau Scolarité', subtitle: 'Vue d\'ensemble de l\'activité pédagogique' },
+          'scolarite': { title: 'Classes & Pointage', subtitle: 'Classes, emplois du temps, notes, bulletins et pointage enseignant' },
+          'enseignants': { title: 'Suivi des enseignants', subtitle: 'Consultez l\'équipe pédagogique et son activité' },
           'comptabilite': { title: 'Finances', subtitle: 'Suivi financier et encaissements' },
           'cantine': { title: 'Cantine Scolaire', subtitle: 'Gestion des menus et planification' },
           'superette': { title: 'Supérette', subtitle: 'Inventaire et ventes de fournitures' },

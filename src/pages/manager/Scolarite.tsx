@@ -2,14 +2,14 @@
 // Orchestrateur du module Scolarité (manager).
 // Compose les sous-composants, hooks et utilitaires depuis ./scolarite/.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 // Sous-composants
 import ScolariteHeader     from './scolarite/components/ScolariteHeader';
 import StatsCards          from './scolarite/components/StatsCards';
-import TabsNav             from './scolarite/components/TabsNav';
 import NotificationToast   from './scolarite/components/NotificationToast';
 import EmploisTab          from './scolarite/tabs/EmploisTab';
 import NotesTab            from './scolarite/tabs/NotesTab';
@@ -70,6 +70,8 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
   allowSubjectCreation = allowCatalogManagement,
   allowStudentCards = false,
 }) => {
+  const location = useLocation();
+
   // ── Données initiales ─────────────────────────────────────────────────────
   const {
     classes,
@@ -89,8 +91,17 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
   const onError   = (m: string) => showNotif('error', m);
   const onSuccess = (m: string) => showNotif('success', m);
 
-  // ── État UI principal ─────────────────────────────────────────────────────
-  const [activeTab,        setActiveTab]        = useState<TabId>('emplois');
+  // ── État UI principal (Synchronisé avec URL) ──────────────────────────────
+  const [activeTab, setActiveTab] = useState<TabId>('emplois');
+  
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab') as TabId;
+    if (tab && ['emplois', 'notes', 'pointage', 'cartes'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
+
   const [searchQuery,      setSearchQuery]      = useState('');
   const [openMenuId,       setOpenMenuId]       = useState<string | null>(null);
 
@@ -412,29 +423,25 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
       className="space-y-8"
       onClick={() => setOpenMenuId(null)}
     >
-      <ScolariteHeader
-        classCount={classes.length}
-        studentCount={students.length}
-        scheduleCount={schedules.length}
-        onAddSubject={allowSubjectCreation ? onAddSubjectClick : undefined}
-        onAddClass={onAddClassClick}
-        onAddSchedule={() => openAddSchedule()}
-      />
+      {activeTab === 'emplois' && (
+        <>
+          <ScolariteHeader
+            classCount={classes.length}
+            studentCount={students.length}
+            scheduleCount={schedules.length}
+            onAddSubject={allowSubjectCreation ? onAddSubjectClick : undefined}
+            onAddClass={onAddClassClick}
+            onAddSchedule={() => openAddSchedule()}
+          />
 
-      <StatsCards
-        classCount={classes.length}
-        studentCount={students.length}
-        subjectCount={subjects.length}
-        scheduleCount={schedules.length}
-      />
-
-      <TabsNav
-        activeTab={activeTab}
-        onChangeTab={setActiveTab}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        allowStudentCards={allowStudentCards}
-      />
+          <StatsCards
+            classCount={classes.length}
+            studentCount={students.length}
+            subjectCount={subjects.length}
+            scheduleCount={schedules.length}
+          />
+        </>
+      )}
 
       {error && (
         <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400 text-sm font-semibold">
