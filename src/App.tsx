@@ -23,6 +23,7 @@ import ComptableDashboard from './pages/comptabilite/Dashboard';
 import CoordinatorDashboard from './pages/coordinator/Dashboard';
 import CoordinatorScolarite from './pages/coordinator/Scolarite';
 import CoordinatorTeachers from './pages/coordinator/Teachers';
+import CoordinatorPermutation from './pages/coordinator/Permutation';
 
 import Login from './pages/auth/Login';
 import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
@@ -128,6 +129,7 @@ function App() {
             <Route path="coordination" element={<CoordinatorDashboard />} />
             <Route path="coordination/scolarite" element={<CoordinatorScolarite />} />
             <Route path="coordination/enseignants" element={<CoordinatorTeachers />} />
+            <Route path="coordination/permutation" element={<CoordinatorPermutation />} />
             <Route path="comptabilite" element={<AdminAccounting />} />
             <Route path="cantine" element={<AdminCanteen />} />
             <Route path="superette" element={<AdminStore />} />
@@ -185,6 +187,7 @@ function App() {
             <Route path="dashboard" element={<CoordinatorDashboard />} />
             <Route path="scolarite" element={<CoordinatorScolarite />} />
             <Route path="enseignants" element={<CoordinatorTeachers />} />
+            <Route path="permutation" element={<CoordinatorPermutation />} />
             <Route path="profil" element={<AdminProfile />} />
             <Route path="preferences" element={<EnseignantPreferences />} />
           </Route>

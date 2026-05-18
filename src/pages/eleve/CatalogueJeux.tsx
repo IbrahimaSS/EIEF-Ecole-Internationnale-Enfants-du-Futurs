@@ -80,18 +80,43 @@ const CatalogueJeux: React.FC = () => {
     }
   }, [isEleve, token]);
 
-  const initialClass = useMemo(() => {
-    const classToUse = studentClass || user?.classe;
-    if (isEleve && classToUse) {
-      const uClasse = classToUse.trim().toUpperCase();
-      if (uClasse.includes('T') || uClasse.includes('TERM')) return 'Terminale';
-      const userNumber = uClasse.match(/\d+/)?.[0];
-      if (userNumber) {
-        const found = CLASS_LEVELS.find(lvl => lvl.startsWith(userNumber));
-        if (found) return found;
-      }
+  /**
+   * Mappe un libelle de classe backend (ex: "Petite Section", "CP", "7eme A",
+   * "Maternelle 1") vers un ClassLevel du catalogue. Renvoie 'Tous' si aucune
+   * correspondance n'est trouvee.
+   * Compatible systeme guineen (college 7e->10e, lycee 11e->Terminale) ET
+   * systeme francais (mapping de secours 6e->7e, 5e->8e...).
+   */
+  const matchClassLevel = (raw: string | null | undefined): ClassLevel | 'Tous' => {
+    if (!raw) return 'Tous';
+    const u = raw.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+    if (u.includes('maternelle') || u.includes('creche') || u.includes('garderie')
+        || u.includes('petite section') || u.includes('moyenne section') || u.includes('grande section')
+        || /^ps\b|^ms\b|^gs\b/.test(u)) return 'Maternelle';
+
+    const primaire: ClassLevel[] = ['CP', 'CE1', 'CE2', 'CM1', 'CM2'];
+    for (const p of primaire) {
+      if (new RegExp(`\\b${p.toLowerCase()}\\b`).test(u)) return p;
     }
+
+    // College guineen 7e a 10e (fallback systeme francais 6e/5e/4e/3e)
+    if (/\b7\s*(eme|e)?\b/.test(u) || /\b6\s*(eme|e)?\b/.test(u) || u.includes('sixieme')) return '7ème';
+    if (/\b8\s*(eme|e)?\b/.test(u) || /\b5\s*(eme|e)?\b/.test(u) || u.includes('cinquieme')) return '8ème';
+    if (/\b9\s*(eme|e)?\b/.test(u) || /\b4\s*(eme|e)?\b/.test(u) || u.includes('quatrieme')) return '9ème';
+    if (/\b10\s*(eme|e)?\b/.test(u) || /\b3\s*(eme|e)?\b/.test(u) || u.includes('troisieme')) return '10ème';
+
+    // Lycee guineen
+    if (/\b11\s*(eme|e)?\b/.test(u) || u.includes('seconde') || u.includes('2nde')) return '11ème';
+    if (/\b12\s*(eme|e)?\b/.test(u) || u.includes('premiere') || u.includes('1ere')) return '12ème';
+    if (u.includes('terminale') || /\bterm\b/.test(u) || u.includes('bac')) return 'Terminale';
+
     return 'Tous';
+  };
+
+  const initialClass = useMemo(() => {
+    if (!isEleve) return 'Tous';
+    return matchClassLevel(studentClass || user?.classe);
   }, [user, studentClass, isEleve]);
 
   const [selectedClass, setSelectedClass] = useState<ClassLevel | 'Tous'>(initialClass);
@@ -140,18 +165,12 @@ const CatalogueJeux: React.FC = () => {
     const isEleveUser = roleRaw.includes('eleve') || backendRoleRaw.includes('student');
 
     if (isEleveUser) {
-      const classToUse = studentClass || user?.classe || '';
-      const uClasse = classToUse.trim().toUpperCase();
-      
-      if (uClasse.includes('T') || uClasse.includes('TERM')) {
-        // Mode Terminale
-        gamesToFilter = gamesToFilter.filter(g => g.classLevel === 'Terminale');
+      // L'eleve ne voit que les jeux correspondant a SA classe (catalogue guineen).
+      const level = matchClassLevel(studentClass || user?.classe);
+      if (level === 'Tous') {
+        gamesToFilter = [];
       } else {
-        const userNum = uClasse.match(/\d+/)?.[0];
-        if (userNum) {
-          // Filtrage par numéro de classe (11, 10, 6...)
-          gamesToFilter = gamesToFilter.filter(g => g.classLevel.includes(userNum));
-        }
+        gamesToFilter = gamesToFilter.filter(g => g.classLevel === level);
       }
     } else {
       // Admin et autres : on applique les filtres sélectionnés manuellement

@@ -2201,10 +2201,71 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                   value={studentForm.phone ?? ''}
                   onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
                 />
-                <Input label="Photo élève (URL ou data URL)" placeholder="https://... ou data:image/..."
-                  value={studentForm.avatarUrl ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, avatarUrl: e.target.value }))}
-                />
+                <div className="col-span-1 md:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">
+                    Photo de l'eleve
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-20 h-20 shrink-0 rounded-2xl overflow-hidden border-2 border-bleu-200 dark:border-bleu-700/50 bg-white dark:bg-gray-800 flex items-center justify-center">
+                      {studentForm.avatarUrl ? (
+                        <img src={studentForm.avatarUrl} alt="Apercu" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-bleu-400 text-xs font-bold">Aucune</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (!file.type.startsWith('image/')) { showNotif('error', 'Le fichier doit etre une image'); return; }
+                          if (file.size > 8 * 1024 * 1024) { showNotif('error', 'Image trop volumineuse (8 Mo max)'); return; }
+                          const dataUrl = await new Promise<string>((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const img = new Image();
+                              img.onload = () => {
+                                const ratio = Math.min(1, 480 / Math.max(img.width, img.height));
+                                const w = Math.round(img.width * ratio);
+                                const h = Math.round(img.height * ratio);
+                                const canvas = document.createElement('canvas');
+                                canvas.width = w; canvas.height = h;
+                                const ctx = canvas.getContext('2d');
+                                if (!ctx) { reject(new Error('Canvas non supporte')); return; }
+                                ctx.drawImage(img, 0, 0, w, h);
+                                resolve(canvas.toDataURL('image/jpeg', 0.85));
+                              };
+                              img.onerror = () => reject(new Error('Image invalide'));
+                              img.src = String(reader.result);
+                            };
+                            reader.onerror = () => reject(reader.error ?? new Error('Lecture impossible'));
+                            reader.readAsDataURL(file);
+                          }).catch((err: any) => { showNotif('error', err?.message || "Impossible de traiter l'image"); return ''; });
+                          if (dataUrl) {
+                            setStudentForm(f => ({ ...f, avatarUrl: dataUrl }));
+                            showNotif('success', "Photo de l'eleve prete");
+                          }
+                          e.target.value = '';
+                        }}
+                        className="block w-full text-xs text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-widest file:bg-bleu-600 file:text-white hover:file:bg-bleu-700 file:cursor-pointer"
+                      />
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                        Utilisee sur la carte scolaire et le releve de notes. JPG/PNG, 8 Mo max.
+                      </p>
+                      {studentForm.avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setStudentForm(f => ({ ...f, avatarUrl: '' }))}
+                          className="mt-1 text-[10px] font-bold uppercase tracking-widest text-rouge-600 hover:text-rouge-700"
+                        >
+                          Retirer la photo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <Select
                   label="Classe"
                   options={[

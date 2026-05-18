@@ -12,6 +12,7 @@ const QuizGame: React.FC = () => {
   const [searchParams] = useSearchParams();
   
   const gameId = searchParams.get('gameId') || 'default';
+  const level = parseInt(searchParams.get('level') || '1');
   const difficulty = searchParams.get('difficulty') || 'moyen';
   const classLevel = searchParams.get('classLevel') || 'Tous';
 
@@ -29,17 +30,23 @@ const QuizGame: React.FC = () => {
     const savedCustom = localStorage.getItem("eief_custom_questions");
     if (savedCustom) {
       const customData = JSON.parse(savedCustom);
-      if (customData[gameId] && customData[gameId].length > 0) {
-        setQuestions(customData[gameId]);
+      if (customData[gameId] && customData[gameId][level]) {
+        setQuestions(customData[gameId][level]);
         return;
       }
     }
 
     // 2. Sinon on prend les données par défaut
-    if (QUIZ_DATA[gameId]) {
-      setQuestions(QUIZ_DATA[gameId].sort(() => 0.5 - Math.random()));
+    if (QUIZ_DATA[gameId] && QUIZ_DATA[gameId][level]) {
+      setQuestions([...QUIZ_DATA[gameId][level]].sort(() => 0.5 - Math.random()));
+    } else {
+      // Fallback si le level n'existe pas : on prend le level 1 ou rien
+      const fallbackLevel = QUIZ_DATA[gameId] ? Object.keys(QUIZ_DATA[gameId])[0] : null;
+      if (fallbackLevel && QUIZ_DATA[gameId][parseInt(fallbackLevel)]) {
+        setQuestions([...QUIZ_DATA[gameId][parseInt(fallbackLevel)]].sort(() => 0.5 - Math.random()));
+      }
     }
-  }, [gameId]);
+  }, [gameId, level]);
 
   const handleOptionClick = async (option: string) => {
     if (selectedOption !== null) return;
@@ -55,6 +62,8 @@ const QuizGame: React.FC = () => {
     
     // Si c'est la dernière question, on sauvegarde tout de suite
     if (currentIdx + 1 === questions.length) {
+      const isLevelValidated = (newScore / questions.length) >= 0.8; // 80% pour valider
+
       if (isAuthenticated && gameId) {
         try {
           await gameService.saveScore({
@@ -62,8 +71,23 @@ const QuizGame: React.FC = () => {
             score: newScore,
             difficulty,
             classLevel,
-            metadata: JSON.stringify({ totalQuestions: questions.length, successRate: (newScore / questions.length) * 100 })
+            metadata: JSON.stringify({ 
+              level, 
+              validated: isLevelValidated,
+              totalQuestions: questions.length, 
+              successRate: (newScore / questions.length) * 100 
+            })
           });
+          
+          if (isLevelValidated) {
+            // Sauvegarder la progression localement aussi pour déblocage immédiat
+            const progressionKey = `eief_progression_${gameId}`;
+            const currentProg = parseInt(localStorage.getItem(progressionKey) || '0');
+            if (level > currentProg) {
+              localStorage.setItem(progressionKey, level.toString());
+            }
+          }
+
           console.log("Score enregistré automatiquement !");
         } catch (error) {
           console.error("Erreur sauvegarde score automatique:", error);

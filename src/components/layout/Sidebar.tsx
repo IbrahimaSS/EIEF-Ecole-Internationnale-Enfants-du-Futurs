@@ -27,6 +27,7 @@ import {
   Receipt,
   TrendingDown,
   BookOpen as Library,
+  Repeat,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
@@ -122,6 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
           ]
         },
         { id: 'coordination-teachers',  label: 'Enseignants',          icon: <UserCheck size={18} />,       href: '/admin/coordination/enseignants' },
+        { id: 'coordination-permutation', label: 'Permutation par merite', icon: <Repeat size={18} />,       href: '/admin/coordination/permutation' },
       ],
     },
     {
@@ -222,6 +224,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
         ]
       },
       { id: 'enseignants', label: 'Enseignants', icon: <Users size={18} />, href: '/coordinator/enseignants' },
+      { id: 'permutation', label: 'Permutation par merite', icon: <Repeat size={18} />, href: '/coordinator/permutation' },
     ],
   }];
 

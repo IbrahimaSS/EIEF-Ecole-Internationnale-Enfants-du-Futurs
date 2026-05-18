@@ -11,6 +11,7 @@ const MathAdventure: React.FC = () => {
   const [searchParams] = useSearchParams();
   
   const gameId = searchParams.get('gameId');
+  const level = parseInt(searchParams.get('level') || '1');
   const difficulty = searchParams.get('difficulty') || 'facile';
   const classLevel = searchParams.get('classLevel') || 'Maternelle';
 
@@ -25,22 +26,22 @@ const MathAdventure: React.FC = () => {
 
   const generateProblem = () => {
     let a = 0, b = 0, op = '+';
-    let range = 10;
+    let range = 10 * level; // Augmente avec le level
     let allowedOps = ['+'];
 
-    // Dynamic difficulty logic based on classLevel
+    // Dynamic difficulty logic based on classLevel and level
     if (classLevel === 'Maternelle' || classLevel === 'CP') {
-      range = difficulty === 'facile' ? 10 : 20;
-      allowedOps = ['+', '-'];
+      range = (difficulty === 'facile' ? 10 : 20) + (level * 5);
+      allowedOps = level > 2 ? ['+', '-'] : ['+'];
     } else if (classLevel.startsWith('CE')) {
-      range = difficulty === 'facile' ? 50 : 100;
-      allowedOps = ['+', '-', '*'];
+      range = (difficulty === 'facile' ? 50 : 100) + (level * 20);
+      allowedOps = level > 3 ? ['+', '-', '*'] : ['+', '-'];
     } else if (classLevel.startsWith('CM')) {
-      range = difficulty === 'facile' ? 100 : 500;
-      allowedOps = ['+', '-', '*', '/'];
+      range = (difficulty === 'facile' ? 100 : 500) + (level * 50);
+      allowedOps = level > 2 ? ['+', '-', '*', '/'] : ['+', '-', '*'];
     } else {
       // Collège
-      range = difficulty === 'facile' ? 500 : 1000;
+      range = (difficulty === 'facile' ? 500 : 1000) + (level * 100);
       allowedOps = ['+', '-', '*', '/'];
     }
 
@@ -48,12 +49,12 @@ const MathAdventure: React.FC = () => {
     
     if (op === '/') {
       // Ensure integer division
-      b = Math.floor(Math.random() * 10) + 1;
-      const res = Math.floor(Math.random() * 10) + 1;
+      b = Math.floor(Math.random() * (10 + level)) + 1;
+      const res = Math.floor(Math.random() * (10 + level)) + 1;
       a = b * res;
     } else if (op === '*') {
-      a = Math.floor(Math.random() * (classLevel.startsWith('CM') ? 20 : 10)) + 1;
-      b = Math.floor(Math.random() * 10) + 1;
+      a = Math.floor(Math.random() * (classLevel.startsWith('CM') ? 20 : 10) + level) + 1;
+      b = Math.floor(Math.random() * (10 + level)) + 1;
     } else {
       a = Math.floor(Math.random() * range) + 1;
       b = Math.floor(Math.random() * range) + 1;
@@ -72,7 +73,7 @@ const MathAdventure: React.FC = () => {
 
   useEffect(() => {
     generateProblem();
-  }, []);
+  }, [level]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,20 +92,33 @@ const MathAdventure: React.FC = () => {
 
     setTimeout(async () => {
       if (totalQuestions + 1 >= 5) {
+        const finalScore = isCorrect ? score + 1 : score;
+        const isLevelValidated = finalScore >= 4; // 4/5 pour valider
         setIsFinished(true);
-        // 1. Sauvegarde locale
-        localStorage.setItem('eief_game_logic_unlocked', 'true');
         
-        // 2. Sauvegarde Backend
+        // 2. Sauvegarde Backend & Local progression
         if (isAuthenticated && gameId) {
           try {
             await gameService.saveScore({
               gameId,
-              score: isCorrect ? score + 1 : score,
+              score: finalScore,
               difficulty,
               classLevel,
-              metadata: JSON.stringify({ totalQuestions: 5, successRate: ((isCorrect ? score + 1 : score) / 5) * 100 })
+              metadata: JSON.stringify({ 
+                level,
+                validated: isLevelValidated,
+                totalQuestions: 5, 
+                successRate: (finalScore / 5) * 100 
+              })
             });
+
+            if (isLevelValidated) {
+              const progressionKey = `eief_progression_${gameId}`;
+              const currentProg = parseInt(localStorage.getItem(progressionKey) || '0');
+              if (level > currentProg) {
+                localStorage.setItem(progressionKey, level.toString());
+              }
+            }
           } catch (error) {
             console.error("Erreur sauvegarde score:", error);
           }

@@ -84,6 +84,12 @@ interface Enfant {
   classe: string;
   /** UUID backend de la classe — exigé par POST /pre-enrollments. */
   classeId: string;
+  /**
+   * Photo d'identité de l'élève, encodée en data URL (image/jpeg ou image/png).
+   * Sera transmise en tant que studentPhotoUrl au backend puis utilisée sur la
+   * carte scolaire et le relevé de notes.
+   */
+  photoDataUrl: string;
   options: Options;
 }
 
@@ -127,6 +133,7 @@ const makeEnfant = (id: number): Enfant => ({
   niveau: '',
   classe: '',
   classeId: '',
+  photoDataUrl: '',
   options: {
     cantine: false,
     transport: 'NONE',
@@ -320,6 +327,7 @@ const PreInscription: React.FC = () => {
           studentLastName: enfant.nom.trim(),
           studentBirthDate: enfant.dateNaissance,
           studentGender: enfant.sexe,
+          studentPhotoUrl: enfant.photoDataUrl || undefined,
           targetClassId: enfant.classeId,
           guardianFirstName,
           guardianLastName,
@@ -585,6 +593,29 @@ const EnfantCard: React.FC<{
 }> = ({ enfant, index, canRemove, onUpdate, onRemove, classesPourNiveau, onUpdateOptions }) => {
   const niveauObj = NIVEAUX.find((n) => n.value === enfant.niveau);
   const backendClasses = classesPourNiveau(enfant.niveau);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Le fichier doit etre une image (JPG, PNG...)');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('Image trop volumineuse (8 Mo max)');
+      return;
+    }
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      onUpdate(enfant.id, 'photoDataUrl', dataUrl);
+      toast.success("Photo de l'eleve ajoutee");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Impossible de traiter l'image");
+    } finally {
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
 
   return (
     <SectionCard
@@ -602,6 +633,59 @@ const EnfantCard: React.FC<{
           </button>
         </div>
       )}
+
+      {/* Photo d'identite de l'eleve */}
+      <div className="mb-6 rounded-2xl border border-bleu-100 dark:border-bleu-900/40 bg-bleu-50/40 dark:bg-bleu-900/10 p-5">
+        <div className="flex items-center gap-5">
+          <div className="relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden border-2 border-bleu-200 dark:border-bleu-700/50 bg-white dark:bg-gray-800 shadow-inner flex items-center justify-center">
+            {enfant.photoDataUrl ? (
+              <img
+                src={enfant.photoDataUrl}
+                alt={`Photo de ${enfant.prenom || "l'eleve"}`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Camera size={32} className="text-bleu-400" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2">
+              <span>📸</span> Photo d'identite
+              <span className="text-[10px] font-bold uppercase tracking-widest text-bleu-600 dark:text-bleu-300 bg-bleu-100 dark:bg-bleu-900/40 px-2 py-0.5 rounded-full">
+                Recommande
+              </span>
+            </h4>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+              Cette photo sera utilisee sur la <strong>carte scolaire</strong> et le <strong>releve de notes</strong> de l'eleve. Format : JPG ou PNG, fond clair, visage bien visible.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bleu-600 hover:bg-bleu-700 text-white text-xs font-bold uppercase tracking-widest transition-colors"
+              >
+                <Upload size={14} /> {enfant.photoDataUrl ? 'Changer' : 'Televerser'}
+              </button>
+              {enfant.photoDataUrl && (
+                <button
+                  type="button"
+                  onClick={() => onUpdate(enfant.id, 'photoDataUrl', '')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-rouge-600 dark:text-rouge-400 text-xs font-bold uppercase tracking-widest border border-rouge-200 dark:border-rouge-900/40 transition-colors"
+                >
+                  <Trash2 size={14} /> Retirer
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         <Field label="Prénom" required>
@@ -699,6 +783,35 @@ const EnfantCard: React.FC<{
 
 const enfants_titre = (idx: number) =>
   idx === 0 ? "Informations de l'élève" : `Informations de l'élève #${idx + 1}`;
+
+/**
+ * Convertit un fichier image en data URL JPEG redimensionne (max 480px sur le
+ * plus grand cote, qualite 0.85). Permet de stocker la photo dans la BDD via
+ * la colonne TEXT avatar_url sans saturer le payload.
+ */
+const fileToResizedDataUrl = (file: File, maxSide = 480): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('Lecture impossible'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image invalide'));
+      img.onload = () => {
+        const ratio = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.round(img.width * ratio);
+        const h = Math.round(img.height * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas non supporte')); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 
 /* -------------------- Parent -------------------- */
 

@@ -59,6 +59,8 @@ export interface PreEnrollmentRequest {
   studentLastName: string;
   studentBirthDate: string; // ISO YYYY-MM-DD
   studentGender: string;
+  /** Data URL ou URL distante de la photo d'identite de l'eleve (optionnel). */
+  studentPhotoUrl?: string;
   targetClassId: string;
   guardianFirstName: string;
   guardianLastName: string;
@@ -99,6 +101,7 @@ export interface PreEnrollmentResponse {
   studentLastName: string;
   studentBirthDate: string;
   studentGender: string;
+  studentPhotoUrl?: string;
   guardianFirstName: string;
   guardianLastName: string;
   guardianEmail: string;
@@ -455,6 +458,7 @@ export const userService = {
           studentLastName: payload.studentLastName,
           studentBirthDate: payload.studentBirthDate,
           studentGender: payload.studentGender,
+          studentPhotoUrl: payload.studentAvatarUrl,
           targetClassId: payload.targetClassId,
           guardianFirstName: payload.fatherFirstName,
           guardianLastName: payload.fatherLastName,

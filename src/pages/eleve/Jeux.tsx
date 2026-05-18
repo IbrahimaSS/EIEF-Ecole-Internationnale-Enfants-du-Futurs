@@ -15,11 +15,35 @@ interface CardData {
   isMatched: boolean;
 }
 
+const ALL_CARDS_CONTENT = [
+  { emoji: '🍎', word: 'Pomme', pairId: 1 },
+  { emoji: '🍌', word: 'Banane', pairId: 2 },
+  { emoji: '🍇', word: 'Raisin', pairId: 3 },
+  { emoji: '🥕', word: 'Carotte', pairId: 4 },
+  { emoji: '🐶', word: 'Chien', pairId: 5 },
+  { emoji: '🐱', word: 'Chat', pairId: 6 },
+  { emoji: '🦁', word: 'Lion', pairId: 7 },
+  { emoji: '🐘', word: 'Éléphant', pairId: 8 },
+  { emoji: '☀️', word: 'Soleil', pairId: 9 },
+  { emoji: '🌙', word: 'Lune', pairId: 10 },
+  { emoji: '🌸', word: 'Fleur', pairId: 11 },
+  { emoji: '🏠', word: 'Maison', pairId: 12 },
+  { emoji: '🚗', word: 'Voiture', pairId: 13 },
+  { emoji: '🚲', word: 'Vélo', pairId: 14 },
+  { emoji: '✈️', word: 'Avion', pairId: 15 },
+  { emoji: '⚽', word: 'Ballon', pairId: 16 },
+  { emoji: '🎸', word: 'Guitare', pairId: 17 },
+  { emoji: '📚', word: 'Livre', pairId: 18 },
+  { emoji: '🍦', word: 'Glace', pairId: 19 },
+  { emoji: '🍕', word: 'Pizza', pairId: 20 },
+];
+
 const Jeux: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
   const gameId = searchParams.get('gameId');
+  const level = parseInt(searchParams.get('level') || '1');
   const difficulty = searchParams.get('difficulty') || 'facile';
   const classLevel = searchParams.get('classLevel') || 'Maternelle';
 
@@ -31,35 +55,25 @@ const Jeux: React.FC = () => {
   const [isWon, setIsWon] = useState(false);
   const [encouragement, setEncouragement] = useState('À toi de jouer ! Trouve toutes les paires.');
 
-  const ALL_CARDS_CONTENT = [
-    { pairId: 1, emoji: '🍎', word: 'Pomme' },
-    { pairId: 2, emoji: '🐱', word: 'Chat' },
-    { pairId: 3, emoji: '🚗', word: 'Voiture' },
-    { pairId: 4, emoji: '☀️', word: 'Soleil' },
-    { pairId: 5, emoji: '🏠', word: 'Maison' },
-    { pairId: 6, emoji: '🚀', word: 'Fusée' },
-    { pairId: 7, emoji: '🐘', word: 'Eléphant' },
-    { pairId: 8, emoji: '🎸', word: 'Guitare' },
-    { pairId: 9, emoji: '🚁', word: 'Hélico' },
-    { pairId: 10, emoji: '🍕', word: 'Pizza' },
-    { pairId: 11, emoji: '🌈', word: 'Arc-en-ciel' },
-    { pairId: 12, emoji: '🍦', word: 'Glace' },
-  ];
-
   // Initialize game
   const initializeGame = () => {
     const newCards: CardData[] = [];
     let idCounter = 0;
     
-    let pairCount = 6;
-    if (classLevel.startsWith('CE')) pairCount = 8;
-    if (classLevel.startsWith('CM') || !classLevel.startsWith('M') && !classLevel.startsWith('C')) pairCount = 12;
+    // pairCount depends on classLevel AND level
+    let pairCount = 4 + level; // Augmente avec le level
+    if (classLevel.startsWith('CE')) pairCount += 2;
+    if (classLevel.startsWith('CM') || !classLevel.startsWith('M') && !classLevel.startsWith('C')) pairCount += 4;
+    
     if (difficulty === 'facile' && pairCount > 6) pairCount -= 2;
     if (difficulty === 'difficile' && pairCount < 12) pairCount += 2;
 
+    // Cap at 12 pairs for memory stability
+    pairCount = Math.min(pairCount, 12);
+
     const gameContent = ALL_CARDS_CONTENT.slice(0, Math.min(pairCount, ALL_CARDS_CONTENT.length));
 
-    gameContent.forEach(item => {
+    gameContent.forEach((item: { emoji: string; word: string; pairId: number }) => {
       newCards.push({ id: idCounter++, content: item.emoji, type: 'emoji', pairId: item.pairId, isFlipped: false, isMatched: false });
       newCards.push({ id: idCounter++, content: item.word, type: 'word', pairId: item.pairId, isFlipped: false, isMatched: false });
     });
@@ -80,7 +94,7 @@ const Jeux: React.FC = () => {
 
   useEffect(() => {
     initializeGame();
-  }, []);
+  }, [level]);
 
   const handleCardClick = (id: number) => {
     // Prevent clicking if 2 cards are already flipped, or if card is already flipped/matched
@@ -142,19 +156,26 @@ const Jeux: React.FC = () => {
   const handleWin = async () => {
     setIsWon(true);
     
-    // 1. Sauvegarde locale (legacy/fallback)
-    localStorage.setItem('eief_game_memory_completed', 'true');
-    localStorage.setItem('eief_game_math_unlocked', 'true');
+    // 1. Sauvegarde progression locale
+    const progressionKey = `eief_progression_${gameId}`;
+    const currentProg = parseInt(localStorage.getItem(progressionKey) || '0');
+    if (level > currentProg) {
+      localStorage.setItem(progressionKey, level.toString());
+    }
 
     // 2. Sauvegarde Backend (si connecté)
     if (isAuthenticated && gameId) {
       try {
         await gameService.saveScore({
           gameId,
-          score: score + 10, // Dernier match non ajouté au score d'affichage au moment de l'appel
+          score: score + 10, 
           difficulty,
           classLevel,
-          metadata: JSON.stringify({ moves })
+          metadata: JSON.stringify({ 
+            level,
+            validated: true,
+            moves 
+          })
         });
         console.log("Score sauvegardé avec succès !");
       } catch (error) {
