@@ -169,6 +169,22 @@ export interface TuitionFeePaymentPayload {
   payerUserId?: string;
 }
 
+export interface FamilySummaryResponse {
+  familyId: string;
+  name: string;
+  code: string;
+}
+
+export interface TuitionFeeFamilyStatusResponse {
+  familyId: string;
+  totalExpected: number;
+  totalPaid: number;
+  totalRemaining: number;
+  hasOverdue: boolean;
+  overdueCount: number;
+  students: TuitionFeeStudentStatusResponse[];
+}
+
 export interface TuitionFeePaymentResponse {
   id: string;
   tuitionFeeId: string;

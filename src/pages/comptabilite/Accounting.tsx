@@ -1,967 +1,341 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet,
-  TrendingUp,
-  AlertCircle,
-  Download,
   Search,
-  CreditCard,
-  Banknote,
-  Smartphone,
   Plus,
   MoreVertical,
-  Eye,
   Trash2,
-  FileText,
   CheckCircle2,
   X,
   Loader2,
   Printer,
   Users,
-  AlertTriangle,
+  AlertCircle,
+  Banknote,
+  Smartphone,
+  CreditCard,
+  FileText,
+  TrendingUp,
+  Receipt,
+  ArrowDownCircle,
 } from 'lucide-react';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
+import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse } from '../../services/accountingService';
+import TuitionModalityManager from './components/TuitionModalityManager';
+import { AcademicYearOption, ClassOption, TuitionFeePayload, TuitionFeeResponse } from './types';
 import { apiRequest } from '../../services/api';
-import { AcademicYearOption, ClassOption, TuitionFeePayload } from './types';
-import FamilyBillingPanel from './components/FamilyBillingPanel';
-import { FamilyBillingInput } from './computeFamilyBalance';
-import { TypeInscription } from './tarifs';
-import { formatCurrency as formatCurrencyShared } from './utils';
-
-// ─── Enums ────────────────────────────────────────────────────────────────────
-
-type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
-type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
-type TuitionFeePayerType = 'PARENT' | 'STUDENT' | 'OTHER';
-type PaymentServiceOption = 'inscription' | 'reinscription' | 'scolarite' | 'autres';
-
-// ─── Types backend-aligned ────────────────────────────────────────────────────
-
-interface PaymentResponse {
-  id: string;
-  amount: number;
-  method: PaymentMethod;
-  reference: string;
-  studentName: string;
-  categoryName: string;
-  status: PaymentStatus;
-  paidAt: string | null;
-}
-
-interface ExpenseResponse {
-  id: string;
-  amount: number;
-  description: string;
-  expenseDate: string;
-  categoryId: number | null;
-  categoryName: string | null;
-  categoryModule: string | null;
-  createdByName: string | null;
-  createdAt: string;
-}
-
-interface PaymentPayload {
-  amount: number;
-  reference: string;
-  method: PaymentMethod;
-  studentId: string;
-  categoryId: number | null;
-}
-
-interface ExpensePayload {
-  amount: number;
-  description: string;
-  expenseDate: string;
-  categoryId: number | null;
-}
-
-interface ExpenseCategoryResponse {
-  id: number;
-  name: string;
-  module: string;
-  type: string;
-}
-
-interface ExpenseStatsSummaryResponse {
-  totalAmount: number;
-  expenseCount: number;
-  averageAmount: number;
-  currentMonthAmount: number;
-  currentMonthCount: number;
-  maxAmount: number;
-  latestExpenseDate: string | null;
-}
-
-interface Student {
-  id: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  registrationNumber?: string;
-  className?: string;
-  email?: string;
-  phone?: string;
-  gender?: string;
-  isActive?: boolean;
-  parentName?: string;
-  birthDate?: string;
-}
-
-// TuitionFee DTOs
-interface TuitionFeeInstallmentResponse {
-  id: string;
-  label: string;
-  amount: number;
-  dueDate: string;
-  installmentOrder: number;
-}
-
-interface TuitionFeeResponse {
-  id: string;
-  name: string;
-  description: string;
-  academicYearId: string;
-  academicYearName: string;
-  totalAmount: number;
-  isActive: boolean;
-  classIds: string[];
-  classNames: string[];
-  installments: TuitionFeeInstallmentResponse[];
-}
-
-// ── FIX: champs alignés avec le backend ──────────────────────────────────────
-interface TuitionFeeInstallmentStatusResponse {
-  tuitionFeeId: string;
-  tuitionFeeName: string;
-  installmentId: string;
-  installmentLabel: string;   // ← était "label" (inexistant)
-  dueDate: string;
-  installmentAmount: number;  // ← était "expectedAmount" (inexistant)
-  paidAmount: number;
-  remainingAmount: number;
-  overdue: boolean;
-}
-
-interface TuitionFeeStudentStatusResponse {
-  studentId: string;
-  studentName: string;
-  className: string;
-  academicYearName: string;
-  totalExpected: number;
-  totalPaid: number;
-  totalRemaining: number;
-  hasOverdue: boolean;
-  overdueCount: number;
-  installments: TuitionFeeInstallmentStatusResponse[];
-}
-
-interface TuitionFeePaymentPayload {
-  studentId: string;
-  installmentId: string;
-  amount: number;
-  method: PaymentMethod;
-  reference: string;
-  payerType: TuitionFeePayerType;
-  payerUserId?: string;
-}
-
-interface TuitionFeePaymentResponse {
-  id: string;
-  tuitionFeeId: string;
-  tuitionFeeName: string;
-  installmentId: string;
-  installmentLabel: string;
-  studentId: string;
-  studentName: string;
-  payerUserId: string;
-  payerName: string;
-  payerType: TuitionFeePayerType;
-  amount: number;
-  method: PaymentMethod;
-  reference: string;
-  paidAt: string;
-}
-
-// ─── Sous-composant : onglet "Fiche famille" ─────────────────────────────────
-//
-// Permet au comptable de :
-//   1) choisir un élève "pivot",
-//   2) reconstruire la famille en regroupant les élèves portant le même
-//      `parentName` (heuristique pragmatique tant que le backend n'expose pas
-//      un endpoint /families/{id}/billing dédié),
-//   3) afficher la fiche calculée par `computeFamilyBalance` (inscription
-//      offerte si ≥ 3 enfants, scolarité selon cycle, options...),
-//   4) saisir un paiement libre — sans tranche ni échéance.
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface FamilyBillingTabProps {
-  students: Student[];
-  payments: PaymentResponse[];
-  pivotStudentId: string;
-  onPickStudent: (id: string) => void;
-  onPaymentSubmit: (payload: {
-    familyId: string;
-    studentId: string;
-    amount: number;
-    reference: string;
-    note?: string;
-  }) => Promise<unknown>;
-  submitting: boolean;
-  /** État de la modale "Nouveau paiement" piloté par le header. */
-  isPaymentOpen: boolean;
-  onPaymentClose: () => void;
-}
-
-const FamilyBillingTab: React.FC<FamilyBillingTabProps> = ({
-  students,
-  payments,
-  pivotStudentId,
-  onPickStudent,
-  onPaymentSubmit,
-  submitting,
-  isPaymentOpen,
-  onPaymentClose,
-}) => {
-  // ── Autocomplete élève ────────────────────────────────────────────────
-  // Champ unique, filtre simultané sur nom, prénom, matricule, classe, parent.
-  const [query, setQuery] = React.useState('');
-  const [dropdownOpen, setDropdownOpen] = React.useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement | null>(null);
-
-  // Fermer le menu déroulant au clic en dehors.
-  React.useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredStudents = React.useMemo(() => {
-    if (!normalizedQuery) return students.slice(0, 12);
-    return students
-      .filter((s) => {
-        const haystack = [
-          s.firstName,
-          s.lastName,
-          s.registrationNumber,
-          s.className,
-          s.parentName,
-          s.email,
-          s.phone,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return haystack.includes(normalizedQuery);
-      })
-      .slice(0, 30);
-  }, [normalizedQuery, students]);
-
-  const pivot = students.find((s) => s.id === pivotStudentId);
-  const pivotDisplay = pivot
-    ? `${pivot.firstName} ${pivot.lastName}${pivot.className ? ` — ${pivot.className}` : ''}`
-    : '';
-
-  // ── Reconstruction famille à partir du pivot ──────────────────────────
-  const family = React.useMemo(() => {
-    if (!pivot) return null;
-    const key = (pivot.parentName || '').trim().toLowerCase();
-    const siblings = key
-      ? students.filter(
-          (s) => (s.parentName || '').trim().toLowerCase() === key,
-        )
-      : [pivot];
-
-    const totalPaid = payments
-      .filter((p) =>
-        siblings.some((s) => `${s.firstName} ${s.lastName}` === p.studentName),
-      )
-      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-
-    const input: FamilyBillingInput = {
-      familyId: pivot.parentName || pivot.id,
-      familyName: pivot.parentName || `Famille de ${pivot.lastName}`,
-      totalPaid,
-      students: siblings.map((s) => ({
-        id: s.id,
-        fullName: `${s.firstName} ${s.lastName}`,
-        className: s.className,
-        typeInscription: 'INSCRIPTION' as TypeInscription,
-        options: {
-          hasCantine: false,
-          transportMode: 'NONE',
-          hasTenueScolaire: false,
-          hasTenueSport: false,
-          hasTenueScout: false,
-          hasTenueKarate: false,
-        },
-      })),
-    };
-    return input;
-  }, [pivot, students, payments]);
-
-  // ── Modale "Nouveau paiement" — ouverte/fermée par le parent via props.
-  const [payStudentId, setPayStudentId] = React.useState<string>('');
-  const [payAmount, setPayAmount] = React.useState<number>(0);
-  const [payReference, setPayReference] = React.useState<string>('');
-  const [payStudentQuery, setPayStudentQuery] = React.useState<string>('');
-  const [payDropdownOpen, setPayDropdownOpen] = React.useState(false);
-  const payDropdownRef = React.useRef<HTMLDivElement | null>(null);
-
-  // À l'ouverture de la modale (déclenchée par le header), pré-remplir avec
-  // l'enfant de la famille active s'il y en a une, sinon laisser vide.
-  React.useEffect(() => {
-    if (!isPaymentOpen) return;
-    setPayAmount(0);
-    setPayReference('');
-    setPayDropdownOpen(false);
-    // Si une famille est sélectionnée, on pré-sélectionne son premier enfant.
-    const pivotStudent = students.find((s) => s.id === pivotStudentId);
-    if (pivotStudent) {
-      setPayStudentId(pivotStudent.id);
-      setPayStudentQuery(
-        `${pivotStudent.firstName} ${pivotStudent.lastName}${pivotStudent.className ? ` — ${pivotStudent.className}` : ''}`,
-      );
-    } else {
-      setPayStudentId('');
-      setPayStudentQuery('');
-    }
-  }, [isPaymentOpen, pivotStudentId, students]);
-
-  // Fermer le menu d'autocomplete élève dans la modale au clic extérieur.
-  React.useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      if (payDropdownRef.current && !payDropdownRef.current.contains(event.target as Node)) {
-        setPayDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  // Liste filtrée pour l'autocomplete de la modale.
-  const paymentStudentChoices = React.useMemo(() => {
-    // On propose en priorité les enfants de la famille sélectionnée.
-    const familyIds = new Set(family?.students.map((s) => s.id) ?? []);
-    const sortedStudents = [...students].sort((a, b) => {
-      const aInFamily = familyIds.has(a.id) ? 0 : 1;
-      const bInFamily = familyIds.has(b.id) ? 0 : 1;
-      if (aInFamily !== bInFamily) return aInFamily - bInFamily;
-      return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
-    });
-    if (!payStudentQuery.trim()) return sortedStudents.slice(0, 12);
-    const q = payStudentQuery.trim().toLowerCase();
-    return sortedStudents
-      .filter((s) => {
-        const haystack = [
-          s.firstName,
-          s.lastName,
-          s.registrationNumber,
-          s.className,
-          s.parentName,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return haystack.includes(q);
-      })
-      .slice(0, 30);
-  }, [payStudentQuery, students, family]);
-
-  const handleSubmitPayment = async () => {
-    if (!payStudentId || payAmount <= 0) return;
-    await onPaymentSubmit({
-      familyId: family?.familyId ?? '',
-      studentId: payStudentId,
-      amount: payAmount,
-      reference: payReference || `PMT-${Date.now()}`,
-    });
-    setPayDropdownOpen(false);
-    onPaymentClose();
-  };
-
-  // Montant déjà encaissé par la famille (affiché dans la modale).
-  const familyAlreadyPaid = family ? family.totalPaid : 0;
-
-  return (
-    <div className="space-y-6">
-      {/* ── Barre de recherche famille ── */}
-      <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-bleu-50 p-3 text-bleu-700 dark:bg-bleu-900/20 dark:text-bleu-300">
-            <Users size={18} />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-white">
-              Recherche d'une famille
-            </h3>
-            <p className="text-[10px] font-medium text-gray-400">
-              Tapez un nom, une classe, un matricule ou le chef de famille — la
-              fiche s'ouvre dès la sélection. Pour enregistrer un paiement,
-              utilisez le bouton « Nouveau Paiement » en haut à droite.
-            </p>
-          </div>
-        </div>
-
-        {/* Autocomplete élève principal */}
-        <div className="mt-4 relative" ref={dropdownRef}>
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-            size={18}
-          />
-          <input
-            type="text"
-            value={dropdownOpen ? query : pivotDisplay || query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setDropdownOpen(true);
-            }}
-            onFocus={() => {
-              setQuery('');
-              setDropdownOpen(true);
-            }}
-            placeholder="Rechercher un élève (nom, classe, matricule, parent...)"
-            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
-          />
-          {dropdownOpen && (
-            <div className="absolute z-30 mt-2 w-full max-h-80 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900">
-              {filteredStudents.length === 0 ? (
-                <p className="px-4 py-3 text-xs italic text-gray-400">
-                  Aucun élève ne correspond à "{query}".
-                </p>
-              ) : (
-                filteredStudents.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      onPickStudent(s.id);
-                      setQuery('');
-                      setDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 border-b border-gray-50 last:border-0 dark:border-white/5"
-                  >
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">
-                      {s.firstName} {s.lastName}
-                      {s.registrationNumber && (
-                        <span className="ml-2 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
-                          {s.registrationNumber}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">
-                      {s.className || '—'}
-                      {s.parentName && <span> · {s.parentName}</span>}
-                    </p>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* ── Fiche famille (panneau de balance) ── */}
-      {family ? (
-        <FamilyBillingPanel
-          initialInput={family}
-          submitting={false}
-          // Pas de formulaire inline — la saisie passe par la modale.
-        />
-      ) : (
-        <Card className="border-none shadow-soft p-8 text-center dark:bg-gray-900/60">
-          <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-            Sélectionnez un élève via la recherche pour afficher la fiche
-            famille.
-          </p>
-        </Card>
-      )}
-
-      {/* ── Modale "Nouveau paiement" ── */}
-      {isPaymentOpen && (
-        <Modal
-          isOpen={isPaymentOpen}
-          onClose={onPaymentClose}
-          title="Enregistrer un paiement"
-        >
-          {/* La div externe utilise un layout flex pour que la barre des
-              boutons reste collée en bas et toujours visible, même si le
-              dropdown autocomplete est ouvert. */}
-          <div className="flex flex-col gap-4 p-1">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-              Saisie libre — pas de tranche ni d'échéance. Le reste à payer
-              de la famille est recalculé après enregistrement.
-            </p>
-
-            {/* Autocomplete élève dans la modale */}
-            <div className="relative" ref={payDropdownRef}>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                Élève *
-              </label>
-              <div className="relative">
-                <Search
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-                  size={16}
-                />
-                <input
-                  type="text"
-                  value={payStudentQuery}
-                  onChange={(e) => {
-                    setPayStudentQuery(e.target.value);
-                    setPayDropdownOpen(true);
-                    // Si l'utilisateur efface, on désélectionne l'élève courant.
-                    if (e.target.value === '') setPayStudentId('');
-                  }}
-                  onFocus={() => {
-                    // N'ouvre le dropdown que si le champ est vide ou que la
-                    // valeur ne correspond pas à un élève déjà sélectionné.
-                    if (!payStudentId) setPayDropdownOpen(true);
-                  }}
-                  placeholder="Rechercher un élève (nom, classe, matricule, parent)..."
-                  className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
-                />
-              </div>
-              {payDropdownOpen && (
-                <div className="absolute z-40 mt-1 w-full max-h-44 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900">
-                  {paymentStudentChoices.length === 0 ? (
-                    <p className="px-4 py-3 text-xs italic text-gray-400">
-                      Aucun élève trouvé.
-                    </p>
-                  ) : (
-                    paymentStudentChoices.map((s) => {
-                      const inFamily = family?.students.some((fs) => fs.id === s.id);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            setPayStudentId(s.id);
-                            setPayStudentQuery(
-                              `${s.firstName} ${s.lastName}${s.className ? ` — ${s.className}` : ''}`,
-                            );
-                            setPayDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-2.5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 border-b border-gray-50 last:border-0 dark:border-white/5 ${
-                            inFamily ? 'bg-vert-50/40 dark:bg-vert-900/10' : ''
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">
-                              {s.firstName} {s.lastName}
-                            </p>
-                            {inFamily && (
-                              <Badge variant="success" className="text-[9px] font-bold uppercase tracking-widest">
-                                Famille active
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold">
-                            {s.className || '—'}
-                            {s.registrationNumber && <span> · {s.registrationNumber}</span>}
-                            {s.parentName && <span> · {s.parentName}</span>}
-                          </p>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Montant versé */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                Montant versé (GNF) *
-              </label>
-              <Input
-                type="number"
-                value={payAmount || ''}
-                onChange={(e) => setPayAmount(Number(e.target.value))}
-                placeholder="0"
-              />
-            </div>
-
-            {/* Référence / reçu */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                Référence / reçu (optionnel)
-              </label>
-              <Input
-                value={payReference}
-                onChange={(e) => setPayReference(e.target.value)}
-                placeholder="Ex: REC-2026-042"
-              />
-            </div>
-
-            {/* Aperçu solde */}
-            {family && (
-              <div className="rounded-2xl bg-gray-50 dark:bg-white/5 p-4 space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-gray-500 dark:text-gray-400">
-                    Déjà payé par la famille
-                  </span>
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    {formatCurrencyShared(familyAlreadyPaid)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-gray-500 dark:text-gray-400">
-                    Nouveau versement
-                  </span>
-                  <span className="font-bold text-vert-600">
-                    + {formatCurrencyShared(payAmount)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Footer collé en bas pour que les boutons soient toujours visibles. */}
-            <div className="sticky bottom-0 -mx-1 -mb-1 mt-2 flex gap-3 border-t border-gray-100 bg-white px-1 pt-4 pb-1 dark:border-white/10 dark:bg-gray-900">
-              <Button
-                variant="outline"
-                onClick={onPaymentClose}
-                className="flex-1"
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={handleSubmitPayment}
-                disabled={!payStudentId || payAmount <= 0 || submitting}
-                className="flex-1 bg-gradient-to-r from-vert-600 to-vert-500 border-none shadow-lg shadow-vert-600/20"
-              >
-                {submitting ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle2 size={16} /> Valider le paiement
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-};
-
-// ─── Composant principal ──────────────────────────────────────────────────────
 
 const ComptableAccounting: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'payments' | 'expenses' | 'family'>('payments');
-
-  // ── Onglet "Fiche famille" — calcule le total dû depuis la fiche de
-  //    renseignements (cantine, transport, tenues, scolarité par cycle) et
-  //    applique la règle "3+ enfants → inscription gratuite". Pas de tranche
-  //    ni d'échéance : la famille verse librement.
-  const [familyPivotStudentId, setFamilyPivotStudentId] = useState<string>('');
-
-  // Modale "Nouveau paiement" (déclenchée depuis le header) — état remonté
-  // pour que le bouton "+ Nouveau paiement" du header puisse l'ouvrir sans
-  // exiger qu'une famille soit déjà sélectionnée.
-  const [isFamilyPaymentOpen, setIsFamilyPaymentOpen] = useState(false);
-
-  // Payments state
-  const [payments, setPayments] = useState<PaymentResponse[]>([]);
-  const [overduePayments, setOverduePayments] = useState<PaymentResponse[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [activeTab, setActiveTab] = useState<'tuition' | 'misc'>('tuition');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('Tous');
-  const [selectedStudentFilter, setSelectedStudentFilter] = useState('all');
-  const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Payment modals
-  const [isEncaissementModalOpen, setIsEncaissementModalOpen] = useState(false);
-  const [isRapportsModalOpen, setIsRapportsModalOpen] = useState(false);
-  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentResponse | null>(null);
-  const [selectedStudentForReceipt, setSelectedStudentForReceipt] = useState<Student | null>(null);
-  const [selectedPaymentService, setSelectedPaymentService] = useState<PaymentServiceOption>('scolarite');
-  const [otherPaymentServiceLabel, setOtherPaymentServiceLabel] = useState('');
-  const [receiptServiceOverride, setReceiptServiceOverride] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState<PaymentPayload>({
-    amount: 0,
-    reference: '',
-    method: 'CASH',
-    studentId: '',
-    categoryId: null,
-  });
-
-  // Expenses state
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryResponse[]>([]);
-  const [expenseSummary, setExpenseSummary] = useState<ExpenseStatsSummaryResponse | null>(null);
-  const [expenseLoading, setExpenseLoading] = useState(false);
-  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [expenseForm, setExpenseForm] = useState<ExpensePayload>({
-    amount: 0,
-    description: '',
-    expenseDate: new Date().toISOString().split('T')[0],
-    categoryId: null,
-  });
-
-  // Tuition fees state
-  const [tuitionFees, setTuitionFees] = useState<TuitionFeeResponse[]>([]);
+  // --- Common Data ---
+  const [parents, setParents] = useState<any[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<any[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
   const [schoolClasses, setSchoolClasses] = useState<ClassOption[]>([]);
+
+  // --- Tuition Tab State ---
+  const [familySearchQuery, setFamilySearchQuery] = useState('');
+  const [isFamilySearchOpen, setIsFamilySearchOpen] = useState(false);
+  const [selectedFamily, setSelectedFamily] = useState<any | null>(null);
+  const [familyStatus, setFamilyStatus] = useState<TuitionFeeFamilyStatusResponse | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [isFamilyPaymentModalOpen, setIsFamilyPaymentModalOpen] = useState(false);
+  const [familyPaymentForm, setFamilyPaymentForm] = useState({
+    amount: 0,
+    method: 'CASH' as PaymentMethod,
+    reference: '',
+  });
+  const [familySubmitting, setFamilySubmitting] = useState(false);
+  const [tuitionFees, setTuitionFees] = useState<TuitionFeeResponse[]>([]);
   const [tuitionLoading, setTuitionLoading] = useState(false);
   const [tuitionActionLoading, setTuitionActionLoading] = useState(false);
-  const [selectedStudentStatus, setSelectedStudentStatus] = useState<TuitionFeeStudentStatusResponse | null>(null);
-  const [statusStudentId, setStatusStudentId] = useState('');
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [isTuitionPaymentModalOpen, setIsTuitionPaymentModalOpen] = useState(false);
-  const [selectedInstallment, setSelectedInstallment] = useState<TuitionFeeInstallmentStatusResponse | null>(null);
-  const [tuitionPaymentForm, setTuitionPaymentForm] = useState<TuitionFeePaymentPayload>({
-    studentId: '',
-    installmentId: '',
+  // Vue d'ensemble : statut de TOUTES les familles (qui a payé, qui est en retard)
+  const [allFamiliesStatus, setAllFamiliesStatus] = useState<Array<{ parent: any; status: TuitionFeeFamilyStatusResponse }>>([]);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+
+  // --- Misc Tab State ---
+  const [miscPayments, setMiscPayments] = useState<PaymentResponse[]>([]);
+  const [isMiscModalOpen, setIsMiscModalOpen] = useState(false);
+  const [miscPaymentForm, setMiscPaymentForm] = useState({
     amount: 0,
-    method: 'CASH',
     reference: '',
-    payerType: 'PARENT',
-    payerUserId: undefined,
+    method: 'CASH' as PaymentMethod,
+    studentId: '',
+    familyId: '',
+    categoryId: null as number | null,
   });
-  const [tuitionSubmitting, setTuitionSubmitting] = useState(false);
+  const [miscSubmitting, setMiscSubmitting] = useState(false);
+  const [miscSearchQuery, setMiscSearchQuery] = useState('');
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // --- Refs ---
+  const familySearchRef = useRef<HTMLDivElement>(null);
 
+  // --- Initial Data Fetch ---
+  const fetchCommonData = useCallback(async () => {
+    try {
+      const [parentsData, categoriesData, yearsData, classesData] = await Promise.all([
+        apiRequest<any[]>('/users', { method: 'GET' }).then(users =>
+          Array.isArray(users) ? users.filter(u => u.roleName === 'PARENT' && u.familyId) : []
+        ),
+        apiRequest<any[]>('/expenses/categories', { method: 'GET' }).then(cats =>
+          Array.isArray(cats) ? cats.filter(c => c.type === 'INCOME') : []
+        ),
+        apiRequest<AcademicYearOption[]>('/courses/academic-years', { method: 'GET' }),
+        apiRequest<ClassOption[]>('/courses/classes', { method: 'GET' }),
+      ]);
+      setParents(parentsData);
+      setIncomeCategories(categoriesData);
+      setAcademicYears(Array.isArray(yearsData) ? yearsData : []);
+      setSchoolClasses(Array.isArray(classesData) ? classesData : []);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching common data:', err);
+      // Failed to fetch = backend injoignable. Message clair pour l'utilisateur
+      // afin qu'il sache qu'il faut vérifier le serveur, pas le frontend.
+      const raw = (err?.message || '').toLowerCase();
+      if (raw.includes('failed to fetch') || raw.includes('networkerror')) {
+        setError("Impossible de joindre le serveur. Vérifie que le backend est démarré (port 8080 par défaut) et que tu es bien connecté.");
+      } else {
+        setError(err?.message || 'Erreur lors du chargement des données.');
+      }
+    }
+  }, []);
+
+  const fetchTuitionFees = useCallback(async () => {
+    try {
+      setTuitionLoading(true);
+      const data = await apiRequest<TuitionFeeResponse[]>('/tuition-fees/modalities', { method: 'GET' });
+      setTuitionFees(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching tuition fees:', err);
+    } finally {
+      setTuitionLoading(false);
+    }
+  }, []);
+
+  // Charge le statut de toutes les familles en parallèle pour la vue d'ensemble.
+  // Les erreurs par famille sont silencieusement ignorées (ex: famille sans
+  // modalité affectée) pour ne pas casser l'ensemble du tableau.
+  const fetchAllFamiliesStatus = useCallback(async () => {
+    if (parents.length === 0) return;
+    setOverviewLoading(true);
+    try {
+      const results = await Promise.all(
+        parents.map(async (p) => {
+          try {
+            const status = await accountingService.getFamilyStatus(p.familyId);
+            return { parent: p, status };
+          } catch {
+            return null;
+          }
+        })
+      );
+      setAllFamiliesStatus(
+        results.filter(
+          (r): r is { parent: any; status: TuitionFeeFamilyStatusResponse } => r !== null
+        )
+      );
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, [parents]);
+
+  const fetchMiscPayments = useCallback(async () => {
+    try {
+      setLoading(true);
+      // Filter out SCOLARITE related payments if possible, or just fetch all misc
+      const data = await accountingService.getPayments({ query: miscSearchQuery });
+      setMiscPayments(Array.isArray(data) ? data.filter(p => p.categoryName !== 'Scolarité') : []);
+    } catch (err) {
+      console.error('Error fetching misc payments:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [miscSearchQuery]);
+
+  useEffect(() => {
+    fetchCommonData();
+  }, [fetchCommonData]);
+
+  useEffect(() => {
+    if (activeTab === 'tuition') {
+      fetchTuitionFees();
+      fetchAllFamiliesStatus();
+    } else {
+      fetchMiscPayments();
+    }
+  }, [activeTab, fetchTuitionFees, fetchMiscPayments, fetchAllFamiliesStatus]);
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (familySearchRef.current && !familySearchRef.current.contains(event.target as Node)) {
+        setIsFamilySearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // --- Success Helper ---
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg);
     setIsSuccess(true);
     setTimeout(() => setIsSuccess(false), 3500);
   };
 
-  const getApiBaseUrl = () =>
-    (process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8080/api/v1');
-
-  const getToken = (): string | null => {
+  // --- Handlers ---
+  const handleFamilySearch = async (parent: any) => {
+    setSelectedFamily(parent);
+    setFamilySearchQuery(`Famille ${parent.lastName} (${parent.firstName})`);
+    setIsFamilySearchOpen(false);
+    setStatusLoading(true);
     try {
-      const raw = window.localStorage.getItem('auth-storage');
-      return raw ? (JSON.parse(raw)?.state?.token ?? null) : null;
-    } catch { return null; }
-  };
-
-  const downloadReport = async (path: string, fallbackFileName: string, openInNewTab = false) => {
-    try {
-      const token = getToken();
-      const res = await fetch(`${getApiBaseUrl()}${path}`, {
-        method: 'GET',
-        headers: token ? { 'enfantsfuture-auth-token': `enfantsfuture ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(`Erreur HTTP ${res.status}`);
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      if (openInNewTab) {
-        window.open(blobUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        const disposition = res.headers.get('content-disposition') || '';
-        const matchedFileName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = matchedFileName || fallbackFileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
-      showSuccess('Rapport généré avec succès');
+      const status = await accountingService.getFamilyStatus(parent.familyId);
+      setFamilyStatus(status);
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la génération du rapport');
-    }
-  };
-
-  // ── Fetch payments ────────────────────────────────────────────────────────
-
-  const fetchPayments = useCallback(async () => {
-    try {
-      setLoading(true);
-      const studentId = selectedStudentFilter !== 'all' ? selectedStudentFilter : undefined;
-      const categoryModule = filterCategory !== 'Tous' ? filterCategory : undefined;
-      const trimmedSearch = searchQuery.trim();
-      const params = new URLSearchParams();
-      if (studentId) params.set('studentId', studentId);
-      if (categoryModule) params.set('module', categoryModule);
-      if (trimmedSearch) params.set('query', trimmedSearch);
-      const query = params.toString();
-      const endpoint = query ? `/payments/filter?${query}` : '/payments/filter';
-      const data = await apiRequest<PaymentResponse[]>(endpoint, { method: 'GET' });
-      setPayments(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des paiements');
-    } finally {
-      setLoading(false);
-    }
-  }, [filterCategory, searchQuery, selectedStudentFilter]);
-
-  const fetchOverduePayments = useCallback(async () => {
-    try {
-      const data = await apiRequest<PaymentResponse[]>('/payments/overdue', { method: 'GET' });
-      setOverduePayments(data);
-    } catch (err: any) {
-      console.error('Erreur chargement impayés:', err);
-    }
-  }, []);
-
-  const fetchStudents = useCallback(async () => {
-    try {
-      const data = await apiRequest<Student[]>('/users/students', { method: 'GET' });
-      setStudents(data);
-    } catch (err: any) {
-      console.error('Erreur chargement élèves:', err);
-    }
-  }, []);
-
-  // ── Fetch tuition fees ────────────────────────────────────────────────────
-
-  const fetchExpenseCategories = useCallback(async () => {
-    try {
-      const module = filterCategory !== 'Tous' ? `?module=${encodeURIComponent(filterCategory)}` : '';
-      const data = await apiRequest<ExpenseCategoryResponse[]>(`/expenses/categories${module}`, { method: 'GET' });
-      setExpenseCategories(data);
-    } catch (err: any) {
-      console.error('Erreur chargement catÃ©gories dÃ©penses:', err);
-    }
-  }, [filterCategory]);
-
-  const fetchExpenseSummary = useCallback(async () => {
-    try {
-      const data = await apiRequest<ExpenseStatsSummaryResponse>('/expenses/stats/summary', { method: 'GET' });
-      setExpenseSummary(data);
-    } catch (err: any) {
-      console.error('Erreur chargement synthÃ¨se dÃ©penses:', err);
-    }
-  }, []);
-
-  const fetchExpenses = useCallback(async () => {
-    try {
-      setExpenseLoading(true);
-      const params = new URLSearchParams();
-      if (filterCategory !== 'Tous') params.set('module', filterCategory);
-      if (searchQuery.trim()) params.set('query', searchQuery.trim());
-      const query = params.toString();
-      const endpoint = query ? `/expenses?${query}` : '/expenses';
-      const data = await apiRequest<ExpenseResponse[]>(endpoint, { method: 'GET' });
-      setExpenses(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des dÃ©penses');
-    } finally {
-      setExpenseLoading(false);
-    }
-  }, [filterCategory, searchQuery]);
-
-  const fetchTuitionFees = useCallback(async () => {
-    const data = await apiRequest<TuitionFeeResponse[]>('/tuition-fees/modalities', { method: 'GET' });
-    setTuitionFees(data);
-  }, []);
-
-  const fetchAcademicYears = useCallback(async () => {
-    const data = await apiRequest<AcademicYearOption[]>('/courses/academic-years', { method: 'GET' });
-    setAcademicYears(data);
-  }, []);
-
-  const fetchSchoolClasses = useCallback(async () => {
-    const data = await apiRequest<ClassOption[]>('/courses/classes', { method: 'GET' });
-    setSchoolClasses(data);
-  }, []);
-
-  const refreshTuitionCatalog = useCallback(async () => {
-    try {
-      setTuitionLoading(true);
-      await Promise.all([fetchTuitionFees(), fetchAcademicYears(), fetchSchoolClasses()]);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des modalités de scolarité');
-      throw err;
-    } finally {
-      setTuitionLoading(false);
-    }
-  }, [fetchAcademicYears, fetchSchoolClasses, fetchTuitionFees]);
-
-  const fetchStudentTuitionStatus = async (studentId: string) => {
-    if (!studentId) return;
-    try {
-      setStatusLoading(true);
-      const data = await apiRequest<TuitionFeeStudentStatusResponse>(
-        `/tuition-fees/students/${studentId}/status`,
-        { method: 'GET' }
-      );
-      setSelectedStudentStatus(data);
-    } catch (err: any) {
-      setError(err.message || 'Erreur chargement du statut élève');
+      setError(err.message || 'Erreur lors du chargement du statut famille');
     } finally {
       setStatusLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchStudents();
-    fetchOverduePayments();
-  }, [fetchStudents, fetchOverduePayments]);
+  // --- Print Logic ---
+  const printFamilyReceipt = (status: TuitionFeeFamilyStatusResponse, amountPaid: number, method: string, reference: string) => {
+    const parent = parents.find(p => p.familyId === status.familyId);
+    const dateFmt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+<title>Reçu Famille - EIEF</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;background:#fff;color:#003844;padding:24px}
+  .receipt{max-width:720px;margin:0 auto;border:1px solid #006d77;background:#e0f7fa;padding:16px;}
+  .header{display:flex;justify-content:space-between;margin-bottom:20px;}
+  .school-name{font-size:18px;font-weight:900;color:#003844;}
+  .row{display:flex;gap:6px;margin-bottom:12px;font-size:14px;}
+  .dotted-line{flex:1;border-bottom:1.5px dotted #003844;min-height:20px;}
+  .footer{margin-top:20px;font-size:11px;font-weight:bold;text-align:center;}
+</style></head>
+<body><div class="receipt">
+  <div class="header">
+    <div class="school-name">ECOLE LES ENFANTS DU FUTUR</div>
+    <div style="text-align:right;font-weight:bold;">REÇU N° ${reference}</div>
+  </div>
+  <div class="row"><span>Famille de :</span><div class="dotted-line">${parent ? parent.lastName : status.familyId}</div></div>
+  <div class="row"><span>Montant Versé :</span><div class="dotted-line">${new Intl.NumberFormat('fr-GN').format(amountPaid)} GNF</div></div>
+  <div class="row"><span>Mode de Paiement :</span><div class="dotted-line">${method}</div></div>
+  <div class="row"><span>Reste à Payer Global :</span><div class="dotted-line">${new Intl.NumberFormat('fr-GN').format(status.totalRemaining)} GNF</div></div>
+  <div class="row"><span>Date :</span><div class="dotted-line">${dateFmt}</div></div>
+  <div class="footer">NB: Les frais versés ne sont pas remboursables.</div>
+</div></body></html>`;
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => { fetchPayments(); }, 300);
-    return () => window.clearTimeout(timer);
-  }, [fetchPayments]);
+    const win = window.open('', '_blank', 'width=800,height=600');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => { win.print(); }, 500);
+    }
+  };
 
-  useEffect(() => {
-    if (activeTab !== 'expenses') return;
-    const timer = window.setTimeout(() => { fetchExpenses(); }, 300);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, fetchExpenses]);
+  const handleFamilyPayment = async () => {
+    if (!selectedFamily || familySubmitting) return;
+    setFamilySubmitting(true);
+    const ref = familyPaymentForm.reference || `PAY-${Date.now()}`;
+    try {
+      await accountingService.registerFamilyPayment({
+        familyId: selectedFamily.familyId,
+        amount: familyPaymentForm.amount,
+        method: familyPaymentForm.method,
+        reference: ref,
+        payerType: 'PARENT',
+        payerUserId: selectedFamily.id,
+      });
+      showSuccess('Paiement enregistré avec succès');
+      setIsFamilyPaymentModalOpen(false);
+      
+      // Refresh status and print
+      const status = await accountingService.getFamilyStatus(selectedFamily.familyId);
+      setFamilyStatus(status);
+      printFamilyReceipt(status, familyPaymentForm.amount, familyPaymentForm.method, ref);
+      
+      setFamilyPaymentForm({ amount: 0, method: 'CASH', reference: '' });
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'enregistrement du paiement');
+    } finally {
+      setFamilySubmitting(false);
+    }
+  };
 
-  useEffect(() => {
-    if (activeTab !== 'expenses') return;
-    fetchExpenseCategories();
-  }, [activeTab, fetchExpenseCategories]);
+  const handleMiscPayment = async () => {
+    if (miscSubmitting) return;
+    miscSubmitting && setMiscSubmitting(true);
+    try {
+      await accountingService.createPayment({
+        ...miscPaymentForm,
+        reference: miscPaymentForm.reference || `MISC-${Date.now()}`,
+      });
+      showSuccess('Encaissement divers enregistré');
+      setIsMiscModalOpen(false);
+      setMiscPaymentForm({ amount: 0, reference: '', method: 'CASH', studentId: '', familyId: '', categoryId: null });
+      fetchMiscPayments();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'enregistrement');
+    } finally {
+      setMiscSubmitting(false);
+    }
+  };
 
-  useEffect(() => {
-    fetchExpenseSummary();
-  }, [fetchExpenseSummary]);
+  const handleDeletePayment = async (id: string) => {
+    if (!window.confirm('Supprimer ce paiement ?')) return;
+    try {
+      await accountingService.deletePayment(id);
+      showSuccess('Paiement supprimé');
+      fetchMiscPayments();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la suppression');
+    }
+  };
 
-  // L'ancien onglet "Frais de scolarité" (tranches/échéances) a été retiré.
-  // La fonction `refreshTuitionCatalog` reste disponible pour usage admin
-  // mais n'est plus déclenchée depuis cet écran comptable.
+  // --- Tuition Modality Handlers ---
+  const createTuitionFee = async (payload: TuitionFeePayload) => {
+    setTuitionActionLoading(true);
+    try {
+      await apiRequest('/tuition-fees/modalities', { method: 'POST', body: JSON.stringify(payload) });
+      showSuccess('Modalité créée');
+      fetchTuitionFees();
+    } catch (err: any) { setError(err.message); }
+    finally { setTuitionActionLoading(false); }
+  };
 
-  // ── KPIs ─────────────────────────────────────────────────────────────────
+  const updateTuitionFee = async (id: string, payload: TuitionFeePayload) => {
+    setTuitionActionLoading(true);
+    try {
+      await apiRequest(`/tuition-fees/modalities/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      showSuccess('Modalité mise à jour');
+      fetchTuitionFees();
+    } catch (err: any) { setError(err.message); }
+    finally { setTuitionActionLoading(false); }
+  };
 
-  const totalRecettes = payments
-    .filter(p => p.status === 'PAID')
-    .reduce((acc, curr) => acc + Number(curr.amount), 0);
+  const deleteTuitionFee = async (id: string) => {
+    setTuitionActionLoading(true);
+    try {
+      await apiRequest(`/tuition-fees/modalities/${id}`, { method: 'DELETE' });
+      showSuccess('Modalité supprimée');
+      fetchTuitionFees();
+    } catch (err: any) { setError(err.message); }
+    finally { setTuitionActionLoading(false); }
+  };
 
-  const totalAttendu = payments.reduce((acc, curr) => acc + Number(curr.amount), 0);
-  const totalImpayes = overduePayments.reduce((acc, curr) => acc + Number(curr.amount), 0);
-  const tauxRecouvrement = totalAttendu > 0 ? Math.round((totalRecettes / totalAttendu) * 100) : 0;
-  const overdueCount = overduePayments.length;
-  const totalDepenses = Number(expenseSummary?.totalAmount || 0);
-  const depensesMois = Number(expenseSummary?.currentMonthAmount || 0);
-  const depenseMoyenne = Number(expenseSummary?.averageAmount || 0);
-  const nombreDepenses = Number(expenseSummary?.expenseCount || 0);
-
-  // ── Formatage ─────────────────────────────────────────────────────────────
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('fr-GN').format(amount) + ' FGN';
-
-  const formatDate = (val: string | null | undefined) =>
-    val ? new Date(val).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-
-  const formatDateFull = (val: string | null | undefined) =>
-    val
-      ? new Date(val).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-      : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  // --- Helpers ---
+  const formatCurrency = (amount: number) => new Intl.NumberFormat('fr-GN').format(amount) + ' GNF';
+  const formatDate = (date: string | null) => date ? new Date(date).toLocaleDateString('fr-FR') : '-';
 
   const getMethodIcon = (method: PaymentMethod) => {
     switch (method) {
@@ -973,646 +347,32 @@ const ComptableAccounting: React.FC = () => {
     }
   };
 
-  const getMethodLabel = (method: PaymentMethod) => {
-    switch (method) {
-      case 'MOBILE_MONEY': return 'Mobile Money';
-      case 'CASH': return 'Espèces';
-      case 'BANK_TRANSFER': return 'Virement';
-      case 'CHECK': return 'Chèque';
-      default: return method;
-    }
-  };
-
-  const getStatusLabel = (status: PaymentStatus) => {
-    switch (status) {
-      case 'PAID': return 'Payé';
-      case 'PARTIAL': return 'Partiel';
-      case 'PENDING': return 'En attente';
-      case 'OVERDUE': return 'En retard';
-    }
-  };
-
-  const getStatusBadge = (status: PaymentStatus) => {
-    const cls = 'text-[9px] px-3 font-bold uppercase tracking-widest';
-    switch (status) {
-      case 'PAID': return <Badge variant="success" className={cls}>Payé</Badge>;
-      case 'PARTIAL': return <Badge variant="warning" className={cls}>Partiel</Badge>;
-      case 'PENDING': return <Badge variant="default" className={cls}>En attente</Badge>;
-      case 'OVERDUE': return <Badge variant="error" className={cls}>En retard</Badge>;
-    }
-  };
-
-  const resolveStudentByName = (name: string): Student | null =>
-    students.find(s => `${s.firstName} ${s.lastName}` === name) ?? null;
-
-  // ── CRUD Payments ─────────────────────────────────────────────────────────
-
-  const handleCreatePayment = async () => {
-    if (isSubmitting) return;
-    const resolvedServiceLabel = resolvePaymentServiceLabel(selectedPaymentService, otherPaymentServiceLabel);
-    if (selectedPaymentService === 'autres' && !otherPaymentServiceLabel.trim()) {
-      setError('Veuillez préciser le service si vous choisissez "Autres".');
-      return;
-    }
-    const baseRef = formData.reference.trim() || `REF-${Date.now().toString().slice(-6)}`;
-    const payload: PaymentPayload = {
-      amount: Number(formData.amount),
-      reference: `${baseRef} - ${resolvedServiceLabel}`,
-      method: formData.method,
-      studentId: formData.studentId,
-      categoryId: formData.categoryId,
-    };
-    try {
-      setIsSubmitting(true);
-      const created = await apiRequest<PaymentResponse>('/payments', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const student = students.find(s => s.id === payload.studentId) ?? null;
-      setSelectedStudentForReceipt(student);
-      setSelectedPayment(created);
-      setReceiptServiceOverride(resolvedServiceLabel);
-      setIsEncaissementModalOpen(false);
-      setIsReceiptModalOpen(true);
-      showSuccess('Encaissement créé avec succès');
-      setFormData({ amount: 0, reference: '', method: 'CASH', studentId: '', categoryId: null });
-      setSelectedPaymentService('scolarite');
-      setOtherPaymentServiceLabel('');
-      await Promise.all([fetchPayments(), fetchOverduePayments()]);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du paiement');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleMarkAsPaid = async (id: string) => {
-    try {
-      await apiRequest<PaymentResponse>(`/payments/${id}/pay`, { method: 'PATCH' });
-      showSuccess('Paiement marqué comme payé');
-      await Promise.all([fetchPayments(), fetchOverduePayments()]);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la mise à jour');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) return;
-    try {
-      const token = getToken();
-      const res = await fetch(`${getApiBaseUrl()}/payments/${id}`, {
-        method: 'DELETE',
-        headers: token ? { 'enfantsfuture-auth-token': `enfantsfuture ${token}` } : {},
-      });
-      if (!res.ok && res.status !== 204) throw new Error(`Erreur HTTP ${res.status}`);
-      showSuccess('Paiement supprimé');
-      await Promise.all([fetchPayments(), fetchOverduePayments()]);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la suppression');
-    }
-  };
-
-  // ── Tuition fee payment ───────────────────────────────────────────────────
-
-  const handleCreateExpense = async () => {
-    if (expenseSubmitting) return;
-    if (!expenseForm.amount || !expenseForm.description.trim() || !expenseForm.expenseDate || !expenseForm.categoryId) {
-      setError('Veuillez renseigner la catÃ©gorie, la description, la date et le montant de la dÃ©pense.');
-      return;
-    }
-
-    try {
-      setExpenseSubmitting(true);
-      await apiRequest<ExpenseResponse>('/expenses', {
-        method: 'POST',
-        body: JSON.stringify({
-          amount: Number(expenseForm.amount),
-          description: expenseForm.description.trim(),
-          expenseDate: expenseForm.expenseDate,
-          categoryId: expenseForm.categoryId,
-        }),
-      });
-      showSuccess('DÃ©pense enregistrÃ©e avec succÃ¨s');
-      setIsExpenseModalOpen(false);
-      setExpenseForm({
-        amount: 0,
-        description: '',
-        expenseDate: new Date().toISOString().split('T')[0],
-        categoryId: null,
-      });
-      await Promise.all([fetchExpenses(), fetchExpenseSummary(), fetchExpenseCategories()]);
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement de la dÃ©pense");
-    } finally {
-      setExpenseSubmitting(false);
-    }
-  };
-
-  const handleDeleteExpense = async (id: string) => {
-    if (!window.confirm('ÃŠtes-vous sÃ»r de vouloir supprimer cette dÃ©pense ?')) return;
-    try {
-      await apiRequest<void>(`/expenses/${id}`, { method: 'DELETE' });
-      showSuccess('DÃ©pense supprimÃ©e');
-      await Promise.all([fetchExpenses(), fetchExpenseSummary()]);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la suppression de la dÃ©pense');
-    }
-  };
-
-  const openTuitionPaymentModal = (
-    installment: TuitionFeeInstallmentStatusResponse,
-    studentId: string
-  ) => {
-    setSelectedInstallment(installment);
-    setTuitionPaymentForm({
-      studentId,
-      installmentId: installment.installmentId,
-      amount: Number(installment.remainingAmount),
-      method: 'CASH',
-      reference: '',
-      payerType: 'PARENT',
-      payerUserId: undefined,
-    });
-    setIsTuitionPaymentModalOpen(true);
-  };
-
-  const handleRegisterTuitionPayment = async () => {
-    if (tuitionSubmitting) return;
-    try {
-      setTuitionSubmitting(true);
-      await apiRequest<TuitionFeePaymentResponse>('/tuition-fees/payments', {
-        method: 'POST',
-        body: JSON.stringify(tuitionPaymentForm),
-      });
-      showSuccess('Versement de scolarité enregistré');
-      setIsTuitionPaymentModalOpen(false);
-      if (statusStudentId) await fetchStudentTuitionStatus(statusStudentId);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de l\'enregistrement du versement');
-    } finally {
-      setTuitionSubmitting(false);
-    }
-  };
-
-  const createTuitionFee = async (payload: TuitionFeePayload) => {
-    try {
-      setTuitionActionLoading(true);
-      setError(null);
-      const created = await apiRequest<TuitionFeeResponse>('/tuition-fees/modalities', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      showSuccess('Modalité de scolarité créée');
-      await refreshTuitionCatalog();
-      if (statusStudentId) {
-        await fetchStudentTuitionStatus(statusStudentId);
-      }
-      return created;
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création de la modalité de scolarité');
-      throw err;
-    } finally {
-      setTuitionActionLoading(false);
-    }
-  };
-
-  const updateTuitionFee = async (tuitionFeeId: string, payload: TuitionFeePayload) => {
-    try {
-      setTuitionActionLoading(true);
-      setError(null);
-      const updated = await apiRequest<TuitionFeeResponse>(`/tuition-fees/modalities/${tuitionFeeId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      showSuccess('Modalité de scolarité mise à jour');
-      await refreshTuitionCatalog();
-      if (statusStudentId) {
-        await fetchStudentTuitionStatus(statusStudentId);
-      }
-      return updated;
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la mise à jour de la modalité de scolarité');
-      throw err;
-    } finally {
-      setTuitionActionLoading(false);
-    }
-  };
-
-  const deleteTuitionFee = async (tuitionFeeId: string) => {
-    try {
-      setTuitionActionLoading(true);
-      setError(null);
-      await apiRequest<void>(`/tuition-fees/modalities/${tuitionFeeId}`, {
-        method: 'DELETE',
-      });
-      showSuccess('Modalité de scolarité supprimée');
-      await refreshTuitionCatalog();
-      if (statusStudentId) {
-        await fetchStudentTuitionStatus(statusStudentId);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la suppression de la modalité de scolarité');
-      throw err;
-    } finally {
-      setTuitionActionLoading(false);
-    }
-  };
-
-  // ── Reçu ─────────────────────────────────────────────────────────────────
-
-  const openReceiptModal = (payment: PaymentResponse) => {
-    setSelectedPayment(payment);
-    setSelectedStudentForReceipt(resolveStudentByName(payment.studentName));
-    setReceiptServiceOverride(payment.categoryName || null);
-    setIsReceiptModalOpen(true);
-    setOpenMenuRowId(null);
-  };
-
-  const numberToFrenchWords = (n: number): string => {
-    if (!n || n < 0) return 'zéro';
-    n = Math.floor(n);
-    const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
-      'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
-    const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
-    const lessThan100 = (x: number): string => {
-      if (x < 20) return units[x];
-      const t = Math.floor(x / 10);
-      const u = x % 10;
-      if (t === 7 || t === 9) {
-        const base = t === 7 ? 'soixante' : 'quatre-vingt';
-        return `${base}${u === 1 && t === 7 ? ' et ' : '-'}${units[10 + u]}`;
-      }
-      if (u === 0) return tens[t] + (t === 8 ? 's' : '');
-      if (u === 1 && t !== 8) return `${tens[t]} et un`;
-      return `${tens[t]}-${units[u]}`;
-    };
-    const lessThan1000 = (x: number): string => {
-      if (x < 100) return lessThan100(x);
-      const h = Math.floor(x / 100);
-      const r = x % 100;
-      const hundredPart = h === 1 ? 'cent' : `${units[h]} cent${r === 0 ? 's' : ''}`;
-      return r === 0 ? hundredPart : `${hundredPart} ${lessThan100(r)}`;
-    };
-    if (n < 1000) return lessThan1000(n);
-    if (n < 1000000) {
-      const k = Math.floor(n / 1000);
-      const r = n % 1000;
-      const thousandPart = k === 1 ? 'mille' : `${lessThan1000(k)} mille`;
-      return r === 0 ? thousandPart : `${thousandPart} ${lessThan1000(r)}`;
-    }
-    const m = Math.floor(n / 1000000);
-    const r = n % 1000000;
-    const millionPart = m === 1 ? 'un million' : `${lessThan1000(m)} millions`;
-    if (r === 0) return millionPart;
-    if (r < 1000) return `${millionPart} ${lessThan1000(r)}`;
-    const k = Math.floor(r / 1000);
-    const u = r % 1000;
-    const thousandPart = k === 1 ? 'mille' : `${lessThan1000(k)} mille`;
-    return u === 0 ? `${millionPart} ${thousandPart}` : `${millionPart} ${thousandPart} ${lessThan1000(u)}`;
-  };
-
-  const paymentServiceOptions: Array<{ value: PaymentServiceOption; label: string }> = [
-    { value: 'inscription', label: 'Inscription' },
-    { value: 'reinscription', label: 'Réinscription' },
-    { value: 'scolarite', label: 'Scolarité' },
-    { value: 'autres', label: 'Autres' },
-  ];
-
-  const resolvePaymentServiceLabel = (
-    service: PaymentServiceOption,
-    otherLabel?: string,
-  ) => {
-    switch (service) {
-      case 'inscription': return 'Inscription';
-      case 'reinscription': return 'Réinscription';
-      case 'scolarite': return 'Scolarité';
-      case 'autres': return otherLabel?.trim() || 'Autres';
-    }
-  };
-
-  const detectPaymentType = (payment: PaymentResponse, categoryName?: string | null): 'inscription' | 'reinscription' | 'scolarite' | 'autres' => {
-    const name = ((categoryName || '') + ' ' + (payment.reference || '')).toLowerCase();
-    if (name.includes('réinscription') || name.includes('reinscription')) return 'reinscription';
-    if (name.includes('inscription')) return 'inscription';
-    if (name.includes('scolarit')) return 'scolarite';
-    return 'autres';
-  };
-
-  const printReceipt = async (payment: PaymentResponse, student?: Student | null) => {
-    const resolvedStudent = student !== undefined ? student : selectedStudentForReceipt;
-    const resolvedCategoryName = payment.categoryName || receiptServiceOverride || '';
-    const studentFullName = payment.studentName || '';
-    const className = resolvedStudent?.className || '';
-    const matricule = resolvedStudent?.registrationNumber || '';
-    const amountNum = Number(payment.amount) || 0;
-    const amountFmt = new Intl.NumberFormat('fr-GN').format(amountNum);
-    const amountWords = numberToFrenchWords(amountNum);
-    const dateFmt = formatDateFull(payment.paidAt);
-    const type = detectPaymentType(payment, resolvedCategoryName);
-
-    let remainingAmountText = '';
-    let monthsInfoText = '';
-
-    if (resolvedStudent && resolvedStudent.id) {
-      try {
-        const status = await apiRequest<TuitionFeeStudentStatusResponse>(`/tuition-fees/students/${resolvedStudent.id}/status`, { method: 'GET' });
-        remainingAmountText = new Intl.NumberFormat('fr-GN').format(status.totalRemaining) + ' GNF';
-        const monthsPaid = status.installments.filter(i => i.remainingAmount === 0).length;
-        const monthsRemaining = status.installments.filter(i => i.remainingAmount > 0).length;
-        monthsInfoText = `Mois payés : ${monthsPaid} | Mois restants : ${monthsRemaining}`;
-      } catch(e) {
-        console.error('Failed to fetch student tuition status for receipt', e);
-      }
-    }
-
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
-<title>Reçu N° ${payment.reference || ''} - EIEF</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:Arial,sans-serif;background:#fff;color:#003844;padding:24px}
-  .receipt{max-width:720px;margin:0 auto;border:1px solid #006d77;
-    background:#e0f7fa;overflow:hidden;padding:16px;}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;}
-  .school-info{text-align:center;}
-  .school-name{font-size:18px;font-weight:900;color:#003844;line-height:1.2}
-  .school-details{font-size:11px;margin-top:4px;color:#003844;font-weight:bold;}
-  .school-details p{margin:2px 0;}
-  .receipt-info{border:2px solid #003844;border-radius:4px;background:#e0f7fa;}
-  .receipt-info table{border-collapse:collapse;font-size:12px;font-weight:bold;}
-  .receipt-info td{border:1px solid #003844;padding:6px 12px;}
-  .receipt-info tr td:first-child{background:#b2ebf2;}
-  .body{padding:0;}
-  .row{display:flex;align-items:baseline;gap:6px;margin-bottom:16px;font-size:14px;font-weight:bold;}
-  .dotted-line{flex:1;border-bottom:1.5px dotted #003844;min-height:20px;font-style:italic;font-weight:normal;padding:0 6px;}
-  .checkboxes{display:flex;justify-content:space-between;margin:20px 0;}
-  .checkbox-item{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:bold;}
-  .cb{display:inline-block;width:18px;height:18px;border:2px solid #003844;background:#fff;
-    text-align:center;line-height:14px;font-weight:900;color:#003844;font-size:14px;}
-  .signature-row{display:flex;justify-content:space-between;margin-bottom:20px;}
-  .footer-note{font-size:11px;font-weight:bold;margin-top:10px;}
-  @media print{body{padding:0}.receipt{max-width:100%}@page{size:A5 landscape;margin:10mm}}
-</style></head>
-<body><div class="receipt">
-  <div class="header">
-    <div class="school-info">
-      <div class="school-name">ECOLE INTERNATIONALE<br/>LES ENFANTS DU FUTUR</div>
-      <div class="school-details">
-        <p>Garderie - Crèche - Maternelle - Primaire - Collège - Lycée</p>
-        <p>Sis à Sangoyah Rails - C/Coyah - République de Guinée</p>
-        <p>Tél: (+224) 625 54 95 79 / 664 03 98 41</p>
-        <p>E-mail: info.enfantdufutur@gmail.com</p>
-      </div>
-    </div>
-    <div class="receipt-info">
-      <table>
-        <tr><td>REÇU N°</td><td>${payment.reference || ''}</td></tr>
-        <tr><td>MONTANT</td><td>${amountFmt}</td></tr>
-        <tr><td>DATE</td><td>${dateFmt}</td></tr>
-      </table>
-    </div>
-  </div>
-  <div class="body">
-    <div class="row">
-      <span>Nom et Prénoms de l'élève:</span>
-      <div class="dotted-line">${studentFullName}</div>
-      <span>Classe:</span>
-      <div class="dotted-line" style="flex:0 0 100px;text-align:center;">${className}</div>
-    </div>
-    <div class="row">
-      <span>Montant (en lettres GNF):</span>
-      <div class="dotted-line">${amountWords}</div>
-    </div>
-    <div class="checkboxes">
-      <div class="checkbox-item"><span class="cb">${type === 'inscription' ? 'X' : ''}</span> Inscription</div>
-      <div class="checkbox-item"><span class="cb">${type === 'reinscription' ? 'X' : ''}</span> Réinscription</div>
-      <div class="checkbox-item"><span class="cb">${type === 'scolarite' ? 'X' : ''}</span> Scolarité</div>
-      <div class="checkbox-item"><span class="cb">${type === 'autres' ? 'X' : ''}</span> Autres</div>
-    </div>
-    <div class="row">
-      <span>Reste à payer pour l'élève :</span>
-      <div class="dotted-line">${remainingAmountText}</div>
-      <span style="font-size:12px;font-style:italic;">${monthsInfoText}</span>
-    </div>
-    <div class="signature-row">
-      <div class="row" style="width:50%;margin-bottom:0;">
-        <span>Parent d'élèves:</span>
-        <div class="dotted-line"></div>
-      </div>
-      <div style="font-weight:bold;margin-right:40px;">La Direction</div>
-    </div>
-    <div class="footer-note">NB: Une fois versé tous frais sont non remboursables</div>
-  </div>
-</div></body></html>`;
-
-    const win = window.open('', '_blank', 'width=820,height=600');
-    if (!win) { setError('Veuillez autoriser les popups pour imprimer.'); return; }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 800);
-  };
-
-  // ── Colonnes table payments ───────────────────────────────────────────────
-
-  const categoriesList = [
-    { value: 'Tous', label: 'Tous' },
-    { value: 'SCOLARITE', label: 'Scolarité' },
-    { value: 'CANTINE', label: 'Cantine' },
-    { value: 'TRANSPORT', label: 'Transport' },
-    { value: 'SUPÉRETTE', label: 'Supérette' },
-  ];
-
-  const columns = [
-    {
-      key: 'studentName',
-      label: 'Élève / Client',
-      sortable: true,
-      render: (val: string) => (
-        <div className="flex items-center gap-3">
-          <Avatar name={val} size="sm" />
-          <div className="flex flex-col text-left">
-            <span className="font-bold text-gray-900 dark:text-white leading-tight">{val}</span>
-            <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Élève EIEF</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'categoryName',
-      label: 'Service',
-      render: (val: string) => (
-        <span className="px-3 py-1 bg-bleu-50 dark:bg-bleu-900/30 rounded-xl text-[10px] font-bold text-bleu-600 dark:text-or-400 border border-bleu-100 dark:border-bleu-800/30 uppercase tracking-widest leading-none">
-          {val || 'Non catégorisé'}
-        </span>
-      ),
-    },
-    {
-      key: 'amount',
-      label: 'Montant',
-      render: (val: number, row: PaymentResponse) => (
-        <div className="text-left">
-          <div className="font-bold text-gray-900 dark:text-white text-sm">{formatCurrency(Number(val))}</div>
-          {row.status === 'PAID' ? (
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1 h-3 bg-vert-500 rounded-full" />
-              <span className="text-[10px] text-vert-500 font-bold uppercase tracking-wider">Soldé</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1 h-3 bg-rouge-500 rounded-full" />
-              <span className="text-[10px] text-rouge-500 font-bold uppercase tracking-wider">{getStatusLabel(row.status)}</span>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'method',
-      label: 'Mode',
-      render: (val: PaymentMethod) => (
-        <div className="flex items-center gap-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
-          <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">{getMethodIcon(val)}</div>
-          {getMethodLabel(val)}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Statut',
-      render: (val: PaymentStatus) => getStatusBadge(val),
-    },
-    {
-      key: 'paidAt',
-      label: 'Transaction',
-      sortable: true,
-      render: (val: string | null, row: PaymentResponse) => (
-        <div className="text-left">
-          <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatDate(val)}</p>
-          <p className="text-[9px] font-mono text-gray-400 uppercase tracking-tighter">{row.reference}</p>
-        </div>
-      ),
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (_: any, row: PaymentResponse) => (
-        <div className="relative group flex justify-end pr-2" onClick={e => e.stopPropagation()}>
-          <Popover
-            isOpen={openMenuRowId === row.id}
-            onClose={() => setOpenMenuRowId(null)}
-            trigger={
-              <button
-                onClick={() => setOpenMenuRowId(openMenuRowId === row.id ? null : row.id)}
-                className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 dark:bg-white/5 text-gray-400 hover:text-bleu-600 dark:hover:text-or-400 hover:bg-bleu-50 dark:hover:bg-or-900/20 transition-all border border-gray-100 dark:border-white/5"
-              >
-                <MoreVertical size={18} />
-              </button>
-            }
-          >
-            <div className="w-56 p-2 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 space-y-1">
-              <button
-                onClick={() => openReceiptModal(row)}
-                className="w-full flex items-center gap-3 p-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 hover:text-bleu-600 rounded-xl transition-all"
-              >
-                <Eye size={16} /> Voir les détails
-              </button>
-              <button
-                onClick={() => { printReceipt(row, resolveStudentByName(row.studentName)); setOpenMenuRowId(null); }}
-                className="w-full flex items-center gap-3 p-3 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
-              >
-                <Printer size={16} /> Imprimer le reçu
-              </button>
-              {row.status !== 'PAID' && (
-                <button
-                  onClick={() => { handleMarkAsPaid(row.id); setOpenMenuRowId(null); }}
-                  className="w-full flex items-center gap-3 p-3 text-xs font-bold text-vert-600 hover:bg-vert-50 dark:hover:bg-vert-900/20 rounded-xl transition-all"
-                >
-                  <CheckCircle2 size={16} /> Marquer payé
-                </button>
-              )}
-              <div className="h-px bg-gray-50 dark:bg-white/5 my-1" />
-              <button
-                onClick={() => { handleDelete(row.id); setOpenMenuRowId(null); }}
-                className="w-full flex items-center gap-3 p-3 text-xs font-bold text-rouge-500 hover:bg-rouge-50 dark:hover:bg-rouge-900/20 rounded-xl transition-all"
-              >
-                <Trash2 size={16} /> Supprimer
-              </button>
-            </div>
-          </Popover>
-        </div>
-      ),
-    },
-  ];
-
-  const expenseColumns = [
-    {
-      key: 'description',
-      label: 'Dépense',
-      render: (val: string, row: ExpenseResponse) => (
-        <div className="flex flex-col text-left">
-          <span className="font-bold text-gray-900 dark:text-white leading-tight">{val}</span>
-          <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-            {row.createdByName || 'Utilisateur non renseigné'}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'categoryName',
-      label: 'Catégorie',
-      render: (val: string | null, row: ExpenseResponse) => (
-        <span className="px-3 py-1 bg-rouge-50 dark:bg-rouge-900/20 rounded-xl text-[10px] font-bold text-rouge-600 border border-rouge-100 dark:border-rouge-800/30 uppercase tracking-widest leading-none">
-          {val || row.categoryModule || 'Non catégorisé'}
-        </span>
-      ),
-    },
-    {
-      key: 'amount',
-      label: 'Montant',
-      render: (val: number) => (
-        <div className="text-left">
-          <div className="font-bold text-gray-900 dark:text-white text-sm">{formatCurrency(Number(val))}</div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="w-1 h-3 bg-rouge-500 rounded-full" />
-            <span className="text-[10px] text-rouge-500 font-bold uppercase tracking-wider">Sortie</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'expenseDate',
-      label: 'Date',
-      sortable: true,
-      render: (val: string) => (
-        <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatDate(val)}</p>
-      ),
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (_: any, row: ExpenseResponse) => (
-        <div className="flex justify-end pr-2">
-          <button
-            onClick={() => handleDeleteExpense(row.id)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-rouge-50 dark:bg-rouge-900/20 text-rouge-500 hover:bg-rouge-100 dark:hover:bg-rouge-900/30 transition-all border border-rouge-100 dark:border-rouge-800/20"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      ),
-    },
-  ];
-
-  // ── Rendu ─────────────────────────────────────────────────────────────────
+  // --- Filtered Families ---
+  const filteredFamilies = useMemo(() => {
+    const q = familySearchQuery.trim().toLowerCase();
+    // Pas de query → on montre les 5 premières familles pour aide.
+    if (!q) return parents.slice(0, 5);
+    // Sinon on filtre TOUJOURS, même si une famille est déjà sélectionnée :
+    // l'utilisateur doit pouvoir retaper pour changer de famille.
+    return parents.filter(p =>
+      `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
+      (p.email && p.email.toLowerCase().includes(q)) ||
+      (p.phone && String(p.phone).toLowerCase().includes(q)) ||
+      (p.address && String(p.address).toLowerCase().includes(q))
+    ).slice(0, 10);
+  }, [familySearchQuery, parents]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-8"
-    >
-      {/* Error Alert */}
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      {/* Notifications */}
+      <AnimatePresence>
+        {isSuccess && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed top-6 right-6 z-50 bg-vert-600 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 font-bold">
+            <CheckCircle2 size={20} /> {successMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {error && (
         <div className="bg-rouge-50 border border-rouge-200 text-rouge-700 px-4 py-3 rounded-xl flex items-center gap-3">
           <AlertCircle size={20} />
@@ -1621,629 +381,472 @@ const ComptableAccounting: React.FC = () => {
         </div>
       )}
 
-      {/* Success Toast */}
-      <AnimatePresence>
-        {isSuccess && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-vert-600 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-bold"
-          >
-            <CheckCircle2 size={18} /> {successMessage}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* HEADER */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Wallet className="text-bleu-600 dark:text-bleu-400" size={28} />
-            <h1 className="text-xl font-bold gradient-bleu-or-text tracking-tight">Finances</h1>
-            {overdueCount > 0 && (
-              <span className="flex items-center justify-center w-6 h-6 bg-rouge-500 text-white rounded-full text-[10px] font-black">
-                {overdueCount > 99 ? '99+' : overdueCount}
-              </span>
-            )}
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">
-            Suivi stratégique des encaissements et du recouvrement de l'EIEF
-            {overdueCount > 0 && (
-              <span className="ml-2 text-rouge-500 font-bold">
-                · {overdueCount} paiement{overdueCount > 1 ? 's' : ''} en retard
-              </span>
-            )}
-          </p>
+          <h1 className="text-2xl font-black gradient-bleu-or-text tracking-tight flex items-center gap-3">
+            <Wallet className="text-bleu-600" size={32} />
+            Comptabilité — Scolarité & Encaissements
+          </h1>
+          <p className="text-gray-500 font-medium">Suivi complet de la scolarité et des encaissements divers</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setIsRapportsModalOpen(true)}
-            className="flex gap-2 dark:border-white/10 dark:text-white h-11 px-5 text-[10px] uppercase tracking-widest font-bold"
+        <div className="flex bg-gray-100 p-1 rounded-2xl">
+          <button 
+            onClick={() => setActiveTab('tuition')}
+            className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'tuition' ? 'bg-white text-bleu-600 shadow-sm' : 'text-gray-500'}`}
           >
-            <Download size={18} /> Rapports
-          </Button>
-          {activeTab === 'payments' && (
-            <Button
-              onClick={() => setIsEncaissementModalOpen(true)}
-              className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 shadow-blue border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-bleu-600/20"
-            >
-              <Plus size={20} /> Nouvel Encaissement
-            </Button>
-          )}
-          {activeTab === 'expenses' && (
-            <Button
-              onClick={() => setIsExpenseModalOpen(true)}
-              className="flex gap-2 bg-gradient-to-r from-rouge-600 to-rouge-500 border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-rouge-600/20"
-            >
-              <Plus size={20} /> Nouvelle Dépense
-            </Button>
-          )}
-          {activeTab === 'family' && (
-            <Button
-              onClick={() => setIsFamilyPaymentOpen(true)}
-              className="flex gap-2 bg-gradient-to-r from-vert-600 to-vert-500 border-none font-bold text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg shadow-vert-600/20"
-            >
-              <Plus size={20} /> Nouveau Paiement
-            </Button>
-          )}
+            Frais de Scolarité
+          </button>
+          <button 
+            onClick={() => setActiveTab('misc')}
+            className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'misc' ? 'bg-white text-bleu-600 shadow-sm' : 'text-gray-500'}`}
+          >
+            Encaissements Divers
+          </button>
         </div>
       </div>
 
-      {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-        <StatCard
-          title={activeTab === 'expenses' ? 'Dépenses Totales' : 'Recettes Totales'}
-          value={formatCurrency(activeTab === 'expenses' ? totalDepenses : totalRecettes)}
-          subtitle={activeTab === 'expenses' ? 'Toutes les sorties enregistrées' : 'Paiements soldés'}
-          icon={activeTab === 'expenses' ? <AlertTriangle /> : <Wallet />}
-          color={activeTab === 'expenses' ? 'rouge' : 'bleu'}
-          trend={{ value: activeTab === 'expenses' ? `${nombreDepenses} opération(s)` : `${tauxRecouvrement}% recouvré`, direction: 'up' }}
-        />
-        <StatCard
-          title={activeTab === 'expenses' ? 'Dépenses du Mois' : 'Impayés en Retard'}
-          value={formatCurrency(activeTab === 'expenses' ? depensesMois : totalImpayes)}
-          subtitle={activeTab === 'expenses' ? `${expenseSummary?.currentMonthCount || 0} dépense(s) ce mois` : `${overdueCount} paiement${overdueCount > 1 ? 's' : ''} en retard`}
-          icon={activeTab === 'expenses' ? <Wallet /> : <AlertCircle />}
-          color="rouge"
-        />
-        <StatCard
-          title={activeTab === 'expenses' ? 'Dépense Moyenne' : 'Taux de Recouvrement'}
-          value={activeTab === 'expenses' ? formatCurrency(depenseMoyenne) : `${tauxRecouvrement}%`}
-          subtitle={activeTab === 'expenses' ? 'Par opération' : 'Objectif: 95%'}
-          icon={<TrendingUp />}
-          color="or"
-          trend={{ value: activeTab === 'expenses' ? (expenseSummary?.maxAmount ? `${formatCurrency(Number(expenseSummary.maxAmount))} max` : 'Aucune donnée') : (totalAttendu > 0 ? `${formatCurrency(totalAttendu)} attendu` : 'Aucune donnée'), direction: 'up' }}
-        />
-        <Card className="flex flex-col justify-center border-none shadow-soft p-6 dark:bg-gray-900/50 dark:backdrop-blur-md text-left">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-            {activeTab === 'expenses' ? 'Suivi Dépenses' : 'Alertes Impayés'}
-          </p>
-          {activeTab === 'expenses' ? (
-            <>
-              <h3 className="text-xl font-bold text-rouge-600 dark:text-rouge-400 mb-1">
-                {nombreDepenses} sortie{nombreDepenses > 1 ? 's' : ''}
-              </h3>
-              <div className="flex items-center gap-2 mt-3">
-                <div className="w-8 h-8 rounded-xl bg-rouge-50 dark:bg-rouge-900/20 flex items-center justify-center text-rouge-500">
-                  <AlertTriangle size={16} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-800 dark:text-gray-200 font-bold uppercase tracking-wide">Dernière sortie</p>
-                  <p className="text-[9px] text-gray-400 font-medium leading-none">
-                    {expenseSummary?.latestExpenseDate ? formatDate(expenseSummary.latestExpenseDate) : 'Aucune dépense enregistrée'}
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : overdueCount === 0 ? (
-            <>
-              <h3 className="text-xl font-bold text-vert-600 dark:text-vert-400 mb-1">Aucun retard</h3>
-              <div className="flex items-center gap-2 mt-3">
-                <div className="w-8 h-8 rounded-xl bg-vert-50 dark:bg-vert-900/20 flex items-center justify-center text-vert-500">
-                  <CheckCircle2 size={16} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-800 dark:text-gray-200 font-bold uppercase tracking-wide">Recouvrement à jour</p>
-                  <p className="text-[9px] text-gray-400 font-medium leading-none">Tous les paiements sont en règle</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <h3 className="text-xl font-bold text-rouge-600 dark:text-rouge-400 mb-1">
-                {overdueCount} retard{overdueCount > 1 ? 's' : ''}
-              </h3>
-              <div className="flex items-center gap-2 mt-3">
-                <div className="w-8 h-8 rounded-xl bg-rouge-50 dark:bg-rouge-900/20 flex items-center justify-center text-rouge-500">
-                  <AlertTriangle size={16} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-800 dark:text-gray-200 font-bold uppercase tracking-wide">Action requise</p>
-                  <p className="text-[9px] text-gray-400 font-medium leading-none">{formatCurrency(totalImpayes)} à recouvrer</p>
-                </div>
-              </div>
-            </>
-          )}
-        </Card>
-      </div>
-
-      {/* TABS */}
-      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-2xl w-fit">
-        <button
-          onClick={() => setActiveTab('payments')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'payments'
-              ? 'bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <Wallet size={14} /> Encaissements
-          {overdueCount > 0 && activeTab !== 'payments' && (
-            <span className="w-4 h-4 bg-rouge-500 text-white rounded-full text-[9px] flex items-center justify-center font-black">
-              {overdueCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('family')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'family'
-              ? 'bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <Users size={14} /> Fiche Famille
-        </button>
-        <button
-          onClick={() => setActiveTab('expenses')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-            activeTab === 'expenses'
-              ? 'bg-white dark:bg-gray-800 text-rouge-600 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <AlertTriangle size={14} /> Dépenses
-        </button>
-      </div>
-
-      {/* ── TAB: ENCAISSEMENTS ──────────────────────────────────────────────── */}
-      {activeTab === 'payments' && (
-        <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
-              {categoriesList.map(cat => (
-                <button
-                  key={cat.value}
-                  onClick={() => setFilterCategory(cat.value)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-semibold whitespace-nowrap transition-all ${
-                    filterCategory === cat.value
-                      ? 'bg-gray-900 dark:bg-or-500 text-white shadow-lg'
-                      : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-            <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
-              <select
-                value={selectedStudentFilter}
-                onChange={e => setSelectedStudentFilter(e.target.value)}
-                className="w-full sm:w-72 px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
-              >
-                <option value="all">Tous les élèves</option>
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.firstName} {s.lastName}{s.registrationNumber ? ` (${s.registrationNumber})` : ''}
-                  </option>
-                ))}
-              </select>
-              <div className="relative w-full lg:w-96">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
-                <input
-                  type="text"
-                  placeholder="Rechercher une transaction..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
-                />
-              </div>
-            </div>
+      {activeTab === 'tuition' ? (
+        <div className="space-y-8">
+          {/* Statistiques familles : combien ont payé, combien sont en retard */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard
+              title="Total Familles"
+              value={allFamiliesStatus.length.toString()}
+              icon={<Users />}
+              color="bleu"
+              subtitle="Familles inscrites"
+            />
+            <StatCard
+              title="Soldés"
+              value={allFamiliesStatus.filter(r => r.status.totalRemaining <= 0).length.toString()}
+              icon={<CheckCircle2 />}
+              color="vert"
+              subtitle="À jour de paiement"
+            />
+            <StatCard
+              title="En cours"
+              value={allFamiliesStatus.filter(r => r.status.totalRemaining > 0 && !r.status.hasOverdue).length.toString()}
+              icon={<TrendingUp />}
+              color="or"
+              subtitle="Reste à payer"
+            />
+            <StatCard
+              title="En retard"
+              value={allFamiliesStatus.filter(r => r.status.hasOverdue).length.toString()}
+              icon={<AlertCircle />}
+              color="rouge"
+              subtitle="Échéances dépassées"
+            />
           </div>
 
-          <Card className="p-2 overflow-hidden border-none shadow-soft dark:bg-gray-900/50 dark:backdrop-blur-md">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
+          {/* Recherche + Carte famille minimaliste */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Card className="p-6">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Search size={18} className="text-bleu-600" />
+                Rechercher une Famille
+              </h3>
+              <div className="relative" ref={familySearchRef}>
+                <Input
+                  placeholder="Nom du parent..."
+                  value={familySearchQuery}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFamilySearchQuery(v);
+                    setIsFamilySearchOpen(true);
+                    // Dès qu'on modifie le texte, on enlève la sélection
+                    // courante pour que la recherche s'applique à neuf.
+                    if (selectedFamily) {
+                      const currentLabel = `${selectedFamily.firstName} ${selectedFamily.lastName}`;
+                      if (v !== currentLabel) {
+                        setSelectedFamily(null);
+                        setFamilyStatus(null);
+                      }
+                    }
+                  }}
+                  onFocus={() => setIsFamilySearchOpen(true)}
+                />
+                {isFamilySearchOpen && filteredFamilies.length > 0 && (
+                  <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+                    {filteredFamilies.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleFamilySearch(p)}
+                        className="w-full px-4 py-3 text-left hover:bg-bleu-50 transition-colors border-b border-gray-50 last:border-0"
+                      >
+                        <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">{p.email}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="mt-4 text-[10px] text-gray-400 font-medium">
+                Tape le nom d'un parent, ou clique directement sur une famille dans le tableau ci-dessous.
+              </p>
+            </Card>
+
+            {/* Carte famille sélectionnée — informations essentielles uniquement */}
+            {statusLoading ? (
+              <Card className="p-6 flex items-center justify-center min-h-[260px]">
+                <Loader2 className="animate-spin text-bleu-600" size={32} />
+              </Card>
+            ) : familyStatus && selectedFamily ? (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                <Card className="p-6 bg-gradient-to-br from-bleu-600 to-bleu-800 text-white border-none shadow-blue">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Famille</p>
+                      <h3 className="text-xl font-black">
+                        {selectedFamily.firstName} {selectedFamily.lastName}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => { setSelectedFamily(null); setFamilyStatus(null); setFamilySearchQuery(''); }}
+                      className="p-2 hover:bg-white/10 rounded-xl"
+                      title="Fermer"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-white/20">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Adresse</p>
+                      <p className="text-sm font-bold truncate">{selectedFamily.address || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Téléphone</p>
+                      <p className="text-sm font-bold truncate">{selectedFamily.phone || '—'}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Payé</p>
+                      <p className="text-lg font-black">{formatCurrency(familyStatus.totalPaid)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Reste à payer</p>
+                      <p className="text-lg font-black">{formatCurrency(familyStatus.totalRemaining)}</p>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => setIsFamilyPaymentModalOpen(true)}
+                    className="w-full bg-white text-bleu-600 hover:bg-gray-50 border-none font-black uppercase text-[10px] py-3"
+                    disabled={familyStatus.totalRemaining <= 0}
+                  >
+                    Payer Scolarité Famille
+                  </Button>
+                </Card>
+              </motion.div>
+            ) : (
+              <div className="min-h-[260px] flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-100 rounded-3xl p-8">
+                <Users size={36} className="mb-3 opacity-20" />
+                <p className="font-bold text-xs text-center">Sélectionne une famille pour voir ses informations</p>
+              </div>
+            )}
+          </div>
+
+          {/* Vue d'ensemble : toutes les familles avec leur statut paiement */}
+          <div className="space-y-4 pt-8 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                <Users size={18} className="text-bleu-600" />
+                Vue d'ensemble des familles
+                {allFamiliesStatus.length > 0 && (
+                  <span className="text-[10px] text-gray-400 font-bold">({allFamiliesStatus.length})</span>
+                )}
+              </h3>
+            </div>
+            {overviewLoading ? (
+              <div className="p-8 flex justify-center">
                 <Loader2 className="animate-spin text-bleu-600" size={32} />
               </div>
-            ) : payments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-                <Wallet size={40} className="opacity-20" />
-                <span className="text-sm font-medium">Aucune transaction trouvée</span>
+            ) : allFamiliesStatus.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 border-2 border-dashed border-gray-100 rounded-3xl">
+                <Users size={32} className="mx-auto mb-2 opacity-40" />
+                <p className="text-sm font-bold">Aucune famille à afficher.</p>
               </div>
             ) : (
-              <Table data={payments} columns={columns as any} />
+              <Card className="overflow-hidden border-none shadow-soft">
+                <Table
+                  data={allFamiliesStatus}
+                  columns={[
+                    {
+                      key: 'family',
+                      label: 'Famille',
+                      render: (_: any, row: any) => (
+                        <div className="text-left">
+                          <p className="font-bold text-gray-900">
+                            Famille {row.parent.lastName}
+                          </p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase">
+                            {row.parent.firstName} {row.parent.address ? `• ${row.parent.address}` : ''}
+                          </p>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: 'children',
+                      label: 'Enfants',
+                      render: (_: any, row: any) => (
+                        <span className="text-xs font-black text-gray-700">
+                          {row.status.students?.length ?? 0}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: 'paid',
+                      label: 'Versé',
+                      render: (_: any, row: any) => (
+                        <span className="text-xs font-black text-vert-600">
+                          {formatCurrency(row.status.totalPaid)}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: 'remaining',
+                      label: 'Restant',
+                      render: (_: any, row: any) => (
+                        <span
+                          className={`text-xs font-black ${
+                            row.status.totalRemaining > 0 ? 'text-rouge-600' : 'text-gray-400'
+                          }`}
+                        >
+                          {formatCurrency(row.status.totalRemaining)}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: 'status',
+                      label: 'Statut',
+                      render: (_: any, row: any) =>
+                        row.status.totalRemaining <= 0 ? (
+                          <Badge variant="success">Soldé</Badge>
+                        ) : row.status.hasOverdue ? (
+                          <Badge variant="error">{row.status.overdueCount} en retard</Badge>
+                        ) : (
+                          <Badge variant="warning">En cours</Badge>
+                        ),
+                    },
+                    {
+                      key: 'actions',
+                      label: '',
+                      render: (_: any, row: any) => (
+                        <div className="flex justify-end pr-2">
+                          <button
+                            onClick={() => handleFamilySearch(row.parent)}
+                            className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-bleu-600 hover:bg-bleu-50 rounded-xl transition-colors"
+                          >
+                            Voir / Payer
+                          </button>
+                        </div>
+                      ),
+                    },
+                  ] as any}
+                />
+              </Card>
+            )}
+          </div>
+
+          <div className="pt-8 border-t border-gray-100">
+            <TuitionModalityManager 
+              tuitionFees={tuitionFees}
+              academicYears={academicYears}
+              classes={schoolClasses}
+              loading={tuitionLoading}
+              actionLoading={tuitionActionLoading}
+              onCreate={createTuitionFee}
+              onUpdate={updateTuitionFee}
+              onDelete={deleteTuitionFee}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard title="Encaissements Divers" value={formatCurrency(miscPayments.reduce((acc, p) => acc + (p.status === 'PAID' ? p.amount : 0), 0))} icon={<TrendingUp />} color="bleu" subtitle="Total hors scolarité" />
+            <StatCard title="Opérations" value={miscPayments.length.toString()} icon={<Receipt />} color="or" subtitle="Nombre de transactions" />
+            <Card className="p-6 flex flex-col justify-center border-none shadow-soft bg-white">
+              <Button onClick={() => setIsMiscModalOpen(true)} className="w-full h-full min-h-[60px] bg-bleu-600 hover:bg-bleu-700 font-black uppercase tracking-widest gap-2">
+                <Plus size={20} /> Nouvel Encaissement
+              </Button>
+            </Card>
+          </div>
+
+          <div className="flex justify-between items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Input 
+                placeholder="Rechercher une transaction..." 
+                className="pl-12" 
+                value={miscSearchQuery}
+                onChange={(e) => setMiscSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <Card className="overflow-hidden border-none shadow-soft">
+            {loading ? (
+              <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-bleu-600" size={40} /></div>
+            ) : (
+              <Table 
+                data={miscPayments}
+                columns={[
+                  { key: 'studentName', label: 'Client / Élève', render: (val: any, row: any) => (
+                    <div className="flex items-center gap-3">
+                      <Avatar name={val || row.familyName || 'Client'} size="sm" />
+                      <div className="text-left">
+                        <p className="font-bold text-gray-900">{val || row.familyName}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">{row.categoryName}</p>
+                      </div>
+                    </div>
+                  )},
+                  { key: 'amount', label: 'Montant', render: (val: any) => <span className="font-black text-gray-900">{formatCurrency(val)}</span> },
+                  { key: 'method', label: 'Mode', render: (val: any) => (
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase">
+                      {getMethodIcon(val)} {val}
+                    </div>
+                  )},
+                  { key: 'paidAt', label: 'Date', render: (val: any) => <span className="text-xs font-bold text-gray-500">{formatDate(val)}</span> },
+                  { key: 'status', label: 'Statut', render: (val: any) => <Badge variant={val === 'PAID' ? 'success' : 'warning'}>{val}</Badge> },
+                  { key: 'actions', label: '', render: (_: any, row: any) => (
+                    <div className="flex justify-end pr-2 gap-2">
+                      <button 
+                        onClick={() => {
+                          const status: any = { familyId: row.familyName || 'Client', totalRemaining: 0 };
+                          printFamilyReceipt(status, row.amount, row.method, row.reference);
+                        }}
+                        className="p-2 hover:bg-bleu-50 text-bleu-600 rounded-xl transition-colors"
+                        title="Imprimer le reçu"
+                      >
+                        <Printer size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePayment(row.id)}
+                        className="p-2 hover:bg-rouge-50 text-rouge-500 rounded-xl transition-colors"
+                        title="Supprimer ce paiement"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                ] as any}
+              />
             )}
           </Card>
         </div>
       )}
 
-      {/* ── TAB: FRAIS DE SCOLARITÉ ─────────────────────────────────────────── */}
-      {activeTab === 'expenses' && (
-        <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
-              {categoriesList.map(cat => (
-                <button
-                  key={cat.value}
-                  onClick={() => setFilterCategory(cat.value)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-semibold whitespace-nowrap transition-all ${
-                    filterCategory === cat.value
-                      ? 'bg-rouge-600 text-white shadow-lg'
-                      : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5'
-                  }`}
+      {/* --- Modals --- */}
+      
+      {/* Family Payment Modal */}
+      <Modal isOpen={isFamilyPaymentModalOpen} onClose={() => setIsFamilyPaymentModalOpen(false)} title="Payer Scolarité Famille" size="md">
+        <div className="space-y-6">
+          <div className="p-4 bg-bleu-50 rounded-2xl border border-bleu-100">
+            <p className="text-[10px] font-bold text-bleu-600 uppercase mb-1">Reste à payer total</p>
+            <p className="text-2xl font-black text-gray-900">{familyStatus ? formatCurrency(familyStatus.totalRemaining) : '0 GNF'}</p>
+          </div>
+          <Input 
+            label="Montant du versement (GNF)" 
+            type="number" 
+            value={familyPaymentForm.amount || ''} 
+            onChange={e => setFamilyPaymentForm(f => ({ ...f, amount: Number(e.target.value) }))}
+          />
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Mode de Paiement</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['CASH', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CHECK'] as PaymentMethod[]).map(m => (
+                <button 
+                  key={m}
+                  onClick={() => setFamilyPaymentForm(f => ({ ...f, method: m }))}
+                  className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${familyPaymentForm.method === m ? 'border-bleu-500 bg-bleu-50' : 'border-gray-100 hover:border-bleu-200'}`}
                 >
-                  {cat.label}
+                  {getMethodIcon(m)}
+                  <span className="text-xs font-bold">{m}</span>
                 </button>
               ))}
             </div>
-            <div className="relative w-full lg:w-96">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
-              <input
-                type="text"
-                placeholder="Rechercher une dépense..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rouge-500/10 transition-all font-semibold text-gray-700 dark:text-white shadow-sm"
-              />
-            </div>
           </div>
-
-          <Card className="p-2 overflow-hidden border-none shadow-soft dark:bg-gray-900/50 dark:backdrop-blur-md">
-            {expenseLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-rouge-600" size={32} />
-              </div>
-            ) : expenses.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-                <AlertTriangle size={40} className="opacity-20" />
-                <span className="text-sm font-medium">Aucune dépense trouvée</span>
-              </div>
-            ) : (
-              <Table data={expenses} columns={expenseColumns as any} />
-            )}
-          </Card>
+          <Input 
+            label="Référence / Libellé" 
+            placeholder="Ex: Versement Mars 2024"
+            value={familyPaymentForm.reference}
+            onChange={e => setFamilyPaymentForm(f => ({ ...f, reference: e.target.value }))}
+          />
+          <div className="flex gap-3 pt-4">
+            <Button variant="outline" onClick={() => setIsFamilyPaymentModalOpen(false)} className="flex-1">Annuler</Button>
+            <Button onClick={handleFamilyPayment} loading={familySubmitting} className="flex-1 bg-bleu-600 shadow-blue">Confirmer le Paiement</Button>
+          </div>
         </div>
-      )}
+      </Modal>
 
-      {activeTab === 'family' && (
-        <FamilyBillingTab
-          students={students}
-          payments={payments}
-          pivotStudentId={familyPivotStudentId}
-          onPickStudent={setFamilyPivotStudentId}
-          onPaymentSubmit={async ({ studentId, amount, reference }) => {
-            // Réutilise l'endpoint d'encaissement existant POST /payments.
-            // Le backend (PaymentRequest record) attend strictement :
-            //   amount, reference (non vide), method, studentId, categoryId.
-            // Toute note libre est intégrée dans `reference`.
-            setIsSubmitting(true);
-            try {
-              const token = getToken();
-              if (!token) throw new Error('Token manquant.');
-              await apiRequest(`/payments`, {
-                method: 'POST',
-                token,
-                body: JSON.stringify({
-                  studentId,
-                  amount,
-                  reference: reference || `PMT-${Date.now()}`,
-                  method: 'CASH',
-                  categoryId: null,
-                }),
-              });
-              showSuccess('Paiement enregistré.');
-              await fetchPayments();
-            } catch (err: any) {
-              setError(err?.message ?? "L'enregistrement du paiement a échoué.");
-            } finally {
-              setIsSubmitting(false);
-            }
-          }}
-          submitting={isSubmitting}
-          isPaymentOpen={isFamilyPaymentOpen}
-          onPaymentClose={() => setIsFamilyPaymentOpen(false)}
-        />
-      )}
-
-      {/* ── MODAL : Nouvel encaissement ──────────────────────────────────────── */}
-      {isEncaissementModalOpen && (
-        <Modal
-          isOpen={isEncaissementModalOpen}
-          onClose={() => setIsEncaissementModalOpen(false)}
-          title="Nouvel Encaissement"
-        >
-          <div className="space-y-4 p-1">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Élève *</label>
-              <select
-                value={formData.studentId}
-                onChange={e => setFormData(f => ({ ...f, studentId: e.target.value }))}
-                className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
-              >
-                <option value="">Sélectionner un élève...</option>
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.firstName} {s.lastName}{s.registrationNumber ? ` (${s.registrationNumber})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Service</label>
-              <div className="flex flex-col gap-2 mt-2">
-                {paymentServiceOptions.map(option => {
-                  const isActive = selectedPaymentService === option.value;
-                  return (
-                    <label
-                      key={option.value}
-                      className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-all ${
-                        isActive
-                          ? 'border-bleu-500 bg-bleu-50 dark:bg-bleu-900/20'
-                          : 'border-gray-200 bg-white dark:border-white/10 dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isActive}
-                        onChange={() => setSelectedPaymentService(option.value)}
-                        className="w-5 h-5 rounded border-gray-300 text-bleu-600 focus:ring-bleu-500 focus:ring-offset-0 cursor-pointer"
-                      />
-                      <span className={`text-sm font-bold ${isActive ? 'text-bleu-700 dark:text-bleu-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                        {option.label}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-              {selectedPaymentService === 'autres' && (
-                <div className="mt-3">
-                  <Input
-                    value={otherPaymentServiceLabel}
-                    onChange={e => setOtherPaymentServiceLabel(e.target.value)}
-                    placeholder="Préciser le service"
-                  />
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Montant (GNF) *</label>
-              <Input
-                type="number"
-                value={formData.amount || ''}
-                onChange={e => setFormData(f => ({ ...f, amount: Number(e.target.value) }))}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Référence *</label>
-              <Input
-                value={formData.reference}
-                onChange={e => setFormData(f => ({ ...f, reference: e.target.value }))}
-                placeholder="REF-2024-001"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Mode de paiement</label>
-              <select
-                value={formData.method}
-                onChange={e => setFormData(f => ({ ...f, method: e.target.value as PaymentMethod }))}
-                className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
-              >
-                <option value="CASH">Espèces</option>
-                <option value="MOBILE_MONEY">Mobile Money</option>
-                <option value="BANK_TRANSFER">Virement bancaire</option>
-                <option value="CHECK">Chèque</option>
-              </select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIsEncaissementModalOpen(false)} className="flex-1">
-                Annuler
-              </Button>
-              <Button
-                onClick={handleCreatePayment}
-                disabled={isSubmitting || !formData.studentId || !formData.amount || !formData.reference || (selectedPaymentService === 'autres' && !otherPaymentServiceLabel.trim())}
-                className="flex-1"
-              >
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Enregistrer'}
-              </Button>
-            </div>
+      {/* Misc Payment Modal */}
+      <Modal isOpen={isMiscModalOpen} onClose={() => setIsMiscModalOpen(false)} title="Nouvel Encaissement Divers" size="md">
+        <div className="space-y-6">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Catégorie</label>
+            <select 
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-bleu-500/10"
+              value={miscPaymentForm.categoryId || ''}
+              onChange={e => setMiscPaymentForm(f => ({ ...f, categoryId: Number(e.target.value) }))}
+            >
+              <option value="">Sélectionner une catégorie...</option>
+              {incomeCategories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
-        </Modal>
-      )}
-
-      {/* ── MODAL : Versement scolarité ───────────────────────────────────────── */}
-      {isExpenseModalOpen && (
-        <Modal
-          isOpen={isExpenseModalOpen}
-          onClose={() => setIsExpenseModalOpen(false)}
-          title="Nouvelle Dépense"
-        >
-          <div className="space-y-4 p-1">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Catégorie *</label>
-              <select
-                value={expenseForm.categoryId ?? ''}
-                onChange={e => setExpenseForm(f => ({ ...f, categoryId: e.target.value ? Number(e.target.value) : null }))}
-                className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rouge-500/10 font-semibold text-gray-700 dark:text-white"
-              >
-                <option value="">Sélectionner une catégorie...</option>
-                {expenseCategories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name} {category.module ? `(${category.module})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Description *</label>
-              <Input
-                value={expenseForm.description}
-                onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Ex: achat cantine, salaire, carburant..."
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Montant (GNF) *</label>
-                <Input
-                  type="number"
-                  value={expenseForm.amount || ''}
-                  onChange={e => setExpenseForm(f => ({ ...f, amount: Number(e.target.value) }))}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Date *</label>
-                <Input
-                  type="date"
-                  value={expenseForm.expenseDate}
-                  onChange={e => setExpenseForm(f => ({ ...f, expenseDate: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIsExpenseModalOpen(false)} className="flex-1">
-                Annuler
-              </Button>
-              <Button
-                onClick={handleCreateExpense}
-                disabled={expenseSubmitting || !expenseForm.amount || !expenseForm.description.trim() || !expenseForm.expenseDate || !expenseForm.categoryId}
-                className="flex-1"
-              >
-                {expenseSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Enregistrer'}
-              </Button>
-            </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Assigner à une famille (Optionnel)</label>
+            <select 
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-bleu-500/10"
+              value={miscPaymentForm.familyId || ''}
+              onChange={e => setMiscPaymentForm(f => ({ ...f, familyId: e.target.value }))}
+            >
+              <option value="">Client divers</option>
+              {parents.map(p => (
+                <option key={p.id} value={p.familyId}>Famille {p.lastName} ({p.firstName})</option>
+              ))}
+            </select>
           </div>
-        </Modal>
-      )}
-
-      {isTuitionPaymentModalOpen && selectedInstallment && (
-        <Modal
-          isOpen={isTuitionPaymentModalOpen}
-          onClose={() => setIsTuitionPaymentModalOpen(false)}
-          title="Enregistrer un versement"
-        >
-          <div className="space-y-4 p-1">
-            <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-2xl text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {selectedInstallment.installmentLabel} — Restant : {new Intl.NumberFormat('fr-GN').format(Number(selectedInstallment.remainingAmount))} GNF
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Montant (GNF) *</label>
-              <Input
-                type="number"
-                value={tuitionPaymentForm.amount || ''}
-                onChange={e => setTuitionPaymentForm(f => ({ ...f, amount: Number(e.target.value) }))}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Référence</label>
-              <Input
-                value={tuitionPaymentForm.reference}
-                onChange={e => setTuitionPaymentForm(f => ({ ...f, reference: e.target.value }))}
-                placeholder="REF-2024-001"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Mode de paiement</label>
-              <select
-                value={tuitionPaymentForm.method}
-                onChange={e => setTuitionPaymentForm(f => ({ ...f, method: e.target.value as PaymentMethod }))}
-                className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-bleu-500/10 font-semibold text-gray-700 dark:text-white"
-              >
-                <option value="CASH">Espèces</option>
-                <option value="MOBILE_MONEY">Mobile Money</option>
-                <option value="BANK_TRANSFER">Virement bancaire</option>
-                <option value="CHECK">Chèque</option>
-              </select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIsTuitionPaymentModalOpen(false)} className="flex-1">
-                Annuler
-              </Button>
-              <Button
-                onClick={handleRegisterTuitionPayment}
-                disabled={tuitionSubmitting || !tuitionPaymentForm.amount}
-                className="flex-1"
-              >
-                {tuitionSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Enregistrer'}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── MODAL : Reçu ─────────────────────────────────────────────────────── */}
-      {isReceiptModalOpen && selectedPayment && (
-        <Modal
-          isOpen={isReceiptModalOpen}
-          onClose={() => { setIsReceiptModalOpen(false); setReceiptServiceOverride(null); }}
-          title="Détails du paiement"
-        >
-          <div className="space-y-4 p-1">
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: 'Référence', value: selectedPayment.reference },
-                { label: 'Élève', value: selectedPayment.studentName },
-                { label: 'Service', value: selectedPayment.categoryName || receiptServiceOverride || 'Non renseigné' },
-                { label: 'Montant', value: formatCurrency(Number(selectedPayment.amount)) },
-                { label: 'Statut', value: getStatusLabel(selectedPayment.status) },
-                { label: 'Mode', value: getMethodLabel(selectedPayment.method) },
-                { label: 'Date', value: formatDate(selectedPayment.paidAt) },
-              ].map(item => (
-                <div key={item.label} className="p-3 bg-gray-50 dark:bg-white/5 rounded-2xl">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{item.label}</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{item.value}</p>
-                </div>
+          <Input 
+            label="Montant (GNF)" 
+            type="number" 
+            value={miscPaymentForm.amount || ''} 
+            onChange={e => setMiscPaymentForm(f => ({ ...f, amount: Number(e.target.value) }))}
+          />
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Mode de Paiement</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['CASH', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CHECK'] as PaymentMethod[]).map(m => (
+                <button 
+                  key={m}
+                  onClick={() => setMiscPaymentForm(f => ({ ...f, method: m }))}
+                  className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${miscPaymentForm.method === m ? 'border-bleu-500 bg-bleu-50' : 'border-gray-100'}`}
+                >
+                  {getMethodIcon(m)}
+                  <span className="text-xs font-bold">{m}</span>
+                </button>
               ))}
             </div>
-            <Button
-              onClick={() => { printReceipt(selectedPayment, selectedStudentForReceipt); }}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <Printer size={16} /> Imprimer le reçu
-            </Button>
           </div>
-        </Modal>
-      )}
+          <Input 
+            label="Référence / Libellé" 
+            placeholder="Ex: Achat Uniforme"
+            value={miscPaymentForm.reference}
+            onChange={e => setMiscPaymentForm(f => ({ ...f, reference: e.target.value }))}
+          />
+          <div className="flex gap-3 pt-4">
+            <Button variant="outline" onClick={() => setIsMiscModalOpen(false)} className="flex-1">Annuler</Button>
+            <Button onClick={handleMiscPayment} loading={miscSubmitting} className="flex-1 bg-bleu-600">Enregistrer</Button>
+          </div>
+        </div>
+      </Modal>
 
-      {/* ── MODAL : Rapports ──────────────────────────────────────────────────── */}
-      {isRapportsModalOpen && (
-        <Modal
-          isOpen={isRapportsModalOpen}
-          onClose={() => setIsRapportsModalOpen(false)}
-          title="Générer un rapport"
-        >
-          <div className="space-y-3 p-1">
-            {[
-              { label: 'Rapport des paiements', path: '/payments/report', file: 'rapport-paiements.pdf' },
-              { label: 'Rapport des impayés', path: '/payments/overdue/report', file: 'rapport-impayes.pdf' },
-              { label: 'Rapport de scolarité', path: '/tuition-fees/report', file: 'rapport-scolarite.pdf' },
-            ].map(r => (
-              <button
-                key={r.path}
-                onClick={() => downloadReport(r.path, r.file)}
-                className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 hover:bg-bleu-50 dark:hover:bg-bleu-900/20 rounded-2xl text-sm font-bold text-gray-700 dark:text-gray-300 transition-all"
-              >
-                <Download size={16} className="text-bleu-600" /> {r.label}
-              </button>
-            ))}
-          </div>
-        </Modal>
-      )}
     </motion.div>
   );
 };

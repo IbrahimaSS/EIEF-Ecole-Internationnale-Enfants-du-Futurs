@@ -70,6 +70,39 @@ const LABEL_BY_TYPE: Record<ModalityType, string> = {
   REINSCRIPTION: 'Réinscription',
 };
 
+// ── Frais d'inscription / réinscription ─────────────────────────────────────
+// Le backend ne possède pas (encore) de champ dédié pour les frais initiaux
+// (inscription / réinscription) distincts des tranches de scolarité. On les
+// encode comme une échéance spéciale (la première) avec un libellé porteur
+// du marqueur "[INSCRIPTION_FEE]" ou "[REINSCRIPTION_FEE]". Les helpers
+// ci-dessous gèrent l'encodage/décodage de façon transparente.
+//
+// Règle métier : à partir de 3 enfants d'une même famille, ces frais sont
+// offerts. La logique de déduction est appliquée côté Encaissement (admin/
+// Accounting.tsx → computeFamilyDiscountInfo). Le marqueur ci-dessus permet
+// au frontend d'identifier ces frais dans la liste d'échéances.
+const INSCRIPTION_FEE_LABEL_PREFIX = '[INSCRIPTION_FEE]';
+const REINSCRIPTION_FEE_LABEL_PREFIX = '[REINSCRIPTION_FEE]';
+const FEE_LABEL_BY_TYPE: Record<ModalityType, string> = {
+  INSCRIPTION: 'Frais d\'inscription',
+  REINSCRIPTION: 'Frais de réinscription',
+};
+const FEE_PREFIX_BY_TYPE: Record<ModalityType, string> = {
+  INSCRIPTION: INSCRIPTION_FEE_LABEL_PREFIX,
+  REINSCRIPTION: REINSCRIPTION_FEE_LABEL_PREFIX,
+};
+const isInscriptionFeeLabel = (label: string): boolean =>
+  label.startsWith(INSCRIPTION_FEE_LABEL_PREFIX) || label.startsWith(REINSCRIPTION_FEE_LABEL_PREFIX);
+const extractInscriptionFee = (
+  installments: TuitionFeePayload['installments'],
+): { amount: number; dueDate: string } | null => {
+  const found = installments.find((inst) => isInscriptionFeeLabel(inst.label));
+  if (!found) return null;
+  return { amount: Number(found.amount) || 0, dueDate: found.dueDate || '' };
+};
+const stripInscriptionFee = (installments: TuitionFeePayload['installments']) =>
+  installments.filter((inst) => !isInscriptionFeeLabel(inst.label));
+
 const normalizeInstallments = (installments: TuitionFeePayload['installments']) =>
   installments.map((installment, index) => ({
     ...installment,
@@ -96,6 +129,11 @@ const TuitionModalityManager: React.FC<Props> = ({
   const [modalityType, setModalityType] = useState<ModalityType>('INSCRIPTION');
   // Filtre par type dans la liste des modalités existantes.
   const [typeFilter, setTypeFilter] = useState<'TOUS' | ModalityType>('TOUS');
+  // Frais d'inscription / réinscription (saisis séparément des tranches).
+  // Sont mergés à la liste d'échéances au moment de la soumission (avec
+  // marqueur dans le libellé) et extraits lors du chargement en édition.
+  const [inscriptionFeeAmount, setInscriptionFeeAmount] = useState<number>(0);
+  const [inscriptionFeeDueDate, setInscriptionFeeDueDate] = useState<string>('');
 
   // Toutes les classes sont disponibles à la création/édition d'une modalité.
   // On ne filtre plus par année académique pour ne pas masquer des classes
@@ -136,10 +174,16 @@ const TuitionModalityManager: React.FC<Props> = ({
     });
   }, [selectedClassFilterId, typeFilter, tuitionFees]);
 
-  const installmentTotal = useMemo(
+  // Total des tranches "scolarité" (hors frais d'inscription / réinscription).
+  const scolariteInstallmentTotal = useMemo(
     () => formData.installments.reduce((sum, installment) => sum + Number(installment.amount || 0), 0),
     [formData.installments],
   );
+
+  // Total réel = tranches de scolarité + frais initial (inscription /
+  // réinscription saisi séparément). C'est ce total qui doit correspondre
+  // au "montant total" déclaré pour la modalité.
+  const installmentTotal = scolariteInstallmentTotal + Number(inscriptionFeeAmount || 0);
 
   const totalDifference = Number(formData.totalAmount || 0) - installmentTotal;
 
@@ -148,6 +192,8 @@ const TuitionModalityManager: React.FC<Props> = ({
     setFormError(null);
     setFormData(createEmptyForm());
     setModalityType('INSCRIPTION');
+    setInscriptionFeeAmount(0);
+    setInscriptionFeeDueDate('');
     setIsModalOpen(false);
   };
 
@@ -156,6 +202,8 @@ const TuitionModalityManager: React.FC<Props> = ({
     setFormError(null);
     setFormData(createEmptyForm());
     setModalityType('INSCRIPTION');
+    setInscriptionFeeAmount(0);
+    setInscriptionFeeDueDate('');
     setIsModalOpen(true);
   };
 
@@ -164,6 +212,21 @@ const TuitionModalityManager: React.FC<Props> = ({
     setFormError(null);
     const type = extractType(tuitionFee.description);
     setModalityType(type);
+    // Sépare les frais d'inscription/réinscription des tranches de scolarité
+    // pour les éditer indépendamment.
+    const allInstallments = (tuitionFee.installments ?? [])
+      .slice()
+      .sort((left, right) => left.installmentOrder - right.installmentOrder)
+      .map((installment) => ({
+        label: installment.label,
+        amount: Number(installment.amount),
+        dueDate: installment.dueDate,
+        installmentOrder: installment.installmentOrder,
+      }));
+    const feeInfo = extractInscriptionFee(allInstallments);
+    setInscriptionFeeAmount(feeInfo?.amount ?? 0);
+    setInscriptionFeeDueDate(feeInfo?.dueDate ?? '');
+    const onlyScolariteInstallments = stripInscriptionFee(allInstallments);
     setFormData({
       name: tuitionFee.name,
       // On retire le marqueur pour que la description affichée reste propre.
@@ -172,15 +235,9 @@ const TuitionModalityManager: React.FC<Props> = ({
       totalAmount: Number(tuitionFee.totalAmount),
       classIds: tuitionFee.classIds,
       installments: normalizeInstallments(
-        (tuitionFee.installments ?? [])
-          .slice()
-          .sort((left, right) => left.installmentOrder - right.installmentOrder)
-          .map((installment) => ({
-            label: installment.label,
-            amount: Number(installment.amount),
-            dueDate: installment.dueDate,
-            installmentOrder: installment.installmentOrder,
-          })),
+        onlyScolariteInstallments.length > 0
+          ? onlyScolariteInstallments
+          : [createInstallment(1)],
       ),
       active: tuitionFee.isActive,
     });
@@ -223,7 +280,7 @@ const TuitionModalityManager: React.FC<Props> = ({
     }
 
     if (Math.abs(totalDifference) > 0.01) {
-      return 'Le total des échéances doit correspondre exactement au montant total.';
+      return 'Le total (frais initial + échéances) doit correspondre exactement au montant total déclaré.';
     }
 
     return null;
@@ -237,6 +294,29 @@ const TuitionModalityManager: React.FC<Props> = ({
       return;
     }
 
+    // Si un frais d'inscription/réinscription a été saisi, on le préfixe
+    // comme PREMIÈRE échéance avec son marqueur. Date d'échéance par défaut :
+    // celle saisie, ou à défaut la date de la première tranche.
+    const feeAmount = Number(inscriptionFeeAmount || 0);
+    const feeInstallments = feeAmount > 0
+      ? [{
+          label: `${FEE_PREFIX_BY_TYPE[modalityType]} ${FEE_LABEL_BY_TYPE[modalityType]}`,
+          amount: feeAmount,
+          dueDate: inscriptionFeeDueDate || formData.installments[0]?.dueDate || '',
+          installmentOrder: 1,
+        }]
+      : [];
+
+    const mergedInstallments = [
+      ...feeInstallments,
+      ...formData.installments.map((inst) => ({
+        label: inst.label.trim(),
+        amount: Number(inst.amount),
+        dueDate: inst.dueDate,
+        installmentOrder: inst.installmentOrder,
+      })),
+    ];
+
     const payload: TuitionFeePayload = {
       ...formData,
       name: formData.name.trim(),
@@ -245,8 +325,8 @@ const TuitionModalityManager: React.FC<Props> = ({
       description: encodeTypeInDescription(modalityType, formData.description.trim()),
       totalAmount: Number(formData.totalAmount),
       classIds: [...formData.classIds],
-      installments: normalizeInstallments(formData.installments).map((installment, index) => ({
-        label: installment.label.trim(),
+      installments: normalizeInstallments(mergedInstallments).map((installment, index) => ({
+        label: installment.label,
         amount: Number(installment.amount),
         dueDate: installment.dueDate,
         installmentOrder: index + 1,
@@ -272,10 +352,92 @@ const TuitionModalityManager: React.FC<Props> = ({
       return;
     }
 
-    await onDelete(tuitionFee.id);
+    // On capture l'erreur ici pour éviter qu'elle ne remonte en "Uncaught
+    // runtime error". Le backend renvoie typiquement :
+    //   "Cannot delete a tuition fee modality that already has payments"
+    // quand des versements sont déjà rattachés à la modalité.
+    // Dans ce cas, on propose à l'utilisateur d'ARCHIVER la modalité
+    // (la passer en inactive) plutôt que de la supprimer — c'est la
+    // bonne pratique comptable : on garde l'historique mais elle
+    // n'apparaît plus comme choix pour les nouveaux versements.
+    try {
+      await onDelete(tuitionFee.id);
+      if (editingFeeId === tuitionFee.id) {
+        resetModal();
+      }
+    } catch (err: any) {
+      const raw = (err?.message || '').toString();
+      const isHasPayments = raw.toLowerCase().includes('already has payments')
+        || raw.toLowerCase().includes('has payments');
 
-    if (editingFeeId === tuitionFee.id) {
-      resetModal();
+      if (!isHasPayments) {
+        // Erreur d'une autre nature : on l'affiche telle quelle.
+        const msg = `Suppression impossible : ${raw || 'erreur inconnue'}`;
+        if (isModalOpen && editingFeeId === tuitionFee.id) {
+          setFormError(msg);
+        } else {
+          window.alert(msg);
+        }
+        return;
+      }
+
+      // Cas "has payments" : on propose l'archivage à la place.
+      if (!tuitionFee.isActive) {
+        // Déjà archivée → rien à faire de plus.
+        window.alert(
+          `"${tuitionFee.name}" a déjà des paiements et est déjà archivée (inactive). Elle ne peut donc pas être supprimée pour préserver la traçabilité comptable.`,
+        );
+        return;
+      }
+
+      const archiveConfirmed = window.confirm(
+        `Impossible de supprimer "${tuitionFee.name}" : des paiements y sont déjà associés.\n\n`
+        + `Veux-tu plutôt l'ARCHIVER (la rendre inactive) ?\n`
+        + `→ Elle reste dans l'historique pour les paiements existants.\n`
+        + `→ Elle disparaît des choix pour les nouveaux versements.\n\n`
+        + `Clique OK pour archiver, ou Annuler pour la garder active.`,
+      );
+
+      if (!archiveConfirmed) return;
+
+      try {
+        // Reconstruit le payload complet à partir des données actuelles,
+        // en forçant active=false. On nettoie le marqueur de type dans la
+        // description pour ne pas l'encoder deux fois, et on respecte les
+        // installments existants (y compris l'éventuel frais initial avec
+        // son marqueur).
+        const type = extractType(tuitionFee.description);
+        const cleanDescription = stripTypeMarker(tuitionFee.description ?? '');
+        const payload: TuitionFeePayload = {
+          name: tuitionFee.name,
+          description: encodeTypeInDescription(type, cleanDescription),
+          academicYearId: tuitionFee.academicYearId,
+          totalAmount: Number(tuitionFee.totalAmount),
+          classIds: [...(tuitionFee.classIds || [])],
+          installments: (tuitionFee.installments || [])
+            .slice()
+            .sort((a, b) => a.installmentOrder - b.installmentOrder)
+            .map((inst, idx) => ({
+              label: inst.label,
+              amount: Number(inst.amount),
+              dueDate: inst.dueDate,
+              installmentOrder: idx + 1,
+            })),
+          active: false,
+        };
+        await onUpdate(tuitionFee.id, payload);
+        if (editingFeeId === tuitionFee.id) {
+          resetModal();
+        }
+        window.alert(`"${tuitionFee.name}" a été archivée avec succès.`);
+      } catch (archiveErr: any) {
+        const archiveMsg = `Archivage impossible : ${(archiveErr?.message || 'erreur inconnue')}`;
+        if (isModalOpen && editingFeeId === tuitionFee.id) {
+          setFormError(archiveMsg);
+        } else {
+          window.alert(archiveMsg);
+        }
+      }
     }
   };
 
@@ -513,12 +675,25 @@ const TuitionModalityManager: React.FC<Props> = ({
                         className="flex flex-col gap-3 rounded-2xl border border-gray-100 px-4 py-3 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="rounded-xl bg-bleu-50 p-2 text-bleu-700 dark:bg-bleu-900/20 dark:text-bleu-300">
+                          <div className={`rounded-xl p-2 ${
+                            isInscriptionFeeLabel(installment.label)
+                              ? 'bg-or-50 dark:bg-or-900/20 text-or-700 dark:text-or-300'
+                              : 'bg-bleu-50 dark:bg-bleu-900/20 text-bleu-700 dark:text-bleu-300'
+                          }`}>
                             <CalendarDays size={15} />
                           </div>
                           <div>
                             <p className="text-sm font-bold text-gray-900 dark:text-white">
-                              {installment.label}
+                              {/* Masque le marqueur technique du libellé. */}
+                              {installment.label
+                                .replace(INSCRIPTION_FEE_LABEL_PREFIX, '')
+                                .replace(REINSCRIPTION_FEE_LABEL_PREFIX, '')
+                                .trim() || installment.label}
+                              {isInscriptionFeeLabel(installment.label) && (
+                                <Badge variant="warning" className="ml-2 text-[8px] font-bold uppercase tracking-widest">
+                                  Frais initial
+                                </Badge>
+                              )}
                             </p>
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
                               Échéance {formatDate(installment.dueDate)}
@@ -622,60 +797,40 @@ const TuitionModalityManager: React.FC<Props> = ({
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
             <div>
               <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Année académique (sélectionner une date dans l'année)
+                Année académique
               </label>
-              {/* Le comptable choisit une date dans le calendrier. Le système
-                  retrouve automatiquement l'année académique qui contient cette
-                  date (en comparant startDate ≤ date ≤ endDate). À défaut, il
-                  fait un match par nom (ex: "2026-2027" pour une date en
-                  septembre 2026 → année qui commence en 2026). */}
-              <input
-                type="date"
-                min="2026-01-01"
-                value={(() => {
-                  const matched = academicYears.find((y) => y.id === formData.academicYearId);
-                  return matched?.startDate ? matched.startDate.slice(0, 10) : '';
-                })()}
-                onChange={(event) => {
-                  const picked = event.target.value;
-                  if (!picked) {
-                    setFormData((current) => ({ ...current, academicYearId: '' }));
-                    return;
-                  }
-                  const pickedDate = new Date(picked);
-                  // 1) Match par plage de dates
-                  let matched = academicYears.find((y) => {
-                    if (!y.startDate || !y.endDate) return false;
-                    return new Date(y.startDate) <= pickedDate && pickedDate <= new Date(y.endDate);
-                  });
-                  // 2) Fallback : match par nom (ex: "2026-2027" si la date est en 2026 entre sept et déc, ou en 2027 entre jan et août)
-                  if (!matched) {
-                    const y = pickedDate.getFullYear();
-                    const m = pickedDate.getMonth() + 1;
-                    const startYear = m >= 8 ? y : y - 1;
-                    const expectedName = `${startYear}-${startYear + 1}`;
-                    matched = academicYears.find((ay) => (ay.name || '').includes(expectedName));
-                  }
-                  if (matched) {
-                    updateAcademicYear(matched.id);
-                  } else {
-                    // On affiche un état "non trouvé" — formData.academicYearId reste vide.
-                    setFormData((current) => ({ ...current, academicYearId: '' }));
-                  }
-                }}
+              {/* Sélection directe d'une année académique parmi celles déjà
+                  définies (Administration → Scolarité). Format affiché :
+                  "2026-2027", "2027-2028"... */}
+              <select
+                value={formData.academicYearId}
+                onChange={(event) => updateAcademicYear(event.target.value)}
                 className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-700 focus:outline-none focus:ring-4 focus:ring-bleu-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              />
-              {/* Année identifiée (ou message si non trouvée) */}
+              >
+                <option value="">Sélectionner une année académique...</option>
+                {academicYears
+                  .slice()
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                  .map((year) => (
+                    <option key={year.id} value={year.id}>
+                      {year.name}{year.isActive ? ' (active)' : ''}
+                    </option>
+                  ))}
+              </select>
               {formData.academicYearId ? (
                 <p className="mt-1.5 text-[10px] font-bold text-vert-700 dark:text-vert-300">
-                  Année identifiée :{' '}
+                  Année sélectionnée :{' '}
                   {academicYears.find((y) => y.id === formData.academicYearId)?.name || '—'}
                   {academicYears.find((y) => y.id === formData.academicYearId)?.isActive ? ' (active)' : ''}
                 </p>
+              ) : academicYears.length === 0 ? (
+                <p className="mt-1.5 text-[10px] font-semibold italic text-gray-400">
+                  Aucune année académique enregistrée. Créez-en une d'abord
+                  dans <strong>Administration → Scolarité</strong>.
+                </p>
               ) : (
                 <p className="mt-1.5 text-[10px] font-semibold italic text-gray-400">
-                  Aucune année académique ne correspond à cette date. Créez-la
-                  d'abord dans <strong>Administration → Scolarité</strong>.
+                  Choisis l'année à laquelle cette modalité s'applique.
                 </p>
               )}
             </div>
@@ -744,14 +899,41 @@ const TuitionModalityManager: React.FC<Props> = ({
             </div>
           </div>
 
+          {/* ── Frais d'inscription / réinscription ──────────────────────
+              Saisi séparément des tranches de scolarité. La somme s'ajoute
+              automatiquement au "Total des échéances" pour vérifier la
+              cohérence avec le Montant total déclaré. */}
+          <div className="rounded-3xl border-2 border-or-200 dark:border-or-900/30 bg-or-50/50 dark:bg-or-900/10 p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-or-700 dark:text-or-300">
+                  {FEE_LABEL_BY_TYPE[modalityType]} (à payer une fois)
+                </p>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Ce montant est offert aux familles ayant 3 enfants ou plus inscrits.
+                </p>
+              </div>
+            </div>
+            <Input
+              type="number"
+              value={inscriptionFeeAmount || ''}
+              onChange={(event) => setInscriptionFeeAmount(Number(event.target.value))}
+              placeholder="0"
+              label="Montant (GNF)"
+            />
+            <p className="mt-2 text-[10px] italic text-gray-500 dark:text-gray-400">
+              Laisser à 0 si la modalité n'inclut pas de frais initial.
+            </p>
+          </div>
+
           <div>
             <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Échéancier
+                  Échéancier de scolarité
                 </p>
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Répartissez le montant total sur une ou plusieurs échéances.
+                  Répartissez les frais de scolarité (hors frais initial) sur une ou plusieurs tranches.
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={addInstallment}>
@@ -811,22 +993,31 @@ const TuitionModalityManager: React.FC<Props> = ({
               ))}
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 rounded-3xl bg-gray-50 p-4 dark:bg-gray-900/60 lg:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-3 rounded-3xl bg-gray-50 p-4 dark:bg-gray-900/60 lg:grid-cols-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Montant total saisi
+                  {FEE_LABEL_BY_TYPE[modalityType]}
                 </p>
-                <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
-                  {formatCurrency(Number(formData.totalAmount))}
+                <p className="mt-1 text-sm font-black text-or-700 dark:text-or-300">
+                  {formatCurrency(Number(inscriptionFeeAmount || 0))}
                 </p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Total des échéances
+                  Échéances scolarité
+                </p>
+                <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
+                  {formatCurrency(scolariteInstallmentTotal)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Total calculé
                 </p>
                 <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
                   {formatCurrency(installmentTotal)}
                 </p>
+                <p className="text-[9px] text-gray-500">vs déclaré : {formatCurrency(Number(formData.totalAmount))}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
