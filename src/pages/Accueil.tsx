@@ -31,6 +31,13 @@ import {
   GraduationCap as GraduationCapIcon,
   RefreshCcw,
   Image as ImageIcon,
+  Baby,
+  Puzzle,
+  Palette,
+  Backpack,
+  Banknote,
+  Landmark,
+  Trophy,
 } from 'lucide-react';
 import { Button } from '../components/ui';
 import { cn } from '../utils/cn';
@@ -47,12 +54,13 @@ const YT_VIDEOS = [
 ];
 
 const NIVEAUX = [
-  { value: 'creche', label: '🍼 Crèche', frais: { inscription: 1500000, scolarite: 4500000 } },
-  { value: 'garderie', label: '🧸 Garderie', frais: { inscription: 1500000, scolarite: 4500000 } },
-  { value: 'maternelle', label: '🌱 Maternelle (PS / MS / GS)', frais: { inscription: 1800000, scolarite: 5500000 } },
-  { value: 'primaire', label: '📚 Primaire (CP au CM2)', frais: { inscription: 2000000, scolarite: 6500000 } },
-  { value: 'college', label: '🎒 Collège (6ème à 3ème)', frais: { inscription: 2200000, scolarite: 7500000 } },
-  { value: 'lycee', label: '🎓 Lycée (Seconde à Terminale)', frais: { inscription: 2500000, scolarite: 8500000 } },
+  { value: 'maternelle', label: 'Cycle Maternelle', icon: Baby, frais: { inscription: 500000, scolarite: 5300000 } },
+  { value: 'primaire', label: 'Cycle Primaire', icon: BookOpen, frais: { inscription: 500000, scolarite: 5800000 } },
+  { value: 'examen-primaire', label: 'Examen Primaire (CM2)', icon: Trophy, frais: { inscription: 3000000, scolarite: 5300000 } },
+  { value: 'college', label: 'Cycle Collège', icon: Backpack, frais: { inscription: 500000, scolarite: 7300000 } },
+  { value: 'examen-college', label: 'Examen Collège (10ème)', icon: Award, frais: { inscription: 3000000, scolarite: 6800000 } },
+  { value: 'lycee', label: 'Cycle Lycée', icon: GraduationCapIcon, frais: { inscription: 500000, scolarite: 7800000 } },
+  { value: 'examen-lycee', label: 'Examen Lycée (Terminale)', icon: GraduationCapIcon, frais: { inscription: 3000000, scolarite: 7300000 } },
 ];
 
 const formatGNF = (n: number) => `${new Intl.NumberFormat('fr-GN').format(n)} GNF`;
@@ -64,6 +72,7 @@ const Accueil: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [tarifsTab, setTarifsTab] = useState<'inscription' | 'reinscription'>('inscription');
   const [selectedNiveau, setSelectedNiveau] = useState<string>('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [fichesOpen, setFichesOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -462,40 +471,76 @@ const Accueil: React.FC = () => {
 
           <div className="bg-white dark:bg-gray-900 rounded-3xl p-2 shadow-md border-2 border-bleu-500 mb-8">
             <div className="relative">
-              <select
-                value={selectedNiveau}
-                onChange={(e) => setSelectedNiveau(e.target.value)}
-                className="w-full px-6 py-4 pr-12 rounded-2xl bg-transparent text-base font-bold text-gray-900 dark:text-white outline-none appearance-none cursor-pointer"
+              <div
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="w-full px-6 py-4 pr-12 rounded-2xl bg-transparent text-base font-bold text-gray-900 dark:text-white cursor-pointer flex items-center gap-3"
               >
-                <option value="">🎓 Choisir un niveau scolaire...</option>
-                {NIVEAUX.map((n) => (
-                  <option key={n.value} value={n.value}>{n.label}</option>
-                ))}
-              </select>
-              <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                {selectedNiveau ? (
+                  <>
+                    {React.createElement(NIVEAUX.find(n => n.value === selectedNiveau)?.icon || GraduationCapIcon, { size: 20, className: 'text-bleu-500' })}
+                    {NIVEAUX.find(n => n.value === selectedNiveau)?.label}
+                  </>
+                ) : (
+                  <>
+                    <GraduationCapIcon size={20} className="text-gray-400" />
+                    Choisir un niveau scolaire...
+                  </>
+                )}
+              </div>
+              <ChevronDown size={20} className={cn("absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none transition-transform", dropdownOpen && "rotate-180")} />
+              
+              {dropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 overflow-hidden z-50">
+                  {NIVEAUX.map((n) => (
+                    <div
+                      key={n.value}
+                      onClick={() => { setSelectedNiveau(n.value); setDropdownOpen(false); }}
+                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer flex items-center gap-3 text-gray-800 dark:text-gray-200 font-medium transition-colors border-b border-gray-50 dark:border-gray-700/50 last:border-0"
+                    >
+                      <n.icon size={18} className="text-bleu-500" />
+                      {n.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           {niveau ? (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-xl border border-gray-100 dark:border-white/5">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-black text-gray-900 dark:text-white">{niveau.label}</h3>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-bleu-50 dark:bg-bleu-900/20 flex items-center justify-center text-bleu-600 dark:text-bleu-400">
+                    <niveau.icon size={24} />
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white">{niveau.label}</h3>
+                </div>
                 <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest', tarifsTab === 'inscription' ? 'bg-vert-100 text-vert-700' : 'bg-bleu-100 text-bleu-700')}>
                   {tarifsTab === 'inscription' ? 'Nouvelle inscription' : 'Réinscription'}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="rounded-2xl bg-vert-50 dark:bg-vert-900/20 p-5 border border-vert-100 dark:border-vert-900/30">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-vert-700 dark:text-vert-400 mb-1">
-                    Frais de {tarifsTab === 'inscription' ? 'inscription' : 'réinscription'}
-                  </p>
-                  <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(fraisAffiches)}</p>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable à l'inscription</p>
+                <div className="rounded-2xl bg-vert-50 dark:bg-vert-900/20 p-5 border border-vert-100 dark:border-vert-900/30 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-vert-700 dark:text-vert-400 mb-1">
+                      Frais de {tarifsTab === 'inscription' ? 'inscription' : 'réinscription'}
+                    </p>
+                    <Banknote size={20} className="text-vert-500 opacity-50" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(fraisAffiches)}</p>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable à l'inscription</p>
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-or-50 dark:bg-or-900/20 p-5 border border-or-100 dark:border-or-900/30">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-or-700 dark:text-or-400 mb-1">Scolarité annuelle</p>
-                  <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(niveau.frais.scolarite)}</p>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable en plusieurs versements</p>
+                <div className="rounded-2xl bg-or-50 dark:bg-or-900/20 p-5 border border-or-100 dark:border-or-900/30 flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-or-700 dark:text-or-400 mb-1">Scolarité annuelle</p>
+                    <Landmark size={20} className="text-or-500 opacity-50" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(niveau.frais.scolarite)}</p>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable en plusieurs versements</p>
+                  </div>
                 </div>
               </div>
               <Button onClick={() => navigate('/preinscription')} className="w-full h-12 bg-vert-600 hover:bg-vert-700 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2">

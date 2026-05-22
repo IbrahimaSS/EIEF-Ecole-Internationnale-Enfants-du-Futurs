@@ -87,6 +87,8 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Inter', 'Plus Jakarta Sans', 'sans-serif'],
+        display: ['"Playfair Display"', 'Georgia', 'serif'],
+        serif: ['"Cormorant Garamond"', '"Playfair Display"', 'Georgia', 'serif'],
       },
       borderRadius: {
         'xl': '12px',

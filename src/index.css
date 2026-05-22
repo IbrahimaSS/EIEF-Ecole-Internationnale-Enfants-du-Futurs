@@ -194,12 +194,155 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, 
-    rgba(9, 26, 51, 0.75) 0%, 
+  background: linear-gradient(180deg,
+    rgba(9, 26, 51, 0.75) 0%,
     rgba(9, 26, 51, 0.85) 50%,
     rgba(9, 26, 51, 0.95) 100%
   );
   z-index: 1;
+}
+
+/* ===== IVY LEAGUE PREMIUM ANIMATIONS ===== */
+
+/* Ken Burns slow zoom for hero image */
+@keyframes kenBurns {
+  0%   { transform: scale(1) translate(0, 0); }
+  50%  { transform: scale(1.08) translate(-1%, -1%); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+.animate-ken-burns {
+  animation: kenBurns 22s ease-in-out infinite;
+}
+
+/* Subtle vertical scroll-down indicator */
+@keyframes scrollDown {
+  0%   { opacity: 0; transform: translateY(-8px); }
+  30%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(12px); }
+}
+.animate-scroll-down {
+  animation: scrollDown 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Premium gold shimmer for badges and lines */
+@keyframes goldShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 215, 130, 0.35) 25%,
+    rgba(255, 215, 130, 0.65) 50%,
+    rgba(255, 215, 130, 0.35) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: goldShimmer 4s linear infinite;
+}
+
+/* Pulsing dot — used in "Inscriptions ouvertes" badge */
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 168, 37, 0.6); }
+  50%      { box-shadow: 0 0 0 10px rgba(249, 168, 37, 0); }
+}
+.animate-pulse-dot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+/* Slow gradient drift for premium dark sections */
+@keyframes gradientDrift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-gradient-drift {
+  background-size: 200% 200%;
+  animation: gradientDrift 18s ease infinite;
+}
+
+/* Decorative gold divider — used between hero lines */
+.gold-divider {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(249, 168, 37, 0.8) 50%,
+    transparent
+  );
+}
+.gold-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: #F9A825;
+  box-shadow: 0 0 12px rgba(249, 168, 37, 0.6);
+}
+
+/* Floating blob for soft section accents */
+@keyframes blobFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(2%, -3%) scale(1.05); }
+  66%      { transform: translate(-2%, 2%) scale(0.95); }
+}
+.animate-blob {
+  animation: blobFloat 14s ease-in-out infinite;
+}
+
+/* Reveal-on-hover for gallery captions */
+.gallery-caption-reveal {
+  transform: translateY(100%);
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.group:hover .gallery-caption-reveal {
+  transform: translateY(0);
+}
+
+/* Subtle text reveal — for hero title characters */
+@keyframes letterRise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-letter-rise > * {
+  display: inline-block;
+  animation: letterRise 0.9s cubic-bezier(0.2, 1, 0.3, 1) backwards;
+}
+
+/* Premium card hover lift */
+.premium-card {
+  transition: transform 0.5s cubic-bezier(0.2, 1, 0.3, 1),
+              box-shadow 0.5s cubic-bezier(0.2, 1, 0.3, 1),
+              border-color 0.5s ease;
+}
+.premium-card:hover {
+  transform: translateY(-6px);
+}
+
+/* Animated gold underline for nav links */
+.nav-underline {
+  position: relative;
+}
+.nav-underline::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #F9A825, #FFD54F);
+  transition: width 0.4s ease, left 0.4s ease;
+}
+.nav-underline:hover::after,
+.nav-underline.active::after {
+  width: 100%;
+  left: 0;
 }
 
 /* Smooth scrollbar */

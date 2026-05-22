@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, CheckCircle2, GraduationCap, Globe, Zap, Brain, Palette,
-  Atom, Languages, Heart, ArrowRightCircle, Award, Baby, BookOpen, Sparkles,
-  Trophy, Clock, Users, Calendar, ChevronRight, Wallet,
+  Atom, Languages, Heart, ArrowRightCircle, Award, Trophy, Wallet,
 } from 'lucide-react';
 import { Button, Badge, Card } from '../components/ui';
 import { cn } from '../utils/cn';
@@ -20,14 +19,12 @@ interface Cycle {
   title: string;
   subtitle: string;
   niveauLabel: string;
-  ageMin: number;
-  ageMax: number;
   desc: string;
   image: string;
   features: string[];
   highlights: { label: string; value: string }[];
-  fraisInscription: number;
-  fraisScolarite: number;
+  totalNouvelle: number;
+  totalReinscription: number;
   gradient: string;
   accentText: string;
   accentBg: string;
@@ -37,114 +34,151 @@ interface Cycle {
 
 const CYCLES: Cycle[] = [
   {
-    id: 'creche',
-    title: 'Crèche & Garderie',
-    subtitle: 'Les tout-petits (0-3 ans)',
-    niveauLabel: 'Petite enfance',
-    ageMin: 0, ageMax: 3,
-    desc: "Un cocon chaleureux pour les premières années. Stimulation sensorielle, motricité globale et premiers échanges sociaux dans un cadre sécurisé.",
-    image: '/Maternelle.jpeg',
-    features: ['Encadrement spécialisé', 'Espace de jeu adapté', "Éveil sensoriel", 'Repas équilibrés'],
-    highlights: [
-      { label: 'Effectif max', value: '12 / classe' },
-      { label: 'Encadrants', value: '1 pour 4' },
-      { label: 'Horaires', value: '07h - 17h' },
-    ],
-    fraisInscription: 1500000,
-    fraisScolarite: 4500000,
-    gradient: 'from-pink-500 to-rose-600',
-    accentText: 'text-pink-600 dark:text-pink-400',
-    accentBg: 'bg-pink-500/10',
-    icon: Baby,
-    classes: ['Crèche', 'Garderie'],
-  },
-  {
     id: 'maternelle',
     title: 'Cycle Maternelle',
-    subtitle: 'Éveil & Découverte (3-6 ans)',
-    niveauLabel: 'PS · MS · GS',
-    ageMin: 3, ageMax: 6,
+    subtitle: 'Éveil & Découverte (0-6 ans)',
+    niveauLabel: 'Crèche · PS · MS · GS',
     desc: "Un environnement ludique et sécurisé pour favoriser l'épanouissement, l'autonomie et les premières découvertes linguistiques en français et anglais.",
     image: '/Maternelle.jpeg',
     features: ['Bilinguisme précoce', 'Motricité globale', 'Éveil artistique', 'Jardin pédagogique'],
     highlights: [
       { label: 'Effectif max', value: '18 / classe' },
       { label: 'Langues', value: 'FR + EN' },
-      { label: 'Niveaux', value: 'PS, MS, GS' },
+      { label: 'Niveaux', value: 'Crèche à GS' },
     ],
-    fraisInscription: 1800000,
-    fraisScolarite: 5500000,
+    totalNouvelle: 5800000,
+    totalReinscription: 5600000,
     gradient: 'from-rouge-500 to-rose-600',
     accentText: 'text-rouge-500 dark:text-rouge-300',
     accentBg: 'bg-rouge-500/10',
     icon: Heart,
-    classes: ['Petite Section', 'Moyenne Section', 'Grande Section'],
+    classes: ['Crèche', 'Petite Section', 'Moyenne Section', 'Grande Section'],
   },
   {
     id: 'primaire',
     title: 'Cycle Primaire',
     subtitle: 'Fondamentaux & Bilinguisme (6-11 ans)',
-    niveauLabel: 'CP · CE · CM',
-    ageMin: 6, ageMax: 11,
+    niveauLabel: 'CP1 → CM1',
     desc: 'Acquisition des savoirs fondamentaux (lecture, écriture, calcul) avec une immersion linguistique quotidienne pour un bilinguisme naturel.',
     image: '/Img3.jpeg',
     features: ['Programme bilingue', 'Méthodes actives', 'Informatique dès le CP', 'Sorties éducatives'],
     highlights: [
       { label: 'Effectif max', value: '24 / classe' },
-      { label: 'Examen', value: 'CEE en CM2' },
-      { label: 'Niveaux', value: 'CP → CM2' },
+      { label: 'Langues', value: 'FR + EN' },
+      { label: 'Niveaux', value: 'CP1 → CM1' },
     ],
-    fraisInscription: 2000000,
-    fraisScolarite: 6500000,
+    totalNouvelle: 6300000,
+    totalReinscription: 6100000,
     gradient: 'from-bleu-600 to-indigo-600',
     accentText: 'text-bleu-600 dark:text-bleu-300',
     accentBg: 'bg-bleu-500/10',
     icon: Globe,
-    classes: ['CP', 'CE1', 'CE2', 'CM1', 'CM2'],
+    classes: ['CP1', 'CP2', 'CE1', 'CE2', 'CM1'],
+  },
+  {
+    id: 'examen-primaire',
+    title: 'Examen Primaire (CM2)',
+    subtitle: 'Classe de Fin d\'Études Primaires',
+    niveauLabel: '6ème Année (CEE)',
+    desc: 'Préparation intensive au Certificat de Fin d\'Études Élémentaires (CEE). Encadrement renforcé et examens blancs réguliers.',
+    image: '/Img3.jpeg',
+    features: ['Préparation CEE', 'Cours de soutien inclus', 'Méthodologie d\'examen', 'Suivi personnalisé'],
+    highlights: [
+      { label: 'Effectif max', value: '25 / classe' },
+      { label: 'Examen', value: 'CEE' },
+      { label: 'Réussite', value: '100% en 2025' },
+    ],
+    totalNouvelle: 8300000,
+    totalReinscription: 7100000,
+    gradient: 'from-bleu-700 to-cyan-600',
+    accentText: 'text-bleu-700 dark:text-cyan-400',
+    accentBg: 'bg-bleu-500/10',
+    icon: Trophy,
+    classes: ['CM2 (6ème Année)'],
   },
   {
     id: 'college',
     title: 'Cycle Collège',
-    subtitle: 'Approfondissement & Orientation (11-15 ans)',
-    niveauLabel: '6ème → 3ème',
-    ageMin: 11, ageMax: 15,
+    subtitle: 'Approfondissement (12-15 ans)',
+    niveauLabel: '7ème → 9ème',
     desc: "Structuration de la pensée critique, maîtrise des disciplines scientifiques et littéraires, et initiation aux parcours d'orientation.",
     image: '/Img7.jpeg',
     features: ['Option STEM', 'Laboratoire de langues', 'Arts & Culture', 'Préparation au BEPC'],
     highlights: [
       { label: 'Effectif max', value: '28 / classe' },
-      { label: 'Examen', value: 'BEPC en 3ème' },
+      { label: 'Niveaux', value: '7ème → 9ème' },
       { label: 'Options', value: 'STEM, Arts' },
     ],
-    fraisInscription: 2200000,
-    fraisScolarite: 7500000,
+    totalNouvelle: 7800000,
+    totalReinscription: 7600000,
     gradient: 'from-or-500 to-amber-600',
     accentText: 'text-or-600 dark:text-or-300',
     accentBg: 'bg-or-500/10',
     icon: Brain,
-    classes: ['6ème', '5ème', '4ème', '3ème'],
+    classes: ['7ème', '8ème', '9ème'],
+  },
+  {
+    id: 'examen-college',
+    title: 'Examen Collège (10ème)',
+    subtitle: 'Brevet d\'Études du Premier Cycle',
+    niveauLabel: '10ème Année (BEPC)',
+    desc: 'Année charnière préparant au BEPC. Orientation vers les filières du lycée et approfondissement des acquis.',
+    image: '/Img7.jpeg',
+    features: ['Préparation BEPC', 'Cours de soutien inclus', 'Orientation lycée', 'Examens blancs'],
+    highlights: [
+      { label: 'Effectif max', value: '25 / classe' },
+      { label: 'Examen', value: 'BEPC' },
+      { label: 'Réussite', value: '100% en 2025' },
+    ],
+    totalNouvelle: 9800000,
+    totalReinscription: 8600000,
+    gradient: 'from-or-600 to-amber-700',
+    accentText: 'text-or-700 dark:text-amber-400',
+    accentBg: 'bg-or-500/10',
+    icon: Award,
+    classes: ['10ème Année'],
   },
   {
     id: 'lycee',
     title: 'Cycle Lycée',
-    subtitle: 'Excellence & Spécialisation (15-18 ans)',
-    niveauLabel: '2nde → Terminale',
-    ageMin: 15, ageMax: 18,
-    desc: 'Préparation intensive au baccalauréat national, avec un accompagnement personnalisé vers les études supérieures et les concours.',
+    subtitle: 'Excellence & Spécialisation (16-18 ans)',
+    niveauLabel: '11ème → 12ème',
+    desc: 'Préparation intensive au baccalauréat national, avec un accompagnement personnalisé vers les études supérieures.',
     image: '/Lycee.jpeg',
     features: ['Spécialités variées', 'Coaching post-bac', 'Projets de recherche', '100% de réussite'],
     highlights: [
       { label: 'Effectif max', value: '30 / classe' },
-      { label: 'Examen', value: 'BAC en Terminale' },
+      { label: 'Niveaux', value: '11ème & 12ème' },
       { label: 'Réussite', value: '100% au BAC' },
     ],
-    fraisInscription: 2500000,
-    fraisScolarite: 8500000,
+    totalNouvelle: 8300000,
+    totalReinscription: 8100000,
     gradient: 'from-vert-500 to-emerald-600',
     accentText: 'text-vert-600 dark:text-vert-300',
     accentBg: 'bg-vert-500/10',
     icon: Zap,
-    classes: ['Seconde', 'Première', 'Terminale'],
+    classes: ['11ème Année', '12ème Année'],
+  },
+  {
+    id: 'examen-lycee',
+    title: 'Examen Lycée (Terminale)',
+    subtitle: 'Baccalauréat Unique',
+    niveauLabel: 'Terminale (BAC)',
+    desc: 'Préparation intensive au baccalauréat national. Accompagnement vers les études supérieures et les concours.',
+    image: '/Lycee.jpeg',
+    features: ['Préparation BAC', 'Coaching post-bac', 'Cours de soutien inclus', '100% de réussite'],
+    highlights: [
+      { label: 'Effectif max', value: '25 / classe' },
+      { label: 'Examen', value: 'BAC' },
+      { label: 'Réussite', value: '100% en 2025' },
+    ],
+    totalNouvelle: 10300000,
+    totalReinscription: 9100000,
+    gradient: 'from-vert-600 to-emerald-700',
+    accentText: 'text-vert-700 dark:text-emerald-400',
+    accentBg: 'bg-vert-500/10',
+    icon: GraduationCap,
+    classes: ['Terminale'],
   },
 ];
 
@@ -215,9 +249,6 @@ const Programmes: React.FC = () => {
                   </p>
                   <p className={cn('text-sm font-black leading-tight', isActive ? 'text-white' : 'text-gray-900 dark:text-white')}>
                     {c.title.replace('Cycle ', '')}
-                  </p>
-                  <p className={cn('text-[10px] mt-1 font-medium', isActive ? 'text-white/70' : 'text-gray-400')}>
-                    {c.ageMin}-{c.ageMax} ans
                   </p>
                 </button>
               );
@@ -293,12 +324,12 @@ const Programmes: React.FC = () => {
               {/* Tarifs */}
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-bleu-50 to-white dark:from-bleu-900/20 dark:to-gray-900/40 border border-bleu-100 dark:border-bleu-900/20">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-bleu-600 dark:text-bleu-400 mb-1">Inscription</p>
-                  <p className="text-base md:text-lg font-black text-gray-900 dark:text-white">{formatGNF(activeCycle.fraisInscription)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-bleu-600 dark:text-bleu-400 mb-1">Nouvelle Inscription</p>
+                  <p className="text-base md:text-lg font-black text-gray-900 dark:text-white">{formatGNF(activeCycle.totalNouvelle)}</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-or-50 to-white dark:from-or-900/20 dark:to-gray-900/40 border border-or-100 dark:border-or-900/20">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-or-600 dark:text-or-400 mb-1">Scolarité / an</p>
-                  <p className="text-base md:text-lg font-black text-gray-900 dark:text-white">{formatGNF(activeCycle.fraisScolarite)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-or-600 dark:text-or-400 mb-1">Réinscription</p>
+                  <p className="text-base md:text-lg font-black text-gray-900 dark:text-white">{formatGNF(activeCycle.totalReinscription)}</p>
                 </div>
               </div>
 
@@ -334,15 +365,13 @@ const Programmes: React.FC = () => {
                 <tr>
                   <th className="text-left p-5 text-[10px] font-black uppercase tracking-widest">Cycle</th>
                   <th className="text-left p-5 text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Classes</th>
-                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Inscription</th>
-                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Scolarité / an</th>
-                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Total</th>
+                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Nouvelle Inscription</th>
+                  <th className="text-right p-5 text-[10px] font-black uppercase tracking-widest">Réinscription</th>
                 </tr>
               </thead>
               <tbody>
                 {CYCLES.map((c, i) => {
                   const Icon = c.icon;
-                  const total = c.fraisInscription + c.fraisScolarite;
                   return (
                     <tr key={c.id} className={cn('border-t border-gray-100 dark:border-white/5 transition-colors hover:bg-gray-50 dark:hover:bg-white/5', i % 2 === 0 ? 'bg-white dark:bg-gray-900/30' : 'bg-gray-50/50 dark:bg-gray-900/50')}>
                       <td className="p-5">
@@ -352,21 +381,22 @@ const Programmes: React.FC = () => {
                           </div>
                           <div>
                             <p className="text-sm font-black text-gray-900 dark:text-white">{c.title.replace('Cycle ', '')}</p>
-                            <p className="text-[10px] text-gray-400 font-medium">{c.ageMin}-{c.ageMax} ans</p>
                           </div>
                         </div>
                       </td>
                       <td className="p-5 hidden md:table-cell">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{c.classes.join(', ')}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {c.classes.slice(0, 3).map(cl => (
+                            <span key={cl} className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/5 text-[9px] font-bold text-gray-500">{cl}</span>
+                          ))}
+                          {c.classes.length > 3 && <span className="text-[9px] font-bold text-gray-400">+{c.classes.length - 3}</span>}
+                        </div>
                       </td>
                       <td className="p-5 text-right">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGNF(c.fraisInscription)}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGNF(c.totalNouvelle)}</p>
                       </td>
                       <td className="p-5 text-right">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGNF(c.fraisScolarite)}</p>
-                      </td>
-                      <td className="p-5 text-right">
-                        <p className={cn('text-sm font-black', c.accentText)}>{formatGNF(total)}</p>
+                        <p className={cn('text-sm font-black', c.accentText)}>{formatGNF(c.totalReinscription)}</p>
                       </td>
                     </tr>
                   );
