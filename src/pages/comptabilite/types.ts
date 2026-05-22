@@ -104,10 +104,13 @@ export interface TuitionFeeInstallmentResponse {
   installmentOrder: number;
 }
 
+export type TuitionFeeType = 'INSCRIPTION' | 'REINSCRIPTION';
+
 export interface TuitionFeeResponse {
   id: string;
   name: string;
   description: string | null;
+  typeInscription?: TuitionFeeType;
   academicYearId: string;
   academicYearName: string;
   totalAmount: number;
@@ -127,6 +130,7 @@ export interface TuitionFeeInstallmentPayload {
 export interface TuitionFeePayload {
   name: string;
   description: string;
+  typeInscription: TuitionFeeType;
   academicYearId: string;
   totalAmount: number;
   classIds: string[];

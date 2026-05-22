@@ -27,13 +27,16 @@ const createInstallment = (installmentOrder: number) => ({
   installmentOrder,
 });
 
+const AUTO_INSTALLMENT_LABEL = 'Tranche unique';
+
 const createEmptyForm = (): TuitionFeePayload => ({
   name: '',
   description: '',
+  typeInscription: 'INSCRIPTION',
   academicYearId: '',
   totalAmount: 0,
   classIds: [],
-  installments: [createInstallment(1)],
+  installments: [],
   active: true,
 });
 
@@ -53,6 +56,10 @@ const extractType = (description: string | null | undefined): ModalityType => {
   if (!description) return 'INSCRIPTION';
   const match = description.match(TYPE_MARKER_RE);
   return (match?.[1] as ModalityType) || 'INSCRIPTION';
+};
+
+const resolveModalityType = (tuitionFee: Pick<TuitionFeeResponse, 'typeInscription' | 'description'>): ModalityType => {
+  return tuitionFee.typeInscription ?? extractType(tuitionFee.description);
 };
 
 const stripTypeMarker = (description: string | null | undefined): string => {
@@ -167,7 +174,7 @@ const TuitionModalityManager: React.FC<Props> = ({
         return false;
       }
       // Filtre par type (Inscription / Réinscription).
-      if (typeFilter !== 'TOUS' && extractType(tuitionFee.description) !== typeFilter) {
+      if (typeFilter !== 'TOUS' && resolveModalityType(tuitionFee) !== typeFilter) {
         return false;
       }
       return true;
@@ -180,12 +187,38 @@ const TuitionModalityManager: React.FC<Props> = ({
     [formData.installments],
   );
 
-  // Total réel = tranches de scolarité + frais initial (inscription /
-  // réinscription saisi séparément). C'est ce total qui doit correspondre
-  // au "montant total" déclaré pour la modalité.
-  const installmentTotal = scolariteInstallmentTotal + Number(inscriptionFeeAmount || 0);
+  const selectedAcademicYear = academicYears.find((year) => year.id === formData.academicYearId);
+  const defaultInstallmentDueDate = selectedAcademicYear?.startDate || '';
+  const declaredTotalAmount = Number(formData.totalAmount || 0);
+  const initialFeeAmount = Number(inscriptionFeeAmount || 0);
+  const scolariteAmountToAllocate = declaredTotalAmount - initialFeeAmount;
+  const scolariteTotalDifference = scolariteInstallmentTotal - scolariteAmountToAllocate;
+  const hasManualInstallments = formData.installments.length > 0;
 
-  const totalDifference = Number(formData.totalAmount || 0) - installmentTotal;
+  const totalAmountHelper = (() => {
+    if (declaredTotalAmount <= 0) {
+      return 'Saisissez le montant global de la modalité.';
+    }
+    if (scolariteAmountToAllocate < 0) {
+      return 'Le frais initial ne peut pas dépasser le montant total.';
+    }
+    if (!hasManualInstallments) {
+      if (scolariteAmountToAllocate > 0) {
+        return `Aucune échéance saisie : une ${AUTO_INSTALLMENT_LABEL.toLowerCase()} de ${formatCurrency(scolariteAmountToAllocate)} sera créée automatiquement.`;
+      }
+      if (initialFeeAmount > 0) {
+        return 'Aucune échéance de scolarité requise : seul le frais initial sera enregistré.';
+      }
+      return 'Ajoutez un échéancier ou laissez le système générer une tranche unique.';
+    }
+    if (Math.abs(scolariteTotalDifference) <= 0.01) {
+      return `Les échéances couvrent bien le solde de scolarité (${formatCurrency(Math.max(scolariteAmountToAllocate, 0))}).`;
+    }
+    if (scolariteTotalDifference < 0) {
+      return `Il reste ${formatCurrency(Math.abs(scolariteTotalDifference))} à répartir sur les échéances.`;
+    }
+    return `Les échéances dépassent le solde attendu de ${formatCurrency(scolariteTotalDifference)}.`;
+  })();
 
   const resetModal = () => {
     setEditingFeeId(null);
@@ -210,7 +243,7 @@ const TuitionModalityManager: React.FC<Props> = ({
   const openEditModal = (tuitionFee: TuitionFeeResponse) => {
     setEditingFeeId(tuitionFee.id);
     setFormError(null);
-    const type = extractType(tuitionFee.description);
+    const type = resolveModalityType(tuitionFee);
     setModalityType(type);
     // Sépare les frais d'inscription/réinscription des tranches de scolarité
     // pour les éditer indépendamment.
@@ -231,14 +264,11 @@ const TuitionModalityManager: React.FC<Props> = ({
       name: tuitionFee.name,
       // On retire le marqueur pour que la description affichée reste propre.
       description: stripTypeMarker(tuitionFee.description ?? ''),
+      typeInscription: type,
       academicYearId: tuitionFee.academicYearId,
       totalAmount: Number(tuitionFee.totalAmount),
       classIds: tuitionFee.classIds,
-      installments: normalizeInstallments(
-        onlyScolariteInstallments.length > 0
-          ? onlyScolariteInstallments
-          : [createInstallment(1)],
-      ),
+      installments: normalizeInstallments(onlyScolariteInstallments),
       active: tuitionFee.isActive,
     });
     setIsModalOpen(true);
@@ -251,14 +281,14 @@ const TuitionModalityManager: React.FC<Props> = ({
     if (!formData.academicYearId) {
       return 'Sélectionnez une année académique.';
     }
-    if (Number(formData.totalAmount) <= 0) {
+    if (declaredTotalAmount <= 0) {
       return 'Le montant total doit être supérieur à 0.';
     }
     if (!formData.classIds.length) {
       return 'Sélectionnez au moins une classe.';
     }
-    if (!formData.installments.length) {
-      return 'Ajoutez au moins une échéance.';
+    if (scolariteAmountToAllocate < 0) {
+      return 'Le frais initial ne peut pas dépasser le montant total.';
     }
 
     const uniqueLabels = new Set<string>();
@@ -279,8 +309,16 @@ const TuitionModalityManager: React.FC<Props> = ({
       uniqueLabels.add(normalizedLabel);
     }
 
-    if (Math.abs(totalDifference) > 0.01) {
-      return 'Le total (frais initial + échéances) doit correspondre exactement au montant total déclaré.';
+    if (formData.installments.length > 0 && Math.abs(scolariteTotalDifference) > 0.01) {
+      return `La somme des échéances doit correspondre au solde de scolarité attendu (${formatCurrency(Math.max(scolariteAmountToAllocate, 0))}).`;
+    }
+
+    if (initialFeeAmount > 0 && !inscriptionFeeDueDate && !formData.installments[0]?.dueDate && !defaultInstallmentDueDate) {
+      return 'Impossible de déterminer une date limite par défaut pour le frais initial.';
+    }
+
+    if (!formData.installments.length && scolariteAmountToAllocate > 0 && !defaultInstallmentDueDate) {
+      return 'Impossible de générer la tranche unique sans date limite par défaut.';
     }
 
     return null;
@@ -298,32 +336,45 @@ const TuitionModalityManager: React.FC<Props> = ({
     // comme PREMIÈRE échéance avec son marqueur. Date d'échéance par défaut :
     // celle saisie, ou à défaut la date de la première tranche.
     const feeAmount = Number(inscriptionFeeAmount || 0);
+    const feeDueDate = inscriptionFeeDueDate || formData.installments[0]?.dueDate || defaultInstallmentDueDate;
     const feeInstallments = feeAmount > 0
       ? [{
           label: `${FEE_PREFIX_BY_TYPE[modalityType]} ${FEE_LABEL_BY_TYPE[modalityType]}`,
           amount: feeAmount,
-          dueDate: inscriptionFeeDueDate || formData.installments[0]?.dueDate || '',
+          dueDate: feeDueDate,
           installmentOrder: 1,
         }]
       : [];
 
+    const scolariteInstallments = formData.installments.length > 0
+      ? formData.installments.map((inst) => ({
+          label: inst.label.trim(),
+          amount: Number(inst.amount),
+          dueDate: inst.dueDate,
+          installmentOrder: inst.installmentOrder,
+        }))
+      : scolariteAmountToAllocate > 0
+        ? [{
+            label: AUTO_INSTALLMENT_LABEL,
+            amount: scolariteAmountToAllocate,
+            dueDate: defaultInstallmentDueDate,
+            installmentOrder: 1,
+          }]
+        : [];
+
     const mergedInstallments = [
       ...feeInstallments,
-      ...formData.installments.map((inst) => ({
-        label: inst.label.trim(),
-        amount: Number(inst.amount),
-        dueDate: inst.dueDate,
-        installmentOrder: inst.installmentOrder,
-      })),
+      ...scolariteInstallments,
     ];
 
     const payload: TuitionFeePayload = {
       ...formData,
       name: formData.name.trim(),
+      typeInscription: modalityType,
       // Encode le type d'inscription dans la description (marqueur invisible
       // pour l'utilisateur, lu côté frontend pour afficher le badge).
       description: encodeTypeInDescription(modalityType, formData.description.trim()),
-      totalAmount: Number(formData.totalAmount),
+      totalAmount: declaredTotalAmount,
       classIds: [...formData.classIds],
       installments: normalizeInstallments(mergedInstallments).map((installment, index) => ({
         label: installment.label,
@@ -411,6 +462,7 @@ const TuitionModalityManager: React.FC<Props> = ({
         const payload: TuitionFeePayload = {
           name: tuitionFee.name,
           description: encodeTypeInDescription(type, cleanDescription),
+          typeInscription: type,
           academicYearId: tuitionFee.academicYearId,
           totalAmount: Number(tuitionFee.totalAmount),
           classIds: [...(tuitionFee.classIds || [])],
@@ -498,14 +550,17 @@ const TuitionModalityManager: React.FC<Props> = ({
 
   return (
     <>
-      <Card className="border-none shadow-soft p-6 dark:bg-gray-900/60">
+      <Card className="relative overflow-hidden border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-bleu-50 p-3 text-bleu-700 dark:bg-bleu-900/20 dark:text-bleu-300">
+              <div className="rounded-[1.3rem] bg-gradient-to-br from-bleu-600 to-cyan-500 p-3 text-white shadow-[0_18px_35px_-20px_rgba(37,99,235,0.85)]">
                 <BookOpen size={18} />
               </div>
               <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Catalogue des modalités
+                </p>
                 <h3 className="text-lg font-black text-gray-900 dark:text-white">
                   Modalités de frais de scolarité
                 </h3>
@@ -524,7 +579,7 @@ const TuitionModalityManager: React.FC<Props> = ({
               <select
                 value={selectedClassFilterId}
                 onChange={(event) => setSelectedClassFilterId(event.target.value)}
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-700 focus:outline-none focus:ring-4 focus:ring-bleu-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                className="w-full rounded-[1.3rem] border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-bleu-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
               >
                 <option value="">Toutes les classes</option>
                 {listFilterClasses.map((schoolClass) => (
@@ -540,7 +595,7 @@ const TuitionModalityManager: React.FC<Props> = ({
               <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
                 Filtrer par type
               </label>
-              <div className="grid grid-cols-3 gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-white/5">
+              <div className="grid grid-cols-3 gap-1 rounded-[1.3rem] bg-slate-100 p-1 dark:bg-white/5">
                 {(['TOUS', 'INSCRIPTION', 'REINSCRIPTION'] as const).map((opt) => (
                   <button
                     key={opt}
@@ -558,7 +613,7 @@ const TuitionModalityManager: React.FC<Props> = ({
               </div>
             </div>
 
-            <Button onClick={openCreateModal} className="self-start lg:self-end">
+            <Button onClick={openCreateModal} className="self-start rounded-2xl bg-gradient-to-r from-bleu-600 via-bleu-500 to-cyan-500 px-5 shadow-[0_18px_35px_-20px_rgba(37,99,235,0.85)] lg:self-end">
               <Plus size={16} /> Nouvelle modalité
             </Button>
           </div>
@@ -583,12 +638,12 @@ const TuitionModalityManager: React.FC<Props> = ({
         ) : (
           <div className="mt-6 space-y-4">
             {filteredTuitionFees.map((tuitionFee) => {
-              const feeType = extractType(tuitionFee.description);
+              const feeType = resolveModalityType(tuitionFee);
               const cleanDescription = stripTypeMarker(tuitionFee.description);
               return (
               <div
                 key={tuitionFee.id}
-                className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5"
+                className="rounded-[1.8rem] border border-slate-200/70 bg-slate-50/70 p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.25)] dark:border-white/10 dark:bg-white/5"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -672,7 +727,7 @@ const TuitionModalityManager: React.FC<Props> = ({
                     .map((installment) => (
                       <div
                         key={installment.id}
-                        className="flex flex-col gap-3 rounded-2xl border border-gray-100 px-4 py-3 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between"
+                        className="flex flex-col gap-3 rounded-[1.3rem] border border-slate-200 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-slate-950/20 lg:flex-row lg:items-center lg:justify-between"
                       >
                         <div className="flex items-center gap-3">
                           <div className={`rounded-xl p-2 ${
@@ -736,13 +791,11 @@ const TuitionModalityManager: React.FC<Props> = ({
             />
             <Input
               type="number"
-              value={formData.totalAmount || ''}
-              onChange={(event) => setFormData((current) => ({
-                ...current,
-                totalAmount: Number(event.target.value),
-              }))}
+              value={declaredTotalAmount || ''}
+              onChange={(event) => setFormData((current) => ({ ...current, totalAmount: Number(event.target.value) }))}
               placeholder="0"
               label="Montant total (GNF)"
+              helper={totalAmountHelper}
             />
           </div>
 
@@ -758,7 +811,10 @@ const TuitionModalityManager: React.FC<Props> = ({
                 <button
                   key={option}
                   type="button"
-                  onClick={() => setModalityType(option)}
+                  onClick={() => {
+                    setModalityType(option);
+                    setFormData((current) => ({ ...current, typeInscription: option }));
+                  }}
                   className={`rounded-2xl border-2 px-4 py-3 text-left transition-all ${
                     modalityType === option
                       ? 'border-bleu-500 bg-bleu-50 dark:border-bleu-400 dark:bg-bleu-900/20'
@@ -933,7 +989,7 @@ const TuitionModalityManager: React.FC<Props> = ({
                   Échéancier de scolarité
                 </p>
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Répartissez les frais de scolarité (hors frais initial) sur une ou plusieurs tranches.
+                  Répartissez les frais de scolarité (hors frais initial) sur une ou plusieurs tranches, ou laissez vide pour générer une tranche unique.
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={addInstallment}>
@@ -942,64 +998,77 @@ const TuitionModalityManager: React.FC<Props> = ({
             </div>
 
             <div className="space-y-3">
-              {formData.installments.map((installment, index) => (
-                <div
-                  key={`${editingFeeId || 'new'}-${index}`}
-                  className="rounded-3xl border border-gray-100 p-4 dark:border-white/10"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-gray-900 dark:text-white">
-                        Échéance {index + 1}
-                      </p>
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-                        L'ordre est défini automatiquement.
-                      </p>
+              {formData.installments.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-gray-200 px-4 py-5 text-sm font-medium text-gray-500 dark:border-white/10 dark:text-gray-400">
+                  Aucune échéance saisie. Si vous enregistrez ainsi, le système créera automatiquement une tranche unique pour le solde de scolarité.
+                </div>
+              ) : (
+                formData.installments.map((installment, index) => (
+                  <div
+                    key={`${editingFeeId || 'new'}-${index}`}
+                    className="rounded-3xl border border-gray-100 p-4 dark:border-white/10"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-gray-900 dark:text-white">
+                          Échéance {index + 1}
+                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                          L'ordre est défini automatiquement.
+                        </p>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeInstallment(index)}
+                      >
+                        <Trash2 size={14} /> Retirer
+                      </Button>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeInstallment(index)}
-                      disabled={formData.installments.length === 1}
-                    >
-                      <Trash2 size={14} /> Retirer
-                    </Button>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                      <Input
+                        value={installment.label}
+                        onChange={(event) => updateInstallment(index, 'label', event.target.value)}
+                        placeholder={`Tranche ${index + 1}`}
+                        label="Libellé"
+                      />
+                      <Input
+                        type="number"
+                        value={installment.amount || ''}
+                        onChange={(event) => updateInstallment(index, 'amount', event.target.value)}
+                        placeholder="0"
+                        label="Montant"
+                      />
+                      <Input
+                        type="date"
+                        value={installment.dueDate}
+                        onChange={(event) => updateInstallment(index, 'dueDate', event.target.value)}
+                        label="Date limite"
+                        min="2026-01-01"
+                      />
+                    </div>
                   </div>
-
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                    <Input
-                      value={installment.label}
-                      onChange={(event) => updateInstallment(index, 'label', event.target.value)}
-                      placeholder={`Tranche ${index + 1}`}
-                      label="Libellé"
-                    />
-                    <Input
-                      type="number"
-                      value={installment.amount || ''}
-                      onChange={(event) => updateInstallment(index, 'amount', event.target.value)}
-                      placeholder="0"
-                      label="Montant"
-                    />
-                    <Input
-                      type="date"
-                      value={installment.dueDate}
-                      onChange={(event) => updateInstallment(index, 'dueDate', event.target.value)}
-                      label="Date limite"
-                      min="2026-01-01"
-                    />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 rounded-3xl bg-gray-50 p-4 dark:bg-gray-900/60 lg:grid-cols-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Montant total saisi
+                </p>
+                <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
+                  {formatCurrency(declaredTotalAmount)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                   {FEE_LABEL_BY_TYPE[modalityType]}
                 </p>
                 <p className="mt-1 text-sm font-black text-or-700 dark:text-or-300">
-                  {formatCurrency(Number(inscriptionFeeAmount || 0))}
+                  {formatCurrency(initialFeeAmount)}
                 </p>
               </div>
               <div>
@@ -1012,20 +1081,17 @@ const TuitionModalityManager: React.FC<Props> = ({
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Total calculé
+                  Solde scolarité
                 </p>
                 <p className="mt-1 text-sm font-black text-gray-900 dark:text-white">
-                  {formatCurrency(installmentTotal)}
+                  {formatCurrency(Math.max(scolariteAmountToAllocate, 0))}
                 </p>
-                <p className="text-[9px] text-gray-500">vs déclaré : {formatCurrency(Number(formData.totalAmount))}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Écart
-                </p>
-                <p className={`mt-1 text-sm font-black ${Math.abs(totalDifference) > 0.01 ? 'text-rouge-600' : 'text-emerald-600'}`}>
-                  {formatCurrency(Math.abs(totalDifference))}
-                  {Math.abs(totalDifference) > 0.01 ? ' à corriger' : ' équilibré'}
+                <p className="text-[9px] text-gray-500">
+                  {!hasManualInstallments && scolariteAmountToAllocate > 0
+                    ? 'sera généré en tranche unique'
+                    : Math.abs(scolariteTotalDifference) <= 0.01
+                      ? 'répartition synchronisée'
+                      : 'à vérifier avant enregistrement'}
                 </p>
               </div>
             </div>
