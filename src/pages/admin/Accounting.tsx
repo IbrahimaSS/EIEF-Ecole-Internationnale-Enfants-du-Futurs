@@ -4,7 +4,6 @@ import {
   Wallet,
   Search,
   Plus,
-  MoreVertical,
   Trash2,
   CheckCircle2,
   X,
@@ -18,9 +17,8 @@ import {
   FileText,
   TrendingUp,
   Receipt,
-  ArrowDownCircle,
 } from 'lucide-react';
-import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
+import { Table, Badge, StatCard, Card, Button, Modal, Input, Avatar } from '../../components/ui';
 import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse } from '../../services/accountingService';
 import TuitionModalityManager from '../comptabilite/components/TuitionModalityManager';
 import { AcademicYearOption, ClassOption, TuitionFeePayload, TuitionFeeResponse } from '../comptabilite/types';
@@ -362,52 +360,235 @@ const AdminAccounting: React.FC = () => {
     ).slice(0, 10);
   }, [familySearchQuery, parents]);
 
+  const totalFamilies = allFamiliesStatus.length;
+  const settledFamilies = allFamiliesStatus.filter((row) => row.status.totalRemaining <= 0).length;
+  const familiesInProgress = allFamiliesStatus.filter(
+    (row) => row.status.totalRemaining > 0 && !row.status.hasOverdue,
+  ).length;
+  const overdueFamilies = allFamiliesStatus.filter((row) => row.status.hasOverdue).length;
+  const activeModalityCount = tuitionFees.filter((fee) => fee.isActive).length;
+  const paidMiscTotal = miscPayments.reduce(
+    (sum, payment) => sum + (payment.status === 'PAID' ? payment.amount : 0),
+    0,
+  );
+  const pendingMiscCount = miscPayments.filter((payment) => payment.status !== 'PAID').length;
+  const financeAlerts = overdueFamilies + pendingMiscCount;
+  const selectedFamilyDisplay = selectedFamily
+    ? `${selectedFamily.firstName} ${selectedFamily.lastName}`
+    : 'Aucune famille sélectionnée';
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-8">
       {/* Notifications */}
       <AnimatePresence>
         {isSuccess && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed top-6 right-6 z-50 bg-vert-600 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 font-bold">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed right-6 top-6 z-50 flex items-center gap-3 rounded-[1.4rem] bg-vert-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_20px_50px_-30px_rgba(5,150,105,0.85)]">
             <CheckCircle2 size={20} /> {successMessage}
           </motion.div>
         )}
       </AnimatePresence>
 
       {error && (
-        <div className="bg-rouge-50 border border-rouge-200 text-rouge-700 px-4 py-3 rounded-xl flex items-center gap-3">
+        <div className="flex items-center gap-3 rounded-[1.5rem] border border-rouge-200 bg-rouge-50/95 px-4 py-3 text-rouge-700 shadow-[0_18px_40px_-28px_rgba(239,68,68,0.6)]">
           <AlertCircle size={20} />
           <span className="text-sm font-medium">{error}</span>
           <button onClick={() => setError(null)} className="ml-auto"><X size={16} /></button>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black gradient-bleu-or-text tracking-tight flex items-center gap-3">
-            <Wallet className="text-bleu-600" size={32} />
-            Gestion Financière Unifiée
-          </h1>
-          <p className="text-gray-500 font-medium">Suivi complet de la scolarité et des encaissements divers</p>
+      <Card className="relative overflow-hidden border-none bg-gradient-to-br from-slate-950 via-emerald-700 to-cyan-500 p-6 text-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.85)] sm:p-8 dark:border-none dark:bg-gradient-to-br dark:from-slate-950 dark:via-emerald-700 dark:to-cyan-500">
+        <div className="absolute inset-0">
+          <div className="absolute -left-8 top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-cyan-200/20 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-28 w-28 rounded-full bg-emerald-200/20 blur-2xl" />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
         </div>
-        <div className="flex bg-gray-100 p-1 rounded-2xl">
-          <button 
-            onClick={() => setActiveTab('tuition')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'tuition' ? 'bg-white text-bleu-600 shadow-sm' : 'text-gray-500'}`}
-          >
-            Frais de Scolarité
-          </button>
-          <button 
-            onClick={() => setActiveTab('misc')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'misc' ? 'bg-white text-bleu-600 shadow-sm' : 'text-gray-500'}`}
-          >
-            Encaissements Divers
-          </button>
+
+        <div className="relative space-y-6">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-50/95 backdrop-blur-sm">
+                <Wallet size={14} />
+                Pilotage financier
+              </div>
+
+              <div className="space-y-3">
+                <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+                  Gestion financière unifiée
+                </h1>
+                <p className="max-w-2xl text-sm leading-6 text-slate-100/85 sm:text-base">
+                  Supervisez les frais de scolarité, les modalités de paiement et les encaissements divers avec une vue plus lisible, plus stratégique et plus cohérente avec les autres modules.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-50/90 backdrop-blur-sm">
+                  <Users size={14} />
+                  {totalFamilies} familles suivies
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-50/90 backdrop-blur-sm">
+                  <FileText size={14} />
+                  {activeModalityCount} modalités actives
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-50/90 backdrop-blur-sm">
+                  <Receipt size={14} />
+                  {incomeCategories.length} catégories d'encaissement
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[420px] xl:grid-cols-2">
+              <div className="rounded-[1.5rem] border border-white/15 bg-slate-950/20 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">Familles</span>
+                  <Users size={16} className="text-slate-50/85" />
+                </div>
+                <p className="mt-3 text-3xl font-black leading-none text-white">{totalFamilies}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/15 bg-slate-950/20 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">Modalités</span>
+                  <FileText size={16} className="text-slate-50/85" />
+                </div>
+                <p className="mt-3 text-3xl font-black leading-none text-white">{tuitionFees.length}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/15 bg-slate-950/20 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">Transactions</span>
+                  <Receipt size={16} className="text-slate-50/85" />
+                </div>
+                <p className="mt-3 text-3xl font-black leading-none text-white">{miscPayments.length}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/15 bg-slate-950/20 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">Alertes</span>
+                  <AlertCircle size={16} className="text-slate-50/85" />
+                </div>
+                <p className="mt-3 text-3xl font-black leading-none text-white">{financeAlerts}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.8fr)]">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('tuition')}
+                className={`rounded-[1.6rem] border p-4 text-left transition-all duration-300 ${
+                  activeTab === 'tuition'
+                    ? 'border-white/35 bg-white text-slate-950 shadow-[0_20px_50px_-32px_rgba(255,255,255,0.85)]'
+                    : 'border-white/12 bg-slate-950/25 text-white hover:border-white/25 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${activeTab === 'tuition' ? 'border-slate-200 bg-slate-100 text-emerald-700' : 'border-white/15 bg-white/10 text-white'}`}>
+                      <Wallet size={20} />
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === 'tuition' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
+                      {overdueFamilies} retard{overdueFamilies > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-base font-black tracking-tight">Frais de scolarité</p>
+                    <p className={`mt-2 text-sm leading-5 ${activeTab === 'tuition' ? 'text-slate-600' : 'text-slate-100/78'}`}>
+                      Recherche famille, solde global, vue d'ensemble et gestion des modalités de paiement.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('misc')}
+                className={`rounded-[1.6rem] border p-4 text-left transition-all duration-300 ${
+                  activeTab === 'misc'
+                    ? 'border-white/35 bg-white text-slate-950 shadow-[0_20px_50px_-32px_rgba(255,255,255,0.85)]'
+                    : 'border-white/12 bg-slate-950/25 text-white hover:border-white/25 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${activeTab === 'misc' ? 'border-slate-200 bg-slate-100 text-cyan-700' : 'border-white/15 bg-white/10 text-white'}`}>
+                      <Receipt size={20} />
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === 'misc' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
+                      {pendingMiscCount} en attente
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-base font-black tracking-tight">Encaissements divers</p>
+                    <p className={`mt-2 text-sm leading-5 ${activeTab === 'misc' ? 'text-slate-600' : 'text-slate-100/78'}`}>
+                      Paiements hors scolarité, recherche d'opérations et impression rapide des reçus.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className="rounded-[1.75rem] border border-white/12 bg-slate-950/25 p-4 backdrop-blur-sm">
+              {activeTab === 'tuition' ? (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">
+                      Famille active
+                    </p>
+                    <h2 className="mt-2 text-xl font-black tracking-tight text-white">
+                      {selectedFamilyDisplay}
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-100/78">
+                      {statusLoading
+                        ? 'Chargement du compte famille en cours.'
+                        : familyStatus
+                          ? `${formatCurrency(familyStatus.totalRemaining)} restent à régulariser pour cette famille.`
+                          : 'Sélectionnez une famille pour consulter son solde global et enregistrer un versement.'}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">À jour</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{settledFamilies} familles</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">En suivi</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{familiesInProgress} familles</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">
+                      Vue opérations
+                    </p>
+                    <h2 className="mt-2 text-xl font-black tracking-tight text-white">
+                      Encaissements divers
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-100/78">
+                      Gardez un oeil sur les transactions hors scolarité et les paiements encore en attente de règlement.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">Réglé</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{formatCurrency(paidMiscTotal)}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">En attente</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{pendingMiscCount} opérations</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {activeTab === 'tuition' ? (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Statistiques familles : combien ont payé, combien sont en retard */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
@@ -441,12 +622,21 @@ const AdminAccounting: React.FC = () => {
           </div>
 
           {/* Recherche + Carte famille minimaliste */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <Card className="p-6">
-              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card className="overflow-visible border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-400">Recherche ciblée</p>
+                  <h3 className="mt-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.24em] text-slate-900 dark:text-white">
                 <Search size={18} className="text-bleu-600" />
                 Rechercher une Famille
-              </h3>
+                  </h3>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-3 py-2 text-right dark:bg-white/5">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-400">Suggestions</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{filteredFamilies.length}</div>
+                </div>
+              </div>
               <div className="relative" ref={familySearchRef}>
                 <Input
                   placeholder="Nom du parent..."
@@ -466,14 +656,15 @@ const AdminAccounting: React.FC = () => {
                     }
                   }}
                   onFocus={() => setIsFamilySearchOpen(true)}
+                  className="bg-slate-50 dark:bg-slate-950/40"
                 />
                 {isFamilySearchOpen && filteredFamilies.length > 0 && (
-                  <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+                  <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white/95 shadow-[0_20px_50px_-32px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
                     {filteredFamilies.map(p => (
                       <button
                         key={p.id}
                         onClick={() => handleFamilySearch(p)}
-                        className="w-full px-4 py-3 text-left hover:bg-bleu-50 transition-colors border-b border-gray-50 last:border-0"
+                        className="w-full border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-bleu-50 dark:border-white/5 dark:hover:bg-white/5 last:border-0"
                       >
                         <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
                         <p className="text-[10px] text-gray-400 font-bold uppercase">{p.email}</p>
@@ -489,12 +680,12 @@ const AdminAccounting: React.FC = () => {
 
             {/* Carte famille sélectionnée — informations essentielles uniquement */}
             {statusLoading ? (
-              <Card className="p-6 flex items-center justify-center min-h-[260px]">
+              <Card className="flex min-h-[260px] items-center justify-center border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
                 <Loader2 className="animate-spin text-bleu-600" size={32} />
               </Card>
             ) : familyStatus && selectedFamily ? (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                <Card className="p-6 bg-gradient-to-br from-bleu-600 to-bleu-800 text-white border-none shadow-blue">
+                <Card className="rounded-[1.8rem] border-none bg-gradient-to-br from-slate-950 via-bleu-700 to-cyan-500 p-6 text-white shadow-[0_25px_60px_-34px_rgba(37,99,235,0.7)]">
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Famille</p>
@@ -543,15 +734,15 @@ const AdminAccounting: React.FC = () => {
                 </Card>
               </motion.div>
             ) : (
-              <div className="min-h-[260px] flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-100 rounded-3xl p-8">
+              <Card className="flex min-h-[260px] flex-col items-center justify-center rounded-[1.8rem] border border-dashed border-slate-300 bg-white/75 p-8 text-slate-400 shadow-none dark:border-white/10 dark:bg-slate-900/35">
                 <Users size={36} className="mb-3 opacity-20" />
                 <p className="font-bold text-xs text-center">Sélectionne une famille pour voir ses informations</p>
-              </div>
+              </Card>
             )}
           </div>
 
           {/* Vue d'ensemble : toutes les familles avec leur statut paiement */}
-          <div className="space-y-4 pt-8 border-t border-gray-100">
+          <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
                 <Users size={18} className="text-bleu-600" />
@@ -571,7 +762,7 @@ const AdminAccounting: React.FC = () => {
                 <p className="text-sm font-bold">Aucune famille à afficher.</p>
               </div>
             ) : (
-              <Card className="overflow-hidden border-none shadow-soft">
+              <Card className="overflow-hidden border border-slate-200/70 bg-white/90 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
                 <Table
                   data={allFamiliesStatus}
                   columns={[
@@ -652,7 +843,7 @@ const AdminAccounting: React.FC = () => {
             )}
           </div>
 
-          <div className="pt-8 border-t border-gray-100">
+          <div className="pt-2">
             <TuitionModalityManager 
               tuitionFees={tuitionFees}
               academicYears={academicYears}
@@ -670,15 +861,15 @@ const AdminAccounting: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard title="Encaissements Divers" value={formatCurrency(miscPayments.reduce((acc, p) => acc + (p.status === 'PAID' ? p.amount : 0), 0))} icon={<TrendingUp />} color="bleu" subtitle="Total hors scolarité" />
             <StatCard title="Opérations" value={miscPayments.length.toString()} icon={<Receipt />} color="or" subtitle="Nombre de transactions" />
-            <Card className="p-6 flex flex-col justify-center border-none shadow-soft bg-white">
+            <Card className="flex flex-col justify-center border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
               <Button onClick={() => setIsMiscModalOpen(true)} className="w-full h-full min-h-[60px] bg-bleu-600 hover:bg-bleu-700 font-black uppercase tracking-widest gap-2">
                 <Plus size={20} /> Nouvel Encaissement
               </Button>
             </Card>
           </div>
 
-          <div className="flex justify-between items-center gap-4">
-            <div className="relative flex-1 max-w-md">
+          <Card className="border border-slate-200/70 bg-white/90 p-4 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+            <div className="relative max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <Input 
                 placeholder="Rechercher une transaction..." 
@@ -687,9 +878,9 @@ const AdminAccounting: React.FC = () => {
                 onChange={(e) => setMiscSearchQuery(e.target.value)}
               />
             </div>
-          </div>
+          </Card>
 
-          <Card className="overflow-hidden border-none shadow-soft">
+          <Card className="overflow-hidden border border-slate-200/70 bg-white/90 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
             {loading ? (
               <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-bleu-600" size={40} /></div>
             ) : (

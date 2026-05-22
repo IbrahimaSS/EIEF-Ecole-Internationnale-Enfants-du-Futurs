@@ -18,7 +18,6 @@ import { cn } from '../../utils/cn';
 import { useUsers } from '../../hooks/useUsers';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import { userService } from '../../services/userService';
-import { apiRequest } from '../../services/api';
 import type {
   StudentRequest, TeacherRequest,
   ParentRequest, ParentResponse,
@@ -531,37 +530,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   /** Filtre par cycle pour la vue Inscriptions (style screenshot 1). */
   const [niveauFilter, setNiveauFilter] = useState<string>('TOUS');
 
-  // ── Paiement initial saisi au moment de l'inscription/réinscription ──────
-  // Permet au comptable / admin d'enregistrer immédiatement un versement
-  // (inscription, scolarité, autres) qui sera créé via POST /payments dès
-  // que l'élève existe en base. Le total sera visible directement dans la
-  // section Finances et dans la Fiche Famille du comptable.
-  const [initialPayment, setInitialPayment] = useState<{
-    enabled: boolean;
-    amount: number;
-    service: 'INSCRIPTION' | 'SCOLARITE' | 'AUTRES';
-    method: 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CHECK';
-    reference: string;
-    note: string;
-  }>({
-    enabled: false,
-    amount: 0,
-    service: 'SCOLARITE',
-    method: 'CASH',
-    reference: '',
-    note: '',
-  });
-
-  const resetInitialPayment = () =>
-    setInitialPayment({
-      enabled: false,
-      amount: 0,
-      service: 'SCOLARITE',
-      method: 'CASH',
-      reference: '',
-      note: '',
-    });
-
   // ── Notification (hook partagé) ────────────────────────────────────────────
   const { notif, showNotif, closeNotif } = useNotif();
 
@@ -1038,7 +1006,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
           if (!studentForm.email.trim() || (studentForm.password ?? '').length < 8) {
             throw new Error("Email + mot de passe (≥ 8 car.) du compte élève requis.");
           }
-          const approved = await userService.registerFamilyAndStudent(token, {
+          await userService.registerFamilyAndStudent(token, {
             studentFirstName: studentForm.firstName,
             studentLastName: studentForm.lastName,
             studentBirthDate: studentForm.birthDate,
@@ -1073,39 +1041,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
           await refetchUT();
           await fetchParents();
 
-          // Paiement initial : si le comptable a saisi un montant > 0, on
-          // l'enregistre directement via /payments — il apparaîtra côté
-          // Finances et dans la Fiche Famille du comptable.
-          if (initialPayment.enabled && initialPayment.amount > 0) {
-            try {
-              // L'élève vient d'être créé : on le retrouve par son userId
-              // pour récupérer son studentId (le backend Payment attend
-              // studentId, pas userId).
-              const studentUserId = approved?.approvedStudentUserId;
-              const studentList = await userService.getAllStudents(token);
-              const justCreated = studentList.find((s) => s.userId === studentUserId)
-                ?? studentList.find((s) => s.registrationNumber === studentForm.registrationNumber);
-              if (justCreated) {
-                await apiRequest('/payments', {
-                  method: 'POST',
-                  token,
-                  body: JSON.stringify({
-                    studentId: justCreated.id,
-                    amount: initialPayment.amount,
-                    reference:
-                      initialPayment.reference.trim() ||
-                      `${initialPayment.service}-${studentForm.registrationNumber || Date.now()}`,
-                    method: initialPayment.method,
-                    categoryId: null,
-                  }),
-                });
-              }
-            } catch (paymentErr: any) {
-              // L'inscription a réussi ; on signale juste l'échec du paiement.
-              showNotif('error',
-                `Inscription OK, mais le paiement initial a échoué : ${paymentErr?.message ?? 'erreur'}.`);
-            }
-          }
         }
       } else if (activeTab === 'enseignants') {
         if (editingId) await editTeacher(editingId, teacherForm);
@@ -1124,7 +1059,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       const savedYear = studentForm.arrivalDate;
       setEditingId(null);
       resetForms();
-      resetInitialPayment();
       showNotif('success', editingId 
         ? 'Modification enregistrée.' 
         : activeTab === 'eleves' && eleveSubTab === 'inscription'
@@ -1659,30 +1593,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
         enrollmentDate: reenrollForm.enrollmentDate || undefined,
       });
 
-      // Paiement initial si saisi (réinscription) : on a déjà l'id élève.
-      if (initialPayment.enabled && initialPayment.amount > 0) {
-        try {
-          await apiRequest('/payments', {
-            method: 'POST',
-            token,
-            body: JSON.stringify({
-              studentId: reenrollTarget.id,
-              amount: initialPayment.amount,
-              reference:
-                initialPayment.reference.trim() ||
-                `${initialPayment.service}-${reenrollTarget.registrationNumber || Date.now()}`,
-              method: initialPayment.method,
-              categoryId: null,
-            }),
-          });
-        } catch (paymentErr: any) {
-          showNotif('error',
-            `Réinscription OK, mais le paiement initial a échoué : ${paymentErr?.message ?? 'erreur'}.`);
-        }
-      }
-
       setReenrollTarget(null);
-      resetInitialPayment();
       await refetchUT();
       showNotif('success', `${reenrollTarget.firstName} ${reenrollTarget.lastName} a été réinscrit(e).`);
     } catch (err: any) {
@@ -2603,90 +2514,16 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                     );
                   })()}
 
-                  {/* ── Paiement initial (création uniquement) ─────────────── */}
                   {!editingId && (
-                    <div className="rounded-3xl border-2 border-dashed border-vert-300 bg-vert-50/40 p-5 dark:border-vert-700 dark:bg-vert-900/10">
-                      <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={initialPayment.enabled}
-                          onChange={(e) =>
-                            setInitialPayment((p) => ({ ...p, enabled: e.target.checked }))
-                          }
-                          className="mt-1 h-4 w-4 rounded border-vert-300 text-vert-600 focus:ring-vert-500"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-vert-900 dark:text-vert-200 flex items-center gap-2">
-                            <Wallet size={14} /> Enregistrer un paiement à l'inscription
-                          </p>
-                          <p className="text-[10px] text-vert-700 dark:text-vert-300 font-semibold">
-                            Saisir le montant que le parent a versé. Le paiement
-                            sera enregistré directement côté Finances et visible
-                            dans la Fiche Famille.
-                          </p>
-                        </div>
-                      </label>
-
-                      {initialPayment.enabled && (
-                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            type="number"
-                            label="Montant versé (GNF) *"
-                            placeholder="0"
-                            value={initialPayment.amount || ''}
-                            onChange={(e) =>
-                              setInitialPayment((p) => ({ ...p, amount: Number(e.target.value) }))
-                            }
-                          />
-                          <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                              Service couvert
-                            </label>
-                            <select
-                              value={initialPayment.service}
-                              onChange={(e) =>
-                                setInitialPayment((p) => ({
-                                  ...p,
-                                  service: e.target.value as typeof initialPayment.service,
-                                }))
-                              }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
-                            >
-                              <option value="INSCRIPTION">Frais d'inscription</option>
-                              <option value="SCOLARITE">Scolarité</option>
-                              <option value="AUTRES">Autres / Tout</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                              Mode de paiement
-                            </label>
-                            <select
-                              value={initialPayment.method}
-                              onChange={(e) =>
-                                setInitialPayment((p) => ({
-                                  ...p,
-                                  method: e.target.value as typeof initialPayment.method,
-                                }))
-                              }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-vert-500/10 font-semibold text-gray-700 dark:text-white"
-                            >
-                              <option value="CASH">Espèces</option>
-                              <option value="MOBILE_MONEY">Mobile Money</option>
-                              <option value="BANK_TRANSFER">Virement bancaire</option>
-                              <option value="CHECK">Chèque</option>
-                            </select>
-                          </div>
-                          <Input
-                            label="Référence / reçu (optionnel)"
-                            placeholder="Auto-généré si vide"
-                            value={initialPayment.reference}
-                            onChange={(e) =>
-                              setInitialPayment((p) => ({ ...p, reference: e.target.value }))
-                            }
-                          />
-                        </div>
-                      )}
+                    <div className="rounded-3xl border border-amber-300 bg-amber-50/70 p-5 text-amber-900 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-200">
+                      <p className="text-sm font-bold flex items-center gap-2">
+                        <Wallet size={14} /> Paiement initial déplacé vers la comptabilité
+                      </p>
+                      <p className="mt-2 text-[11px] font-semibold">
+                        Pour éviter les encaissements non rattachés à la bonne échéance de scolarité,
+                        les paiements d'inscription, de réinscription et de scolarité doivent maintenant
+                        être saisis depuis Comptabilité → Scolarité.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -3161,7 +2998,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
               <Button
                 variant="outline"
-                onClick={() => { setReenrollTarget(null); resetInitialPayment(); }}
+                onClick={() => { setReenrollTarget(null); }}
                 disabled={reenrolling}
                 className="flex-1 h-12"
               >
