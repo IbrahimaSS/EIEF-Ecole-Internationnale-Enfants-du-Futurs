@@ -54,13 +54,13 @@ const YT_VIDEOS = [
 ];
 
 const NIVEAUX = [
-  { value: 'maternelle', label: 'Cycle Maternelle', icon: Baby, frais: { inscription: 500000, scolarite: 5300000 } },
-  { value: 'primaire', label: 'Cycle Primaire', icon: BookOpen, frais: { inscription: 500000, scolarite: 5800000 } },
-  { value: 'examen-primaire', label: 'Examen Primaire (CM2)', icon: Trophy, frais: { inscription: 3000000, scolarite: 5300000 } },
-  { value: 'college', label: 'Cycle Collège', icon: Backpack, frais: { inscription: 500000, scolarite: 7300000 } },
-  { value: 'examen-college', label: 'Examen Collège (10ème)', icon: Award, frais: { inscription: 3000000, scolarite: 6800000 } },
-  { value: 'lycee', label: 'Cycle Lycée', icon: GraduationCapIcon, frais: { inscription: 500000, scolarite: 7800000 } },
-  { value: 'examen-lycee', label: 'Examen Lycée (Terminale)', icon: GraduationCapIcon, frais: { inscription: 3000000, scolarite: 7300000 } },
+  { value: 'maternelle', label: 'Cycle Maternelle', icon: Baby, frais: { inscription: 100000, scolariteNouvelle: 5800000, scolariteReinscription: 5600000 } },
+  { value: 'primaire', label: 'Cycle Primaire', icon: BookOpen, frais: { inscription: 100000, scolariteNouvelle: 6300000, scolariteReinscription: 6100000 } },
+  { value: 'examen-primaire', label: 'Examen Primaire (CM2)', icon: Trophy, frais: { inscription: 100000, scolariteNouvelle: 8300000, scolariteReinscription: 7100000 } },
+  { value: 'college', label: 'Cycle Collège', icon: Backpack, frais: { inscription: 100000, scolariteNouvelle: 7800000, scolariteReinscription: 7600000 } },
+  { value: 'examen-college', label: 'Examen Collège (10ème)', icon: Award, frais: { inscription: 100000, scolariteNouvelle: 9800000, scolariteReinscription: 8600000 } },
+  { value: 'lycee', label: 'Cycle Lycée', icon: GraduationCapIcon, frais: { inscription: 100000, scolariteNouvelle: 8300000, scolariteReinscription: 8100000 } },
+  { value: 'examen-lycee', label: 'Examen Lycée (Terminale)', icon: GraduationCapIcon, frais: { inscription: 100000, scolariteNouvelle: 10300000, scolariteReinscription: 9100000 } },
 ];
 
 const formatGNF = (n: number) => `${new Intl.NumberFormat('fr-GN').format(n)} GNF`;
@@ -124,10 +124,11 @@ const Accueil: React.FC = () => {
   ];
 
   const niveau = NIVEAUX.find((n) => n.value === selectedNiveau) || null;
-  const fraisAffiches = niveau
+  const fraisInscriptionAffiches = niveau ? niveau.frais.inscription : 0;
+  const fraisScolariteAffiches = niveau
     ? tarifsTab === 'inscription'
-      ? niveau.frais.inscription
-      : Math.round(niveau.frais.inscription * 0.6)
+      ? niveau.frais.scolariteNouvelle
+      : niveau.frais.scolariteReinscription
     : 0;
 
   return (
@@ -528,7 +529,7 @@ const Accueil: React.FC = () => {
                     <Banknote size={20} className="text-vert-500 opacity-50" />
                   </div>
                   <div>
-                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(fraisAffiches)}</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(fraisInscriptionAffiches)}</p>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable à l'inscription</p>
                   </div>
                 </div>
@@ -538,7 +539,7 @@ const Accueil: React.FC = () => {
                     <Landmark size={20} className="text-or-500 opacity-50" />
                   </div>
                   <div>
-                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(niveau.frais.scolarite)}</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatGNF(fraisScolariteAffiches)}</p>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Payable en plusieurs versements</p>
                   </div>
                 </div>
