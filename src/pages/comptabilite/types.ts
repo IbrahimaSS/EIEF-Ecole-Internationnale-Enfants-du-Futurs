@@ -104,7 +104,19 @@ export interface TuitionFeeInstallmentResponse {
   installmentOrder: number;
 }
 
-export type TuitionFeeType = 'INSCRIPTION' | 'REINSCRIPTION';
+export type TuitionFeeType = "INSCRIPTION" | "REINSCRIPTION";
+
+export interface TuitionFeeFamilyAdjustmentResponse {
+  minimumChildren: number;
+  maximumChildren?: number;
+  discountPercentage: number;
+}
+
+export interface TuitionFeeFamilyAdjustmentPayload {
+  minimumChildren: number;
+  maximumChildren?: number;
+  discountPercentage: number;
+}
 
 export interface TuitionFeeResponse {
   id: string;
@@ -117,6 +129,7 @@ export interface TuitionFeeResponse {
   isActive: boolean;
   classIds: string[];
   classNames: string[];
+  familyAdjustments: TuitionFeeFamilyAdjustmentResponse[];
   installments: TuitionFeeInstallmentResponse[];
 }
 
@@ -132,9 +145,9 @@ export interface TuitionFeePayload {
   description: string;
   typeInscription: TuitionFeeType;
   academicYearId: string;
-  totalAmount: number;
   classIds: string[];
   installments: TuitionFeeInstallmentPayload[];
+  familyAdjustments?: TuitionFeeFamilyAdjustmentPayload[];
   active: boolean;
 }
 
