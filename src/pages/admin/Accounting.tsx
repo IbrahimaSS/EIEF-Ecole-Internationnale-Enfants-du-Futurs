@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet,
@@ -17,15 +18,29 @@ import {
   FileText,
   TrendingUp,
   Receipt,
+  TrendingDown,
 } from 'lucide-react';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Avatar } from '../../components/ui';
-import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse } from '../../services/accountingService';
+import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse, ExpenseResponse, ExpenseRequestPayload, ExpenseCategoryResponse } from '../../services/accountingService';
 import TuitionModalityManager from '../comptabilite/components/TuitionModalityManager';
 import { AcademicYearOption, ClassOption, TuitionFeePayload, TuitionFeeResponse } from '../comptabilite/types';
 import { apiRequest } from '../../services/api';
 
+const VALID_TABS = ['tuition', 'payments', 'expenses'] as const;
+type TabType = typeof VALID_TABS[number];
+
 const AdminAccounting: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'tuition' | 'misc'>('tuition');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab') as TabType | null;
+  const [activeTab, setActiveTab] = useState<TabType>(
+    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'tuition'
+  );
+
+  // Sync activeTab when the URL changes (e.g. sidebar click)
+  useEffect(() => {
+    const t = searchParams.get('tab') as TabType | null;
+    if (t && VALID_TABS.includes(t)) setActiveTab(t);
+  }, [searchParams]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -57,7 +72,7 @@ const AdminAccounting: React.FC = () => {
   const [allFamiliesStatus, setAllFamiliesStatus] = useState<Array<{ parent: any; status: TuitionFeeFamilyStatusResponse }>>([]);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
-  // --- Misc Tab State ---
+  // --- Misc / Payments Tab State ---
   const [miscPayments, setMiscPayments] = useState<PaymentResponse[]>([]);
   const [isMiscModalOpen, setIsMiscModalOpen] = useState(false);
   const [miscPaymentForm, setMiscPaymentForm] = useState({
@@ -70,6 +85,20 @@ const AdminAccounting: React.FC = () => {
   });
   const [miscSubmitting, setMiscSubmitting] = useState(false);
   const [miscSearchQuery, setMiscSearchQuery] = useState('');
+
+  // --- Expenses Tab State ---
+  const [expenses, setExpenses] = useState<ExpenseResponse[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryResponse[]>([]);
+  const [expensesLoading, setExpensesLoading] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [expenseForm, setExpenseForm] = useState<ExpenseRequestPayload>({
+    amount: 0,
+    description: '',
+    expenseDate: new Date().toISOString().split('T')[0],
+    categoryId: 0,
+  });
+  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+  const [expenseSearchQuery, setExpenseSearchQuery] = useState('');
 
   // --- Refs ---
   const familySearchRef = useRef<HTMLDivElement>(null);
@@ -157,6 +186,22 @@ const AdminAccounting: React.FC = () => {
     }
   }, [miscSearchQuery]);
 
+  const fetchExpenses = useCallback(async () => {
+    try {
+      setExpensesLoading(true);
+      const [data, cats] = await Promise.all([
+        accountingService.getExpenses({ query: expenseSearchQuery || undefined }),
+        expenseCategories.length === 0 ? accountingService.getExpenseCategories() : Promise.resolve(expenseCategories),
+      ]);
+      setExpenses(Array.isArray(data) ? data : []);
+      if (Array.isArray(cats) && cats.length > 0) setExpenseCategories(cats);
+    } catch (err) {
+      console.error('Error fetching expenses:', err);
+    } finally {
+      setExpensesLoading(false);
+    }
+  }, [expenseSearchQuery, expenseCategories]);
+
   useEffect(() => {
     fetchCommonData();
   }, [fetchCommonData]);
@@ -165,10 +210,12 @@ const AdminAccounting: React.FC = () => {
     if (activeTab === 'tuition') {
       fetchTuitionFees();
       fetchAllFamiliesStatus();
-    } else {
+    } else if (activeTab === 'payments') {
       fetchMiscPayments();
+    } else {
+      fetchExpenses();
     }
-  }, [activeTab, fetchTuitionFees, fetchMiscPayments, fetchAllFamiliesStatus]);
+  }, [activeTab, fetchTuitionFees, fetchMiscPayments, fetchAllFamiliesStatus, fetchExpenses]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -244,13 +291,12 @@ const AdminAccounting: React.FC = () => {
   const handleFamilyPayment = async () => {
     if (!selectedFamily || familySubmitting) return;
     setFamilySubmitting(true);
-    const ref = familyPaymentForm.reference || `PAY-${Date.now()}`;
     try {
       await accountingService.registerFamilyPayment({
         familyId: selectedFamily.familyId,
         amount: familyPaymentForm.amount,
         method: familyPaymentForm.method,
-        reference: ref,
+        reference: '',  // Backend will auto-generate
         payerType: 'PARENT',
         payerUserId: selectedFamily.id,
       });
@@ -260,7 +306,7 @@ const AdminAccounting: React.FC = () => {
       // Refresh status and print
       const status = await accountingService.getFamilyStatus(selectedFamily.familyId);
       setFamilyStatus(status);
-      printFamilyReceipt(status, familyPaymentForm.amount, familyPaymentForm.method, ref);
+      printFamilyReceipt(status, familyPaymentForm.amount, familyPaymentForm.method, status.familyId);
       
       setFamilyPaymentForm({ amount: 0, method: 'CASH', reference: '' });
     } catch (err: any) {
@@ -276,7 +322,7 @@ const AdminAccounting: React.FC = () => {
     try {
       await accountingService.createPayment({
         ...miscPaymentForm,
-        reference: miscPaymentForm.reference || `MISC-${Date.now()}`,
+        reference: '',  // Backend will auto-generate
       });
       showSuccess('Encaissement divers enregistré');
       setIsMiscModalOpen(false);
@@ -295,6 +341,44 @@ const AdminAccounting: React.FC = () => {
       await accountingService.deletePayment(id);
       showSuccess('Paiement supprimé');
       fetchMiscPayments();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la suppression');
+    }
+  };
+
+  // --- Tab change helper (updates URL and state) ---
+  const handleTabChange = (tab: 'tuition' | 'payments' | 'expenses') => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
+
+  // --- Expense Handlers ---
+  const handleCreateExpense = async () => {
+    if (expenseSubmitting) return;
+    if (!expenseForm.categoryId || expenseForm.amount <= 0 || !expenseForm.description.trim()) {
+      setError('Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+    setExpenseSubmitting(true);
+    try {
+      await accountingService.createExpense(expenseForm);
+      showSuccess('Dépense enregistrée');
+      setIsExpenseModalOpen(false);
+      setExpenseForm({ amount: 0, description: '', expenseDate: new Date().toISOString().split('T')[0], categoryId: 0 });
+      fetchExpenses();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'enregistrement');
+    } finally {
+      setExpenseSubmitting(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!window.confirm('Supprimer cette dépense ?')) return;
+    try {
+      await accountingService.deleteExpense(id);
+      showSuccess('Dépense supprimée');
+      fetchExpenses();
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la suppression');
     }
@@ -470,10 +554,10 @@ const AdminAccounting: React.FC = () => {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.8fr)]">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <button
                 type="button"
-                onClick={() => setActiveTab('tuition')}
+                onClick={() => handleTabChange('tuition')}
                 className={`rounded-[1.6rem] border p-4 text-left transition-all duration-300 ${
                   activeTab === 'tuition'
                     ? 'border-white/35 bg-white text-slate-950 shadow-[0_20px_50px_-32px_rgba(255,255,255,0.85)]'
@@ -500,26 +584,53 @@ const AdminAccounting: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setActiveTab('misc')}
+                onClick={() => handleTabChange('payments')}
                 className={`rounded-[1.6rem] border p-4 text-left transition-all duration-300 ${
-                  activeTab === 'misc'
+                  activeTab === 'payments'
                     ? 'border-white/35 bg-white text-slate-950 shadow-[0_20px_50px_-32px_rgba(255,255,255,0.85)]'
                     : 'border-white/12 bg-slate-950/25 text-white hover:border-white/25 hover:bg-white/10'
                 }`}
               >
                 <div className="flex h-full flex-col gap-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${activeTab === 'misc' ? 'border-slate-200 bg-slate-100 text-cyan-700' : 'border-white/15 bg-white/10 text-white'}`}>
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${activeTab === 'payments' ? 'border-slate-200 bg-slate-100 text-cyan-700' : 'border-white/15 bg-white/10 text-white'}`}>
                       <Receipt size={20} />
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === 'misc' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === 'payments' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
                       {pendingMiscCount} en attente
                     </span>
                   </div>
                   <div>
-                    <p className="text-base font-black tracking-tight">Encaissements divers</p>
-                    <p className={`mt-2 text-sm leading-5 ${activeTab === 'misc' ? 'text-slate-600' : 'text-slate-100/78'}`}>
+                    <p className="text-base font-black tracking-tight">Encaissements</p>
+                    <p className={`mt-2 text-sm leading-5 ${activeTab === 'payments' ? 'text-slate-600' : 'text-slate-100/78'}`}>
                       Paiements hors scolarité, recherche d'opérations et impression rapide des reçus.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange('expenses')}
+                className={`rounded-[1.6rem] border p-4 text-left transition-all duration-300 ${
+                  activeTab === 'expenses'
+                    ? 'border-white/35 bg-white text-slate-950 shadow-[0_20px_50px_-32px_rgba(255,255,255,0.85)]'
+                    : 'border-white/12 bg-slate-950/25 text-white hover:border-white/25 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${activeTab === 'expenses' ? 'border-slate-200 bg-slate-100 text-rose-700' : 'border-white/15 bg-white/10 text-white'}`}>
+                      <TrendingDown size={20} />
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === 'expenses' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
+                      {expenses.length} opération{expenses.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-base font-black tracking-tight">Dépenses</p>
+                    <p className={`mt-2 text-sm leading-5 ${activeTab === 'expenses' ? 'text-slate-600' : 'text-slate-100/78'}`}>
+                      Suivi des charges de l'école par catégorie et module.
                     </p>
                   </div>
                 </div>
@@ -556,14 +667,14 @@ const AdminAccounting: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : activeTab === 'payments' ? (
                 <div className="space-y-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">
                       Vue opérations
                     </p>
                     <h2 className="mt-2 text-xl font-black tracking-tight text-white">
-                      Encaissements divers
+                      Encaissements
                     </h2>
                     <p className="mt-1 text-sm leading-6 text-slate-100/78">
                       Gardez un oeil sur les transactions hors scolarité et les paiements encore en attente de règlement.
@@ -578,6 +689,33 @@ const AdminAccounting: React.FC = () => {
                     <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">En attente</div>
                       <div className="mt-2 text-sm font-semibold text-white">{pendingMiscCount} opérations</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200/75">
+                      Vue dépenses
+                    </p>
+                    <h2 className="mt-2 text-xl font-black tracking-tight text-white">
+                      Dépenses
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-100/78">
+                      Charges de l'établissement ventilées par catégorie et module.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">Total</div>
+                      <div className="mt-2 text-sm font-semibold text-white">
+                        {formatCurrency(expenses.reduce((s, e) => s + e.amount, 0))}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-200/70">Opérations</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{expenses.length}</div>
                     </div>
                   </div>
                 </div>
@@ -856,10 +994,10 @@ const AdminAccounting: React.FC = () => {
             />
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'payments' ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard title="Encaissements Divers" value={formatCurrency(miscPayments.reduce((acc, p) => acc + (p.status === 'PAID' ? p.amount : 0), 0))} icon={<TrendingUp />} color="bleu" subtitle="Total hors scolarité" />
+            <StatCard title="Encaissements" value={formatCurrency(miscPayments.reduce((acc, p) => acc + (p.status === 'PAID' ? p.amount : 0), 0))} icon={<TrendingUp />} color="bleu" subtitle="Total hors scolarité" />
             <StatCard title="Opérations" value={miscPayments.length.toString()} icon={<Receipt />} color="or" subtitle="Nombre de transactions" />
             <Card className="flex flex-col justify-center border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
               <Button onClick={() => setIsMiscModalOpen(true)} className="w-full h-full min-h-[60px] bg-bleu-600 hover:bg-bleu-700 font-black uppercase tracking-widest gap-2">
@@ -930,6 +1068,67 @@ const AdminAccounting: React.FC = () => {
             )}
           </Card>
         </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard title="Total Dépenses" value={formatCurrency(expenses.reduce((s, e) => s + e.amount, 0))} icon={<TrendingDown />} color="rouge" subtitle="Charges enregistrées" />
+            <StatCard title="Opérations" value={expenses.length.toString()} icon={<FileText />} color="or" subtitle="Nombre de dépenses" />
+            <Card className="flex flex-col justify-center border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+              <Button onClick={() => setIsExpenseModalOpen(true)} className="w-full h-full min-h-[60px] bg-rouge-600 hover:bg-rouge-700 font-black uppercase tracking-widest gap-2">
+                <Plus size={20} /> Nouvelle Dépense
+              </Button>
+            </Card>
+          </div>
+
+          <Card className="border border-slate-200/70 bg-white/90 p-4 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+            <div className="relative max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Input 
+                placeholder="Rechercher une dépense..." 
+                className="pl-12" 
+                value={expenseSearchQuery}
+                onChange={(e) => setExpenseSearchQuery(e.target.value)}
+              />
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden border border-slate-200/70 bg-white/90 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+            {expensesLoading ? (
+              <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-rouge-600" size={40} /></div>
+            ) : expenses.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 border-2 border-dashed border-gray-100 rounded-3xl">
+                <TrendingDown size={32} className="mx-auto mb-2 opacity-40" />
+                <p className="text-sm font-bold">Aucune dépense enregistrée.</p>
+              </div>
+            ) : (
+              <Table 
+                data={expenses}
+                columns={[
+                  { key: 'description', label: 'Description', render: (val: any, row: any) => (
+                    <div className="text-left">
+                      <p className="font-bold text-gray-900">{val}</p>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">{row.categoryName} • {row.categoryModule}</p>
+                    </div>
+                  )},
+                  { key: 'amount', label: 'Montant', render: (val: any) => <span className="font-black text-gray-900">{formatCurrency(val)}</span> },
+                  { key: 'expenseDate', label: 'Date', render: (val: any) => <span className="text-xs font-bold text-gray-500">{formatDate(val)}</span> },
+                  { key: 'createdByName', label: 'Enregistré par', render: (val: any) => <span className="text-xs font-bold text-gray-700">{val}</span> },
+                  { key: 'actions', label: '', render: (_: any, row: any) => (
+                    <div className="flex justify-end pr-2 gap-2">
+                      <button
+                        onClick={() => handleDeleteExpense(row.id)}
+                        className="p-2 hover:bg-rouge-50 text-rouge-500 rounded-xl transition-colors"
+                        title="Supprimer cette dépense"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                ] as any}
+              />
+            )}
+          </Card>
+        </div>
       )}
 
       {/* --- Modals --- */}
@@ -962,12 +1161,6 @@ const AdminAccounting: React.FC = () => {
               ))}
             </div>
           </div>
-          <Input 
-            label="Référence / Libellé" 
-            placeholder="Ex: Versement Mars 2024"
-            value={familyPaymentForm.reference}
-            onChange={e => setFamilyPaymentForm(f => ({ ...f, reference: e.target.value }))}
-          />
           <div className="flex gap-3 pt-4">
             <Button variant="outline" onClick={() => setIsFamilyPaymentModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleFamilyPayment} loading={familySubmitting} className="flex-1 bg-bleu-600 shadow-blue">Confirmer le Paiement</Button>
@@ -975,8 +1168,8 @@ const AdminAccounting: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Misc Payment Modal */}
-      <Modal isOpen={isMiscModalOpen} onClose={() => setIsMiscModalOpen(false)} title="Nouvel Encaissement Divers" size="md">
+      {/* Payments Modal */}
+      <Modal isOpen={isMiscModalOpen} onClose={() => setIsMiscModalOpen(false)} title="Nouvel Encaissement" size="md">
         <div className="space-y-6">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Catégorie</label>
@@ -1025,15 +1218,50 @@ const AdminAccounting: React.FC = () => {
               ))}
             </div>
           </div>
-          <Input 
-            label="Référence / Libellé" 
-            placeholder="Ex: Achat Uniforme"
-            value={miscPaymentForm.reference}
-            onChange={e => setMiscPaymentForm(f => ({ ...f, reference: e.target.value }))}
-          />
           <div className="flex gap-3 pt-4">
             <Button variant="outline" onClick={() => setIsMiscModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleMiscPayment} loading={miscSubmitting} className="flex-1 bg-bleu-600">Enregistrer</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Expense Modal */}
+      <Modal isOpen={isExpenseModalOpen} onClose={() => setIsExpenseModalOpen(false)} title="Nouvelle Dépense" size="md">
+        <div className="space-y-6">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Catégorie</label>
+            <select 
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-rouge-500/10"
+              value={expenseForm.categoryId || ''}
+              onChange={e => setExpenseForm(f => ({ ...f, categoryId: Number(e.target.value) }))}
+            >
+              <option value="">Sélectionner une catégorie...</option>
+              {expenseCategories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <Input 
+            label="Description" 
+            placeholder="Ex: Achat fournitures scolaires"
+            value={expenseForm.description}
+            onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))}
+          />
+          <Input 
+            label="Montant (GNF)" 
+            type="number" 
+            value={expenseForm.amount || ''} 
+            onChange={e => setExpenseForm(f => ({ ...f, amount: Number(e.target.value) }))}
+          />
+          <Input 
+            label="Date" 
+            type="date" 
+            value={expenseForm.expenseDate}
+            onChange={e => setExpenseForm(f => ({ ...f, expenseDate: e.target.value }))}
+          />
+          <div className="flex gap-3 pt-4">
+            <Button variant="outline" onClick={() => setIsExpenseModalOpen(false)} className="flex-1">Annuler</Button>
+            <Button onClick={handleCreateExpense} loading={expenseSubmitting} className="flex-1 bg-rouge-600">Enregistrer</Button>
           </div>
         </div>
       </Modal>

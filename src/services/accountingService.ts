@@ -1,8 +1,8 @@
-import { apiRequest } from './api';
+import { apiRequest } from "./api";
 
-export type PaymentMethod = 'MOBILE_MONEY' | 'CASH' | 'BANK_TRANSFER' | 'CHECK';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
-export type TuitionFeePayerType = 'PARENT' | 'STUDENT' | 'OTHER';
+export type PaymentMethod = "MOBILE_MONEY" | "CASH" | "BANK_TRANSFER" | "CHECK";
+export type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "OVERDUE";
+export type TuitionFeePayerType = "PARENT" | "STUDENT" | "OTHER";
 
 export interface PaymentResponse {
   id: string;
@@ -90,43 +90,106 @@ export interface TuitionFeeFamilyStatusResponse {
 
 export const accountingService = {
   // Generic Payments (Encaissements)
-  getPayments: (params?: { studentId?: string; module?: string; query?: string }) => {
+  getPayments: (params?: {
+    studentId?: string;
+    module?: string;
+    query?: string;
+  }) => {
     const searchParams = new URLSearchParams();
-    if (params?.studentId) searchParams.set('studentId', params.studentId);
-    if (params?.module) searchParams.set('module', params.module);
-    if (params?.query) searchParams.set('query', params.query);
+    if (params?.studentId) searchParams.set("studentId", params.studentId);
+    if (params?.module) searchParams.set("module", params.module);
+    if (params?.query) searchParams.set("query", params.query);
     const query = searchParams.toString();
-    return apiRequest<PaymentResponse[]>(query ? `/payments/filter?${query}` : '/payments');
+    return apiRequest<PaymentResponse[]>(
+      query ? `/payments/filter?${query}` : "/payments",
+    );
   },
 
   createPayment: (payload: PaymentRequest) =>
-    apiRequest<PaymentResponse>('/payments', {
-      method: 'POST',
+    apiRequest<PaymentResponse>("/payments", {
+      method: "POST",
       body: JSON.stringify(payload),
     }),
 
   markAsPaid: (id: string) =>
-    apiRequest<PaymentResponse>(`/payments/${id}/pay`, { method: 'PATCH' }),
+    apiRequest<PaymentResponse>(`/payments/${id}/pay`, { method: "PATCH" }),
 
   deletePayment: (id: string) =>
-    apiRequest<void>(`/payments/${id}`, { method: 'DELETE' }),
+    apiRequest<void>(`/payments/${id}`, { method: "DELETE" }),
 
   // Tuition Fees
   getFamilyStatus: (familyId: string) =>
-    apiRequest<TuitionFeeFamilyStatusResponse>(`/tuition-fees/families/${familyId}/status`),
+    apiRequest<TuitionFeeFamilyStatusResponse>(
+      `/tuition-fees/families/${familyId}/status`,
+    ),
 
   getStudentStatus: (studentId: string) =>
-    apiRequest<TuitionFeeStudentStatusResponse>(`/tuition-fees/students/${studentId}/status`),
+    apiRequest<TuitionFeeStudentStatusResponse>(
+      `/tuition-fees/students/${studentId}/status`,
+    ),
 
   registerFamilyPayment: (payload: FamilyTuitionPaymentRequest) =>
-    apiRequest<TuitionFeePaymentResponse[]>('/tuition-fees/families/payments', {
-      method: 'POST',
+    apiRequest<TuitionFeePaymentResponse[]>("/tuition-fees/families/payments", {
+      method: "POST",
       body: JSON.stringify(payload),
     }),
 
   registerStudentPayment: (payload: any) =>
-    apiRequest<TuitionFeePaymentResponse>('/tuition-fees/payments', {
-      method: 'POST',
+    apiRequest<TuitionFeePaymentResponse>("/tuition-fees/payments", {
+      method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  // Expenses (Dépenses)
+  getExpenses: (params?: {
+    categoryId?: number;
+    module?: string;
+    query?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.categoryId) sp.set("categoryId", String(params.categoryId));
+    if (params?.module) sp.set("module", params.module);
+    if (params?.query) sp.set("query", params.query);
+    const qs = sp.toString();
+    return apiRequest<ExpenseResponse[]>(qs ? `/expenses?${qs}` : "/expenses");
+  },
+
+  createExpense: (payload: ExpenseRequestPayload) =>
+    apiRequest<ExpenseResponse>("/expenses", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteExpense: (id: string) =>
+    apiRequest<void>(`/expenses/${id}`, { method: "DELETE" }),
+
+  getExpenseCategories: () =>
+    apiRequest<ExpenseCategoryResponse[]>("/expenses/categories?type=EXPENSE"),
 };
+
+// ---- Expense types ----
+export interface ExpenseResponse {
+  id: string;
+  amount: number;
+  description: string;
+  expenseDate: string;
+  categoryId: number;
+  categoryName: string;
+  categoryModule: string;
+  createdByName: string;
+  createdAt: string;
+}
+
+export interface ExpenseRequestPayload {
+  amount: number;
+  description: string;
+  expenseDate: string;
+  categoryId: number;
+}
+
+export interface ExpenseCategoryResponse {
+  id: number;
+  name: string;
+  module: string;
+  type: string;
+}
