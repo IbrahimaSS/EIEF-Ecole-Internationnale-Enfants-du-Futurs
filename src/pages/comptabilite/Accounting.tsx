@@ -278,7 +278,7 @@ const ComptableAccounting: React.FC = () => {
     try {
       await accountingService.createPayment({
         ...miscPaymentForm,
-        reference: miscPaymentForm.reference || `MISC-${Date.now()}`,
+        reference: '',  // Backend will auto-generate
       });
       showSuccess('Encaissement divers enregistré');
       setIsMiscModalOpen(false);
@@ -964,12 +964,6 @@ const ComptableAccounting: React.FC = () => {
               ))}
             </div>
           </div>
-          <Input 
-            label="Référence / Libellé" 
-            placeholder="Ex: Versement Mars 2024"
-            value={familyPaymentForm.reference}
-            onChange={e => setFamilyPaymentForm(f => ({ ...f, reference: e.target.value }))}
-          />
           <div className="flex gap-3 pt-4">
             <Button variant="outline" onClick={() => setIsFamilyPaymentModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleFamilyPayment} loading={familySubmitting} className="flex-1 bg-bleu-600 shadow-blue">Confirmer le Paiement</Button>
@@ -1027,12 +1021,6 @@ const ComptableAccounting: React.FC = () => {
               ))}
             </div>
           </div>
-          <Input 
-            label="Référence / Libellé" 
-            placeholder="Ex: Achat Uniforme"
-            value={miscPaymentForm.reference}
-            onChange={e => setMiscPaymentForm(f => ({ ...f, reference: e.target.value }))}
-          />
           <div className="flex gap-3 pt-4">
             <Button variant="outline" onClick={() => setIsMiscModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleMiscPayment} loading={miscSubmitting} className="flex-1 bg-bleu-600">Enregistrer</Button>
