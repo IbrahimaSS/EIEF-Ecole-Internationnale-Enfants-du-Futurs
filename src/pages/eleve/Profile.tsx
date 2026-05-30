@@ -210,7 +210,7 @@ const EleveProfile: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8">
         {/* CARTE SCOLARITÉ */}
         <div className="space-y-6">
           <Card className="p-8 border-none shadow-soft bg-white dark:bg-gray-900/50">
@@ -251,7 +251,7 @@ const EleveProfile: React.FC = () => {
         </div>
 
         {/* ONGLETS FORMULAIRE */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="xl:col-span-2 space-y-6">
           <div className="flex gap-6 border-b border-gray-100 dark:border-white/5">
             {(['info', 'securite'] as const).map(t => (
               <button
@@ -385,7 +385,7 @@ const EleveProfile: React.FC = () => {
       {/* TOAST SUCCÈS */}
       <AnimatePresence>
         {isSuccess && (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="fixed bottom-10 right-10 z-[100] flex items-center p-5 bg-white dark:bg-gray-800 rounded-[2rem] shadow-2xl border border-vert-100 min-w-[320px]">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="fixed bottom-4 right-4 sm:bottom-10 sm:right-10 z-[100] flex items-center p-4 sm:p-5 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-vert-100 w-[calc(100%-2rem)] sm:min-w-[320px] sm:w-auto max-w-sm">
             <div className="flex items-center gap-5">
               <div className="p-3 bg-vert-500 text-white rounded-2xl shadow-lg shadow-vert-200"><CheckCircle2 size={24} /></div>
               <div>

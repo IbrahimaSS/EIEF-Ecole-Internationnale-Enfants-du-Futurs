@@ -141,19 +141,19 @@ const StudentCommunication: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-2xl p-1.5 w-full lg:w-auto">
           {(['annonces', 'messagerie', 'forum'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                'rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all',
+                'flex-1 lg:flex-none rounded-xl px-3 sm:px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all',
                 activeTab === tab
-                  ? 'bg-vert-600 text-white shadow-md dark:bg-or-500 dark:text-gray-950'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-400',
+                  ? 'bg-white dark:bg-gray-800 text-vert-600 dark:text-or-400 shadow-md'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300',
               )}
             >
-              {tab === 'annonces' ? 'Annonces' : tab === 'messagerie' ? 'Messagerie' : 'Forum'}
+              {tab === 'annonces' ? 'Annonces' : tab === 'messagerie' ? 'Msg' : 'Forum'}
             </button>
           ))}
         </div>

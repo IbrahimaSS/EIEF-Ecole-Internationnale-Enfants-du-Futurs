@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Settings, LogOut, User, Sun, Moon } from 'lucide-react';
+import { Search, Bell, Settings, LogOut, User, Sun, Moon, Menu } from 'lucide-react';
 import Avatar from '../ui/Avatar';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -13,6 +13,7 @@ interface HeaderProps {
   onSearch?: (query: string) => void;
   onNotificationClick?: () => void;
   onProfileClick?: () => void;
+  onMenuToggle?: () => void;
 }
 
 const roleLabels: Record<string, string> = {
@@ -32,6 +33,7 @@ const Header: React.FC<HeaderProps> = ({
   notificationCount = 0,
   onSearch,
   onNotificationClick,
+  onMenuToggle,
 }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
@@ -78,7 +80,14 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white/85 dark:bg-gray-900/85 backdrop-blur-2xl border-b border-gray-100 dark:border-white/5 sticky top-0 z-30 h-20 transition-colors shadow-sm">
-      <div className="h-full px-6 md:px-8 flex items-center justify-between gap-4">
+      <div className="h-full px-4 md:px-8 flex items-center justify-between gap-3">
+        {/* Hamburger mobile */}
+        <button
+          onClick={onMenuToggle}
+          className="lg:hidden w-10 h-10 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all flex-shrink-0"
+        >
+          <Menu size={20} />
+        </button>
         {/* Titre + sous-titre */}
         <div className="flex-1 min-w-0">
           <h1 className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tight truncate">

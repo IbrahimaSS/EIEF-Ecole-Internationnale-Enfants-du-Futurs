@@ -361,10 +361,11 @@ export const userService = {
     return apiRequest<StudentResponse[]>(`/users/students${query}`, { token });
   },
 
-  getStudentsByParent: (token: string, parentUserId: string) =>
-    apiRequest<StudentResponse[]>(`/users/parents/${parentUserId}/students`, {
-      token,
-    }),
+  getStudentsByParent: async (token: string, _parentUserId: string): Promise<StudentResponse[]> => {
+    // Récupère d'abord la famille du parent connecté, puis ses enfants
+    const family = await apiRequest<{ familyId: string }>("/users/me/family", { token });
+    return apiRequest<StudentResponse[]>(`/users/families/${family.familyId}/students`, { token });
+  },
 
   getStudentById: (token: string, id: string) =>
     apiRequest<StudentResponse>(`/users/students/${id}`, { token }),

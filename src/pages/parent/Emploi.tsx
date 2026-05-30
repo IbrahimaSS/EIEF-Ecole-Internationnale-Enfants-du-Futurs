@@ -1,21 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Calendar,
   Clock,
   MapPin,
   User,
-  Download,
-  ChevronRight,
-  ChevronLeft,
   Bell,
   AlarmClock,
   Loader2,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ChevronDown,
+  Users,
 } from 'lucide-react';
 import { Card, Badge, Button } from '../../components/ui';
 import { cn } from '../../utils/cn';
-import { useStudentSchedule } from '../../hooks/useSchedule';
+import { useAuthStore } from '../../store/authStore';
+import { userService, StudentResponse } from '../../services/userService';
+import { studentScheduleService } from '../../services/scheduleService';
+import { ScheduleResponse } from '../../types/schedule';
 import {
   DAY_LABELS,
   getSubjectColor,
@@ -24,10 +29,7 @@ import {
   getCurrentCourse,
   getNextCourse,
 } from '../../utils/scheduleUtils';
-import { ScheduleResponse } from '../../types/schedule';
-import { useAuthStore } from '../../store/authStore'; // adapte le chemin si besoin
 
-// ─── Color map ─────────────────────────────────────────────────────────────────
 const getColorClasses = (color: string): string => {
   const map: Record<string, string> = {
     blue:    'bg-bleu-50/50 dark:bg-bleu-900/20 border-bleu-200 dark:border-bleu-800 text-bleu-700 dark:text-bleu-400',
@@ -53,29 +55,71 @@ const colorBarClass: Record<string, string> = {
   orange:  'bg-orange-500',
 };
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
 const DAYS = [1, 2, 3, 4, 5, 6] as const;
 const HOURS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 const GRID_START_HOUR = 8;
 const ROW_HEIGHT_PX = 80;
 
-// ─── Component ─────────────────────────────────────────────────────────────────
-const EleveEmploi: React.FC = () => {
-  const { user } = useAuthStore();
-  const studentId = user?.id ?? '';
+const ParentEmploi: React.FC = () => {
+  const { user, token } = useAuthStore();
+  const [students, setStudents] = useState<StudentResponse[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [schedules, setSchedules] = useState<ScheduleResponse[] | null>(null);
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const { data: schedules, isLoading, error, refetch } = useStudentSchedule();
+  // Charger les enfants
+  useEffect(() => {
+    if (!user?.id || !token) return;
+    setLoadingStudents(true);
+    userService.getStudentsByParent(token, user.id)
+      .then((list) => {
+        setStudents(list);
+        if (list.length > 0) setSelectedStudentId(list[0].id);
+      })
+      .catch(() => setError('Impossible de charger la liste des enfants.'))
+      .finally(() => setLoadingStudents(false));
+  }, [user?.id, token]);
 
+  // Charger l'emploi du temps
+  useEffect(() => {
+    if (!selectedStudentId) return;
+    setLoadingSchedule(true);
+    setError(null);
+    studentScheduleService.getSchedule(selectedStudentId)
+      .then(setSchedules)
+      .catch((err: Error) => setError(err.message || 'Impossible de charger l\'emploi du temps.'))
+      .finally(() => setLoadingSchedule(false));
+  }, [selectedStudentId]);
+
+  const selectedStudent = students.find((s) => s.id === selectedStudentId);
   const currentCourse = schedules ? getCurrentCourse(schedules) : null;
-  const nextCourse    = schedules ? getNextCourse(schedules)    : null;
+  const nextCourse = schedules ? getNextCourse(schedules) : null;
 
-  // Mobile day selector: default to today (1=Mon … 6=Sat)
-  const todayJava = new Date().getDay() === 0 ? 7 : new Date().getDay();
-  const [selectedDay, setSelectedDay] = useState<number>(
-    DAYS.includes(todayJava as typeof DAYS[number]) ? todayJava : 1
-  );
+  if (loadingStudents) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-gray-400">
+        <Loader2 size={36} className="animate-spin text-or-500" />
+        <p className="text-sm font-semibold">Chargement…</p>
+      </div>
+    );
+  }
 
-  if (isLoading) {
+  if (students.length === 0) {
+    return (
+      <div className="py-24 text-center">
+        <div className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Users size={40} className="text-gray-300 dark:text-gray-600" />
+        </div>
+        <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Aucun enfant inscrit</h3>
+        <p className="text-[13px] text-gray-500 font-semibold">Aucun élève n'est associé à votre compte.</p>
+      </div>
+    );
+  }
+
+  if (loadingSchedule) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-gray-400">
         <Loader2 size={36} className="animate-spin text-or-500" />
@@ -88,8 +132,8 @@ const EleveEmploi: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-rouge-500">
         <AlertCircle size={36} />
-        <p className="text-sm font-semibold">{(error as Error).message}</p>
-        <Button onClick={() => refetch()} className="text-xs px-4 h-9 rounded-xl">
+        <p className="text-sm font-semibold">{error}</p>
+        <Button onClick={() => setError(null)} className="text-xs px-4 h-9 rounded-xl">
           Réessayer
         </Button>
       </div>
@@ -103,7 +147,7 @@ const EleveEmploi: React.FC = () => {
       transition={{ duration: 0.5 }}
       className="space-y-8 pb-10"
     >
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-or-100 dark:bg-or-900/30 rounded-2xl shadow-inner text-or-600">
@@ -112,20 +156,52 @@ const EleveEmploi: React.FC = () => {
           <div className="text-left font-bold">
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Emploi du Temps</h1>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mt-1">
-              Gère ton planning hebdomadaire et tes cours
+              Planning hebdomadaire de vos enfants
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start lg:self-center">
+        <div className="flex flex-wrap items-center gap-3 self-start lg:self-center">
+          {/* Sélecteur enfant */}
+          {students.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setDropdownOpen((v) => !v)}
+                className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-2.5 text-xs font-black text-gray-700 dark:text-white shadow-soft"
+              >
+                <Users size={14} className="text-or-500" />
+                {selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : 'Sélectionner'}
+                <ChevronDown size={14} className="text-gray-400" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute top-full mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/10 rounded-2xl shadow-xl z-50 min-w-[200px] overflow-hidden">
+                  {students.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => { setSelectedStudentId(s.id); setDropdownOpen(false); }}
+                      className={cn(
+                        'w-full text-left px-4 py-3 text-xs font-bold transition-colors',
+                        s.id === selectedStudentId
+                          ? 'bg-or-50 dark:bg-or-900/30 text-or-600'
+                          : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
+                      )}
+                    >
+                      {s.firstName} {s.lastName}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center bg-gray-100 dark:bg-white/5 rounded-2xl p-1 gap-1">
-            <button className="p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
+            <button className="p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
               <ChevronLeft size={16} />
             </button>
             <span className="text-[10px] font-black uppercase tracking-widest px-4 text-gray-500">
               Semaine en cours
             </span>
-            <button className="p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
+            <button className="p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
               <ChevronRight size={16} />
             </button>
           </div>
@@ -135,64 +211,11 @@ const EleveEmploi: React.FC = () => {
         </div>
       </div>
 
-      {/* ── VUE MOBILE : sélecteur de jour + liste ── */}
-      <div className="block xl:hidden space-y-4">
-        {/* Sélecteur de jour */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {DAYS.map((day) => {
-            const hasCourse = (schedules ?? []).some((s: ScheduleResponse) => s.dayOfWeek === day);
-            return (
-              <button key={day} onClick={() => setSelectedDay(day)}
-                className={cn(
-                  'flex-shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl text-xs font-black transition-all',
-                  selectedDay === day
-                    ? 'bg-or-500 text-white shadow-md'
-                    : 'bg-white dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 shadow-soft',
-                )}>
-                <span>{DAY_LABELS[day].slice(0, 3)}</span>
-                {hasCourse && <span className={cn('w-1.5 h-1.5 rounded-full mt-1', selectedDay === day ? 'bg-white' : 'bg-or-400')} />}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Cours du jour sélectionné */}
-        <div className="space-y-3">
-          {(() => {
-            const dayCourses = (schedules ?? [])
-              .filter((s: ScheduleResponse) => s.dayOfWeek === selectedDay)
-              .sort((a: ScheduleResponse, b: ScheduleResponse) => timeToDecimal(a.startTime) - timeToDecimal(b.startTime));
-            if (dayCourses.length === 0)
-              return <Card className="p-6 text-center border-none shadow-soft bg-white dark:bg-gray-900/50"><p className="text-sm text-gray-400 font-semibold">Pas de cours ce jour.</p></Card>;
-            return dayCourses.map((s: ScheduleResponse, i: number) => {
-              const color = getSubjectColor(s.subjectName);
-              const now = new Date();
-              const isPast = timeToDecimal(s.endTime) < now.getHours() + now.getMinutes() / 60;
-              return (
-                <Card key={i} className={cn('p-4 border-none shadow-soft bg-white dark:bg-gray-900/50 flex gap-4', isPast && 'opacity-60')}>
-                  <div className={cn('w-1.5 rounded-full flex-shrink-0', colorBarClass[color] ?? 'bg-gray-400')} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-gray-900 dark:text-white text-sm">{s.subjectName}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                      <span className="text-[11px] text-gray-500 flex items-center gap-1"><Clock size={10}/>{s.startTime} – {s.endTime}</span>
-                      {s.room && <span className="text-[11px] text-gray-500 flex items-center gap-1"><MapPin size={10}/>{s.room}</span>}
-                      {s.teacherName && <span className="text-[11px] text-gray-500 flex items-center gap-1"><User size={10}/>{s.teacherName}</span>}
-                    </div>
-                  </div>
-                </Card>
-              );
-            });
-          })()}
-        </div>
-      </div>
-
-      {/* ── VUE DESKTOP : grille complète ── */}
-      <div className="hidden xl:grid grid-cols-1 xl:grid-cols-4 gap-8">
-        {/* ── GRILLE ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+        {/* GRILLE */}
         <Card className="xl:col-span-3 p-0 border-none shadow-soft overflow-hidden bg-white dark:bg-gray-900/50">
           <div className="overflow-x-auto">
             <div className="min-w-[800px]">
-              {/* Days Header */}
               <div className="grid grid-cols-7 border-b border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/5">
                 <div className="p-4 border-r border-gray-100 dark:border-white/5" />
                 {DAYS.map((day) => (
@@ -203,8 +226,6 @@ const EleveEmploi: React.FC = () => {
                   </div>
                 ))}
               </div>
-
-              {/* Rows */}
               <div className="relative">
                 {HOURS.map((hour) => (
                   <div key={hour} className="grid grid-cols-7 min-h-[80px] border-b border-gray-50 dark:border-white/5">
@@ -216,20 +237,16 @@ const EleveEmploi: React.FC = () => {
                     ))}
                   </div>
                 ))}
-
-                {/* Overlays */}
                 {(schedules ?? []).map((item: ScheduleResponse, idx: number) => {
                   const dayIdx = DAYS.indexOf(item.dayOfWeek as typeof DAYS[number]);
                   if (dayIdx === -1) return null;
-
                   const startDecimal = timeToDecimal(item.startTime);
-                  const duration     = getDuration(item.startTime, item.endTime);
-                  const color        = getSubjectColor(item.subjectName);
-                  const topPx        = (startDecimal - GRID_START_HOUR) * ROW_HEIGHT_PX;
-                  const heightPx     = duration * ROW_HEIGHT_PX;
-                  const leftPct      = ((dayIdx + 1) / 7) * 100;
-                  const widthPct     = (1 / 7) * 100;
-
+                  const duration = getDuration(item.startTime, item.endTime);
+                  const color = getSubjectColor(item.subjectName);
+                  const topPx = (startDecimal - GRID_START_HOUR) * ROW_HEIGHT_PX;
+                  const heightPx = duration * ROW_HEIGHT_PX;
+                  const leftPct = ((dayIdx + 1) / 7) * 100;
+                  const widthPct = (1 / 7) * 100;
                   return (
                     <div
                       key={idx}
@@ -238,9 +255,9 @@ const EleveEmploi: React.FC = () => {
                         getColorClasses(color),
                       )}
                       style={{
-                        left:   `${leftPct}%`,
-                        width:  `calc(${widthPct}% - 8px)`,
-                        top:    `${topPx}px`,
+                        left: `${leftPct}%`,
+                        width: `calc(${widthPct}% - 8px)`,
+                        top: `${topPx}px`,
                         height: `${heightPx}px`,
                         zIndex: 10,
                       }}
@@ -268,10 +285,10 @@ const EleveEmploi: React.FC = () => {
           </div>
         </Card>
 
-        {/* ── SIDEBAR ── */}
+        {/* SIDEBAR */}
         <div className="space-y-6">
-          <Card className="p-6 border-none shadow-soft bg-gradient-to-br from-or-500 to-or-600 text-white relative overflow-hidden group">
-            <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
+          <Card className="p-6 border-none shadow-soft bg-gradient-to-br from-or-500 to-or-600 text-white relative overflow-hidden">
+            <div className="absolute -right-6 -bottom-6 opacity-10">
               <AlarmClock size={120} />
             </div>
             <div className="relative z-10">
@@ -295,7 +312,6 @@ const EleveEmploi: React.FC = () => {
                   <h3 className="text-xl font-black mb-1">Temps libre</h3>
                 </>
               )}
-
               <div className="pt-4 border-t border-white/20">
                 <p className="text-[10px] font-bold opacity-70 mb-2 uppercase tracking-widest text-left">
                   Prochain cours
@@ -303,9 +319,7 @@ const EleveEmploi: React.FC = () => {
                 {nextCourse ? (
                   <div className="text-left">
                     <p className="text-sm font-black">{nextCourse.subjectName}</p>
-                    <p className="text-[10px] opacity-80 mt-0.5">
-                      {nextCourse.startTime} · {nextCourse.room}
-                    </p>
+                    <p className="text-[10px] opacity-80 mt-0.5">{nextCourse.startTime} · {nextCourse.room}</p>
                   </div>
                 ) : (
                   <p className="text-sm font-black text-left">Pas de cours</p>
@@ -316,26 +330,45 @@ const EleveEmploi: React.FC = () => {
 
           {schedules && schedules.length > 0 && (
             <Card className="p-6 border-none shadow-soft bg-white dark:bg-gray-900/50">
-              <h3 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest mb-4">
-                Tous les cours
+              <h3 className="text-sm font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Bell size={16} className="text-bleu-500" /> Cours aujourd'hui
               </h3>
-              <div className="space-y-2">
-                {schedules.map((s, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                    <div className={"w-2 h-2 rounded-full flex-shrink-0 bg-bleu-500"} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black text-gray-900 dark:text-white truncate">{s.subjectName}</p>
-                      <p className="text-[10px] text-gray-400">{DAY_LABELS[s.dayOfWeek]} · {s.startTime}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {(() => {
+                  const now = new Date();
+                  const javaDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+                  const todayCourses = schedules
+                    .filter((s) => s.dayOfWeek === javaDayOfWeek)
+                    .sort((a, b) => timeToDecimal(a.startTime) - timeToDecimal(b.startTime));
+                  if (todayCourses.length === 0) {
+                    return <p className="text-xs text-gray-400 font-semibold">Aucun cours aujourd'hui.</p>;
+                  }
+                  return todayCourses.map((s, i) => {
+                    const color = getSubjectColor(s.subjectName);
+                    const isPast = timeToDecimal(s.endTime) < now.getHours() + now.getMinutes() / 60;
+                    return (
+                      <div key={i} className={cn('flex gap-3 text-left', isPast && 'opacity-50')}>
+                        <div
+                          className={cn('w-1 rounded-full flex-shrink-0', colorBarClass[color] ?? 'bg-gray-400')}
+                          style={{ minHeight: '2rem' }}
+                        />
+                        <div>
+                          <p className="text-xs font-black text-gray-900 dark:text-white">{s.subjectName}</p>
+                          <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                            {s.startTime} – {s.endTime}{s.room && ` · ${s.room}`}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </Card>
           )}
         </div>
-      </div>{/* fin vue desktop */}
+      </div>
     </motion.div>
   );
 };
 
-export default EleveEmploi;
+export default ParentEmploi;

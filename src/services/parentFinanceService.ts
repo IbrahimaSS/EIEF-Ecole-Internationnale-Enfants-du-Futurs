@@ -59,7 +59,7 @@ export interface ParentTuitionStatusResponse {
 export interface ParentFinanceOverview {
   students: StudentResponse[];
   payments: ParentPaymentResponse[];
-  tuitionStatus: ParentTuitionStatusResponse;
+  tuitionStatus: ParentTuitionStatusResponse | null;
 }
 
 export const isOpenParentPaymentStatus = (status: ParentPaymentStatus) =>
@@ -79,25 +79,24 @@ export const parentFinanceService = {
   ): Promise<ParentFinanceOverview> => {
     const students = await userService.getStudentsByParent(token, parentUserId);
 
+    // Récupère le familyId depuis le premier enfant (tous partagent la même famille)
+    const familyId = students[0]?.familyId ?? null;
+
     const [paymentGroups, tuitionStatus] = await Promise.all([
       Promise.all(
         students.map((student) =>
           apiRequest<ParentPaymentResponse[]>(
             `/payments/student/${student.id}`,
-            {
-              method: "GET",
-              token,
-            },
-          ),
+            { method: "GET", token },
+          ).catch(() => [] as ParentPaymentResponse[]),
         ),
       ),
-      apiRequest<ParentTuitionStatusResponse>(
-        `/tuition-fees/parents/${parentUserId}/status`,
-        {
-          method: "GET",
-          token,
-        },
-      ),
+      familyId
+        ? apiRequest<ParentTuitionStatusResponse>(
+            `/tuition-fees/families/${familyId}/status`,
+            { method: "GET", token },
+          ).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     return {

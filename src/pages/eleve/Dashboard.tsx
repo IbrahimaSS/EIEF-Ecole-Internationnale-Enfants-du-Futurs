@@ -6,6 +6,7 @@ import {
   Calendar, CheckCircle2, FileText, ChevronRight, Award,
   Gamepad2
 } from 'lucide-react';
+import CoachEIEF from '../../components/CoachEIEF';
 import { Card, Badge, Avatar, Button } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -244,9 +245,9 @@ const EleveDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* COLONNE CENTRALE */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="xl:col-span-2 space-y-8">
           
           {/* NOUVELLE SECTION : ANALYSE & COACH */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -299,36 +300,15 @@ const EleveDashboard: React.FC = () => {
             </Card>
           </div>
 
-          {/* MON COACH EIEF (RECOMMANDATIONS) */}
+          {/* MON COACH EIEF (IA DEEPSEEK) */}
           <div className="space-y-4">
             <h2 className="text-lg font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2 px-2">
               <Award size={20} className="text-or-500" /> Mon Coach EIEF
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {analysis.recommendations.map((game) => (
-                <Card 
-                  key={game.id} 
-                  className="p-4 border-none shadow-soft bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 hover:shadow-lg transition-all cursor-pointer group"
-                  onClick={() => navigate('/eleve/jeux')}
-                >
-                  <div className="p-2 bg-white dark:bg-white/5 rounded-xl w-fit mb-3 shadow-sm group-hover:scale-110 transition-transform">
-                    {/* On utilise un icone par défaut ou on pourrait mapper */}
-                    <BookOpen size={16} className="text-bleu-500" />
-                  </div>
-                  <h4 className="text-xs font-black text-gray-900 dark:text-white line-clamp-1">{game.title}</h4>
-                  <p className="text-[10px] text-gray-500 mt-1 line-clamp-2">{game.description}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-[9px] font-black text-or-500 uppercase tracking-widest">{game.subject}</span>
-                    <ChevronRight size={12} className="text-gray-300 group-hover:text-or-500 transition-colors" />
-                  </div>
-                </Card>
-              ))}
-              {analysis.recommendations.length === 0 && (
-                <Card className="col-span-3 p-6 text-center bg-gray-50 dark:bg-white/5 border-none">
-                  <p className="text-xs font-bold text-gray-500">Félicitations ! Tu es à jour dans tous tes objectifs. 🎉</p>
-                </Card>
-              )}
-            </div>
+            <CoachEIEF
+              studentName={user ? `${user.firstName} ${user.lastName}` : undefined}
+              className={studentClass ?? undefined}
+            />
           </div>
 
           {/* DERNIÈRES NOTES */}

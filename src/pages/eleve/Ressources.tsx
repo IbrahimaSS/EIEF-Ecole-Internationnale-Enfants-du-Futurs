@@ -200,9 +200,9 @@ const EleveRessources: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
+      <div className="flex flex-col lg:flex-row gap-6">
          {/* SIDEBAR: SUBJECTS FILTER */}
-         <div className="w-full lg:w-64 space-y-6">
+         <div className="w-full lg:w-56 xl:w-64 space-y-4 lg:space-y-6">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
@@ -213,25 +213,39 @@ const EleveRessources: React.FC = () => {
               />
             </div>
 
-            <Card className="p-6 border-none shadow-soft bg-white dark:bg-gray-900/50">
-               <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                 <Filter size={14} /> Filtrer par matière
-               </h3>
-               <div className="space-y-2">
+            {/* Filtres matières : liste verticale sur lg, scrollable horizontal sur mobile */}
+            <div className="hidden lg:block">
+              <Card className="p-4 border-none shadow-soft bg-white dark:bg-gray-900/50">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                  <Filter size={14} /> Filtrer par matière
+                </h3>
+                <div className="space-y-1">
                   {classes.map((sub) => (
                     <button
                       key={sub}
                       onClick={() => setSelectedClass(sub)}
                       className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all ${selectedClass === sub ? 'bg-bleu-50 dark:bg-bleu-900/20 text-bleu-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}
                     >
-                       <span>{sub}</span>
-                       <Badge className="bg-gray-100 dark:bg-white/5 text-gray-500 border-none text-[8px] h-4">
-                         {sub === 'Toutes' ? resources.length : resources.filter((r) => r.className === sub).length}
-                       </Badge>
+                      <span className="truncate">{sub}</span>
+                      <Badge className="ml-2 bg-gray-100 dark:bg-white/5 text-gray-500 border-none text-[8px] h-4 flex-shrink-0">
+                        {sub === 'Toutes' ? resources.length : resources.filter((r) => r.className === sub).length}
+                      </Badge>
                     </button>
                   ))}
-               </div>
-            </Card>
+                </div>
+              </Card>
+            </div>
+            {/* Version mobile : chips horizontaux */}
+            <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+              {classes.map((sub) => (
+                <button key={sub} onClick={() => setSelectedClass(sub)}
+                  className={cn('flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+                    selectedClass === sub ? 'bg-bleu-600 text-white' : 'bg-white dark:bg-gray-900/50 text-gray-500 shadow-soft'
+                  )}>
+                  {sub}
+                </button>
+              ))}
+            </div>
          </div>
 
          {/* MAIN: RESOURCES GRID/LIST */}

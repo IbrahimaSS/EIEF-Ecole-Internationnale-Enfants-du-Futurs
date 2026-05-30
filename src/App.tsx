@@ -24,6 +24,7 @@ import CoordinatorDashboard from './pages/coordinator/Dashboard';
 import CoordinatorScolarite from './pages/coordinator/Scolarite';
 import CoordinatorTeachers from './pages/coordinator/Teachers';
 import CoordinatorPermutation from './pages/coordinator/Permutation';
+import CoordinatorDevoirs from './pages/coordinator/Devoirs';
 
 import Login from './pages/auth/Login';
 import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
@@ -32,12 +33,17 @@ import EnseignantCommunication from './pages/enseignant/Communication';
 import EnseignantRessources from './pages/enseignant/Ressources';
 import EnseignantProfile from './pages/enseignant/Profile';
 import EnseignantPreferences from './pages/enseignant/Preferences';
+import TeacherDevoirs from './pages/enseignant/Devoirs';
 import ParentDashboard from './pages/parent/Dashboard';
 import ParentEleves from './pages/parent/Eleves';
 import ParentPaiements from './pages/parent/Paiements';
 import ParentCommunication from './pages/parent/Communication';
 import ParentProfile from './pages/parent/Profile';
 import ParentPreferences from './pages/parent/Preferences';
+import ParentNotes from './pages/parent/Notes';
+import ParentEmploi from './pages/parent/Emploi';
+import ParentDevoirs from './pages/parent/Devoirs';
+import EleveDevoirs from './pages/eleve/Devoirs';
 import EleveDashboard from './pages/eleve/Dashboard';
 import EleveNotes from './pages/eleve/Notes';
 import EleveEmploi from './pages/eleve/Emploi';
@@ -188,6 +194,7 @@ function App() {
             <Route path="scolarite" element={<CoordinatorScolarite />} />
             <Route path="enseignants" element={<CoordinatorTeachers />} />
             <Route path="permutation" element={<CoordinatorPermutation />} />
+            <Route path="devoirs" element={<CoordinatorDevoirs />} />
             <Route path="profil" element={<AdminProfile />} />
             <Route path="preferences" element={<EnseignantPreferences />} />
           </Route>
@@ -200,6 +207,7 @@ function App() {
             <Route index element={<EnseignantDashboard />} />
             <Route path="dashboard" element={<EnseignantDashboard />} />
             <Route path="classes" element={<EnseignantClasses />} />
+            <Route path="devoirs" element={<TeacherDevoirs />} />
             <Route path="communication" element={<EnseignantCommunication />} />
             <Route path="ressources" element={<EnseignantRessources />} />
             <Route path="profil" element={<EnseignantProfile />} />
@@ -215,6 +223,9 @@ function App() {
             <Route index element={<ParentDashboard />} />
             <Route path="dashboard" element={<ParentDashboard />} />
             <Route path="eleves" element={<ParentEleves />} />
+            <Route path="notes" element={<ParentNotes />} />
+            <Route path="emploi" element={<ParentEmploi />} />
+            <Route path="devoirs" element={<ParentDevoirs />} />
             <Route path="paiements" element={<ParentPaiements />} />
             <Route path="communication" element={<ParentCommunication />} />
             <Route path="profil" element={<ParentProfile />} />
@@ -231,6 +242,7 @@ function App() {
             <Route path="dashboard" element={<EleveDashboard />} />
             <Route path="notes" element={<EleveNotes />} />
             <Route path="emploi" element={<EleveEmploi />} />
+            <Route path="devoirs" element={<EleveDevoirs />} />
             <Route path="ressources" element={<EleveRessources />} />
             <Route path="communication" element={<EleveCommunication />} />
             <Route path="jeux" element={<CatalogueJeux />} />
@@ -288,7 +300,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'transport': { title: 'Transport Scolaire', subtitle: 'Gestion des lignes et des bus' },
           'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
           'administration': { title: 'Administration', subtitle: 'Configuration système et sécurité' },
-          'jeux': { title: 'Jeux Éducatifs', subtitle: 'Gérez le catalogue des jeux d’apprentissage' },
+          'jeux': { title: 'Jeux Éducatifs', subtitle: "Gérez le catalogue des jeux d'apprentissage" },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
         };
         return adminPages[currentPage] || adminPages['dashboard'];
@@ -320,7 +332,8 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         const coordinatorPages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Coordinateur', subtitle: `Bienvenue, ${user?.firstName} !` },
           'scolarite': { title: 'Coordination académique', subtitle: 'Classes, emplois du temps, notes, bulletins et pointage enseignant' },
-          'enseignants': { title: 'Suivi des enseignants', subtitle: 'Consultez l’équipe pédagogique et son activité' },
+          'enseignants': { title: 'Suivi des enseignants', subtitle: "Consultez l'équipe pédagogique et son activité" },
+          'devoirs': { title: 'Suivi des Devoirs', subtitle: 'Devoirs des enseignants' },
           'profil': { title: 'Mon Profil', subtitle: 'Gérez vos informations personnelles' },
           'preferences': { title: 'Préférences', subtitle: 'Paramètres et notifications' },
         };
@@ -330,6 +343,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         const teacherPages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Enseignant', subtitle: `Bonjour, ${user?.firstName} !` },
           'classes': { title: 'Mes Classes', subtitle: 'Gérez vos effectifs' },
+          'devoirs': { title: 'Mes Devoirs', subtitle: 'Gérez et corrigez les devoirs' },
           'communication': { title: 'Communication', subtitle: 'Messagerie avec les élèves et parents' },
           'ressources': { title: 'Ressources Pédagogiques', subtitle: 'Exercices, TP, Sujets et Compositions' },
           'profil': { title: 'Mon Profil', subtitle: 'Gérez vos informations personnelles' },
@@ -340,6 +354,9 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         const parentPages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Parent', subtitle: `Bienvenue, M. ${user?.lastName}` },
           'eleves': { title: 'Mes Enfants', subtitle: 'Suivi scolaire et bulletins' },
+          'notes': { title: 'Relevé de Notes', subtitle: 'Résultats scolaires de vos enfants' },
+          'emploi': { title: 'Emploi du Temps', subtitle: 'Planning hebdomadaire de vos enfants' },
+          'devoirs': { title: 'Devoirs de mes Enfants', subtitle: 'Suivez les devoirs de vos enfants' },
           'paiements': { title: 'Finances & Paiements', subtitle: 'Gérez vos frais de scolarité' },
           'communication': { title: 'Communication', subtitle: 'Échangez avec l\'équipe pédagogique' },
           'profil': { title: 'Mon Profil', subtitle: 'Gérez vos informations' },
@@ -351,11 +368,10 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'dashboard': { title: `Salut, ${user?.firstName} !`, subtitle: "C'est une belle journée pour apprendre." },
           'notes': { title: 'Mes Notes', subtitle: 'Consulte tes derniers résultats' },
           'emploi': { title: 'Emploi du Temps', subtitle: 'Ton planning de la semaine' },
-          'ressources': { title: 'Ressources', subtitle: 'Accède à tes supports de cours' },
-          'communication': { title: 'Communication', subtitle: 'Dispute avec tes profs et camardes' },
-          'jeux': { title: 'Catalogue de Jeux', subtitle: 'Apprends en t\'amusant !' },
-          'profil': { title: 'Mon Profil', subtitle: 'Vérifie tes informations' },
-          'preferences': { title: 'Réglages', subtitle: 'Personnalise ton espace' },
+          'devoirs': { title: 'Mes Devoirs', subtitle: 'Tes devoirs à rendre' },
+          'profil': { title: 'Mon Profil', subtitle: 'Mes informations personnelles' },
+          'preferences': { title: 'Préférences', subtitle: 'Paramètres et notifications' },
+          'jeux': { title: 'Catalogue de Jeux', subtitle: "Apprends en t'amusant !" },
         };
         return elevePages[currentPage] || elevePages['dashboard'];
       default: return { title: 'Espace EIEF', subtitle: '' };
@@ -366,11 +382,11 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
 
   return (
     <Layout
+      title={title}
+      subtitle={subtitle}
       userRole={role}
       userName={user ? `${user.firstName} ${user.lastName}` : ''}
       currentPage={currentPage}
-      title={title}
-      subtitle={subtitle}
     />
   );
 };

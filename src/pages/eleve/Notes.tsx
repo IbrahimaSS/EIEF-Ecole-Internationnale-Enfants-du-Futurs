@@ -64,7 +64,7 @@ const EleveNotes: React.FC = () => {
   if (loading) return (
     <div className="space-y-6 animate-pulse pb-10">
       <div className="h-12 w-64 rounded-2xl bg-gray-100 dark:bg-white/5" />
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="h-28 rounded-3xl bg-gray-100 dark:bg-white/5" />
         ))}
@@ -97,19 +97,19 @@ const EleveNotes: React.FC = () => {
         </div>
 
         {/* Sélecteur semestre */}
-        <div className="flex items-center bg-gray-100 dark:bg-white/5 rounded-2xl p-1.5 gap-1 self-start lg:self-center">
+        <div className="flex items-center bg-gray-100 dark:bg-white/5 rounded-2xl p-1.5 gap-1 self-start lg:self-center overflow-x-auto max-w-full">
           {SEMESTRES.map((sem) => (
             <button
               key={sem}
               onClick={() => setSelectedSem(sem)}
               className={cn(
-                'px-6 py-2.5 rounded-xl text-xs font-black transition-all',
+                'px-3 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap flex-shrink-0',
                 selectedSem === sem
                   ? 'bg-white dark:bg-gray-800 text-bleu-600 dark:text-or-400 shadow-md'
                   : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
               )}
             >
-              Semestre {sem}
+              <span className="hidden sm:inline">Semestre </span>S{sem}
             </button>
           ))}
         </div>
@@ -215,11 +215,11 @@ const EleveNotes: React.FC = () => {
                     <table className="w-full text-left">
                       <thead className="bg-gray-50/50 dark:bg-white/5 border-b border-gray-100 dark:border-white/5">
                         <tr>
-                          <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Matière</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Coefficient</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Note</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Évolution</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Appréciation</th>
+                          <th className="px-3 sm:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Matière</th>
+                          <th className="hidden md:table-cell px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Coefficient</th>
+                          <th className="px-3 sm:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Note</th>
+                          <th className="hidden sm:table-cell px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Évolution</th>
+                          <th className="hidden lg:table-cell px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Appréciation</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -234,15 +234,17 @@ const EleveNotes: React.FC = () => {
                             const evo = evolutionDisplay(s.evolution);
                             return (
                               <tr key={s.subjectId} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                                <td className="px-6 py-5">
+                                <td className="px-3 sm:px-6 py-4">
                                   <p className="text-sm font-black text-gray-900 dark:text-white">{s.subjectName}</p>
+                                  {/* Affiche coeff + appréciation inline sur mobile */}
+                                  <p className="text-[10px] text-gray-400 mt-0.5 sm:hidden">Coeff x{s.coefficient}</p>
                                 </td>
-                                <td className="px-6 py-5 text-center">
+                                <td className="hidden md:table-cell px-6 py-4 text-center">
                                   <p className="text-sm font-bold text-gray-500">x{s.coefficient}</p>
                                 </td>
-                                <td className="px-6 py-5 text-center">
+                                <td className="px-3 sm:px-6 py-4 text-center">
                                   <div className={cn(
-                                    'inline-flex items-center justify-center w-12 h-12 rounded-2xl font-black text-base shadow-sm group-hover:scale-110 transition-transform',
+                                    'inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-2xl font-black text-sm sm:text-base shadow-sm group-hover:scale-110 transition-transform',
                                     s.value >= 15
                                       ? 'bg-vert-50 text-vert-600 dark:bg-vert-900/20 dark:text-vert-400'
                                       : s.value >= 10
@@ -252,13 +254,13 @@ const EleveNotes: React.FC = () => {
                                     {formatNote(s.value)}
                                   </div>
                                 </td>
-                                <td className="px-6 py-5 text-center">
+                                <td className="hidden sm:table-cell px-6 py-4 text-center">
                                   <div className={cn('flex items-center justify-center gap-1 text-[11px] font-black', evo.color)}>
                                     {evo.icon}
                                     {evo.label}
                                   </div>
                                 </td>
-                                <td className="px-6 py-5">
+                                <td className="hidden lg:table-cell px-6 py-4">
                                   <p className="text-[12px] font-semibold text-gray-500 italic line-clamp-1">
                                     {s.comment || '—'}
                                   </p>
