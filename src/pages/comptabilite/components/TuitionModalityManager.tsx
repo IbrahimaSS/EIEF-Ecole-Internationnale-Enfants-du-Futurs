@@ -143,17 +143,14 @@ const TuitionModalityManager: React.FC<Props> = ({
   const [scolariteAmount, setScolariteAmount] = useState<number>(0);
   const [localFamilyAdjustments, setLocalFamilyAdjustments] = useState<TuitionFeeFamilyAdjustmentPayload[]>([]);
 
-  // Toutes les classes sont disponibles à la création/édition d'une modalité.
-  // On ne filtre plus par année académique pour ne pas masquer des classes
-  // dont le champ academicYearName serait absent ou mal renseigné côté backend.
+  // On filtre les classes par année académique sélectionnée pour éviter que
+  // le backend rejette des classes appartenant à une autre année.
   const availableClasses = useMemo(
     () =>
-      classes.slice().sort((left, right) => {
-        const yearCompare = (left.academicYearName || '').localeCompare(right.academicYearName || '');
-        if (yearCompare !== 0) return yearCompare;
-        return left.name.localeCompare(right.name);
-      }),
-    [classes],
+      classes
+        .filter((c) => !formData.academicYearId || !c.academicYearId || c.academicYearId === formData.academicYearId)
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [classes, formData.academicYearId],
   );
 
   // Filtre "Filtrer par classe" du listing : on affiche TOUTES les classes,
@@ -558,7 +555,14 @@ const TuitionModalityManager: React.FC<Props> = ({
   // On ne retire plus les classes déjà sélectionnées lorsqu'on change d'année :
   // toutes les classes restent disponibles indépendamment de l'année scolaire.
   const updateAcademicYear = (academicYearId: string) => {
-    setFormData((current) => ({ ...current, academicYearId }));
+    setFormData((current) => ({
+      ...current,
+      academicYearId,
+      classIds: current.classIds.filter((id) => {
+        const cls = classes.find((c) => c.id === id);
+        return cls?.academicYearId === academicYearId;
+      }),
+    }));
   };
 
   const updateInstallment = (
@@ -761,13 +765,27 @@ const TuitionModalityManager: React.FC<Props> = ({
 
   const renderStep2 = () => (
     <div className="space-y-5">
+      {/* Explication claire pour éviter la double saisie */}
+      <div className="rounded-2xl border border-bleu-200 bg-bleu-50/60 px-4 py-3 dark:border-bleu-800/40 dark:bg-bleu-900/10">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-bleu-600 dark:text-bleu-300 mb-1">
+          À quoi sert cette étape ?
+        </p>
+        <p className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-relaxed">
+          Cette étape est <strong>optionnelle</strong>. Elle sert uniquement à saisir les <strong>frais de dossier</strong> (montant ponctuel payé une seule fois lors de l'inscription).
+          Le montant principal de la scolarité se saisit à <strong>l'étape suivante</strong>.
+        </p>
+        <p className="mt-1.5 text-[10px] font-bold text-orange-600 dark:text-orange-400">
+          ⚠️ Ne mettez PAS le montant de la scolarité ici — cela doublerait le total.
+        </p>
+      </div>
+
       <div className="rounded-3xl border-2 border-or-200 bg-or-50/50 p-5 dark:border-or-900/30 dark:bg-or-900/10">
         <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-or-700 dark:text-or-300">
-          {FEE_LABEL_BY_TYPE[modalityType]} (frais unique, à payer une fois)
+          {FEE_LABEL_BY_TYPE[modalityType]} — frais de dossier unique (optionnel)
         </p>
         <p className="mb-4 text-xs font-medium text-gray-600 dark:text-gray-400">
-          Ce montant est distinct des tranches de scolarité. Il est offert aux familles ayant 3 enfants ou plus inscrits.
-          Laissez à 0 si la modalité n'inclut pas de frais initial.
+          Montant payé une seule fois (ex : 100 000 GNF). Offert aux familles avec 3 enfants ou plus.
+          <strong> Laissez à 0 si vous n'avez pas de frais de dossier.</strong>
         </p>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Input
@@ -775,7 +793,7 @@ const TuitionModalityManager: React.FC<Props> = ({
             value={inscriptionFeeAmount || ''}
             onChange={(e) => setInscriptionFeeAmount(Number(e.target.value))}
             placeholder="0"
-            label="Montant (GNF)"
+            label="Montant frais de dossier (GNF)"
           />
           <Input
             type="date"
@@ -789,7 +807,7 @@ const TuitionModalityManager: React.FC<Props> = ({
         <div className="flex items-center gap-3 rounded-2xl bg-or-50 p-3 dark:bg-or-900/10">
           <CalendarDays size={16} className="shrink-0 text-or-600" />
           <p className="text-sm font-semibold text-or-700 dark:text-or-300">
-            Frais initial : <strong>{formatCurrency(inscriptionFeeAmount)}</strong> — sera enregistré comme première échéance.
+            Frais de dossier : <strong>{formatCurrency(inscriptionFeeAmount)}</strong> — s'ajoutera au montant scolarité de l'étape suivante.
           </p>
         </div>
       )}
@@ -798,6 +816,25 @@ const TuitionModalityManager: React.FC<Props> = ({
 
   const renderStep3 = () => (
     <div className="space-y-5">
+      {Number(inscriptionFeeAmount) > 0 && (
+        <div className="rounded-2xl border border-bleu-200 bg-bleu-50/60 px-4 py-3 dark:border-bleu-800/40 dark:bg-bleu-900/10">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-bleu-600 dark:text-bleu-300 mb-1">
+            Récapitulatif des montants
+          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <span>Frais initial (étape 2) : <strong>{formatCurrency(Number(inscriptionFeeAmount))}</strong></span>
+            <span className="text-gray-400">+</span>
+            <span>Scolarité (ci-dessous) : <strong>{formatCurrency(scolariteAmount)}</strong></span>
+            <span className="text-gray-400">=</span>
+            <span className="text-bleu-700 dark:text-bleu-200 font-black">Total : {formatCurrency(Number(inscriptionFeeAmount) + scolariteAmount)}</span>
+          </div>
+          {scolariteAmount > 0 && scolariteAmount === Number(inscriptionFeeAmount) && (
+            <p className="mt-2 text-[10px] font-bold text-orange-600 dark:text-orange-400">
+              ⚠️ Le montant scolarité est identique aux frais initiaux. Vérifiez que ce n'est pas une saisie en double.
+            </p>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Input
           type="number"

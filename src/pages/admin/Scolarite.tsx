@@ -45,7 +45,9 @@ interface ClassResponse {
   id: string;
   name: string;
   level: string;
+  academicYearId: string | null;
   academicYearName: string;
+  mainTeacherId?: string | null;
   mainTeacherName: string;
   maxStudents: number;
   studentCount: number;
@@ -203,6 +205,7 @@ const AdminScolarite: React.FC = () => {
   const [searchQuery,      setSearchQuery]      = useState('');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isClassModalOpen,    setIsClassModalOpen]    = useState(false);
+  const [editingClassId,      setEditingClassId]      = useState<string | null>(null);
   const [isSubjectModalOpen,  setIsSubjectModalOpen]  = useState(false);
   const [isAcademicYearModalOpen, setIsAcademicYearModalOpen] = useState(false);
   const [isDetailModalOpen,   setIsDetailModalOpen]   = useState(false);
@@ -583,22 +586,47 @@ const AdminScolarite: React.FC = () => {
     }
     setSubmitting(true);
     try {
-      await apiFetch('/courses/classes', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...classForm,
-          mainTeacherId: classForm.mainTeacherId || null,
-        }),
-      });
-      showNotif('success', 'Classe créée avec succès.');
+      if (editingClassId) {
+        await apiFetch(`/courses/classes/${editingClassId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            ...classForm,
+            mainTeacherId: classForm.mainTeacherId || null,
+          }),
+        });
+        showNotif('success', 'Classe modifiée avec succès.');
+      } else {
+        await apiFetch('/courses/classes', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...classForm,
+            mainTeacherId: classForm.mainTeacherId || null,
+          }),
+        });
+        showNotif('success', 'Classe créée avec succès.');
+      }
       setIsClassModalOpen(false);
+      setEditingClassId(null);
       setClassForm(empty.class());
       await fetchAll();
     } catch (e: any) {
-      showNotif('error', e?.message ?? 'Erreur création classe.');
+      showNotif('error', e?.message ?? (editingClassId ? 'Erreur modification classe.' : 'Erreur création classe.'));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ── Ouvrir édition classe ─────────────────────────────────────────────────
+  const openEditClass = (cls: ClassResponse) => {
+    setEditingClassId(cls.id);
+    setClassForm({
+      name: cls.name,
+      level: cls.level || '',
+      academicYearId: cls.academicYearId || '',
+      mainTeacherId: cls.mainTeacherId || '',
+      maxStudents: cls.maxStudents,
+    });
+    setIsClassModalOpen(true);
   };
 
   // ── Soumettre matière ─────────────────────────────────────────────────────
@@ -1184,6 +1212,12 @@ const AdminScolarite: React.FC = () => {
                             <Eye size={11} /> Voir
                           </button>
                           <button
+                            onClick={(e) => { e.stopPropagation(); openEditClass(cls); }}
+                            className="px-3 py-1.5 text-[9px] font-bold bg-vert-50 dark:bg-vert-900/20 text-vert-600 dark:text-vert-300 rounded-lg hover:bg-vert-100 transition-all flex items-center gap-1"
+                          >
+                            ✏️ Modifier
+                          </button>
+                          <button
                             onClick={() => openAddSchedule(cls)}
                             className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"
                           >
@@ -1752,11 +1786,11 @@ const AdminScolarite: React.FC = () => {
       {/* ── MODALE: AJOUTER UNE CLASSE ────────────────────────────────────────── */}
       <Modal
         isOpen={isClassModalOpen}
-        onClose={() => setIsClassModalOpen(false)}
+        onClose={() => { setIsClassModalOpen(false); setEditingClassId(null); setClassForm(empty.class()); }}
         title={
           <div className="flex items-center gap-3">
             <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600"><Building2 size={22} /></div>
-            <span className="font-bold gradient-bleu-or-text">Nouvelle Classe</span>
+            <span className="font-bold gradient-bleu-or-text">{editingClassId ? 'Modifier la Classe' : 'Nouvelle Classe'}</span>
           </div>
         }
         size="lg"
@@ -1810,14 +1844,14 @@ const AdminScolarite: React.FC = () => {
             />
           </div>
           <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-white/5">
-            <Button variant="outline" onClick={() => setIsClassModalOpen(false)} className="flex-1 h-12">Annuler</Button>
+            <Button variant="outline" onClick={() => { setIsClassModalOpen(false); setEditingClassId(null); setClassForm(empty.class()); }} className="flex-1 h-12">Annuler</Button>
             <Button
               onClick={handleSubmitClass}
               disabled={submitting}
               className="flex-1 h-12 bg-bleu-600 border-none text-white shadow-lg"
             >
               {submitting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
-              Créer la Classe
+              {editingClassId ? 'Enregistrer les modifications' : 'Créer la Classe'}
             </Button>
           </div>
         </div>

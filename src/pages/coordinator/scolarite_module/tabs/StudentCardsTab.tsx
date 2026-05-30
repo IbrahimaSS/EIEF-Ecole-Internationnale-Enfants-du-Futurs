@@ -38,7 +38,9 @@ const StudentCardsTab: React.FC<Props> = ({
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
 
   const selectedClass = useMemo(
-    () => classes.find((item) => item.name === selectedStudent?.className) ?? null,
+    () => classes.find((item) => item.name === selectedStudent?.className && (item as any).studentCount > 0) 
+      ?? classes.find((item) => item.name === selectedStudent?.className) 
+      ?? null,
     [classes, selectedStudent?.className],
   );
 

@@ -5,7 +5,9 @@ export interface ClassResponse {
   id: string;
   name: string;
   level: string;
+  academicYearId: string | null;
   academicYearName: string;
+  mainTeacherId?: string | null;
   mainTeacherName: string;
   maxStudents: number;
   studentCount: number;

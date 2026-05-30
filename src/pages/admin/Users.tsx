@@ -9,7 +9,8 @@ import {
   BookOpen, Shield, User, FileText, CheckCircle2, XCircle,
   RefreshCw, ClipboardList, ChevronRight, Map as MapIcon, Wallet,
   Settings, Utensils, Bus, Car, Truck, Shirt, Tent, Swords,
-  Rocket, Waves, Bot, Moon, Baby, Activity, Coins,
+  Rocket, Waves, Bot, Moon, Baby, Activity, Coins, Plus, X,
+  Upload, Download, FileSpreadsheet, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import NotificationToast from '../../components/shared/NotificationToast';
@@ -23,8 +24,9 @@ import type {
   ParentRequest, ParentResponse,
   EmployeeRequest, EmployeeResponse,
   PreEnrollmentResponse, PreEnrollmentStatus,
-  StudentResponse,
+  StudentResponse, BulkImportResponse,
 } from '../../services/userService';
+import { detecterCycle } from '../comptabilite/tarifs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -64,6 +66,38 @@ const emptyStudent  = (): StudentRequest  => ({
   classId: '', 
   familyId: '' 
 });
+// ── Options par enfant ──────────────────────────────────��─────────────────────
+export type StudentOptionsType = {
+  isReturning: boolean;
+  cantine: boolean;
+  transport: 'NONE' | 'PETIT_TRAJET' | 'LONG_TRAJET';
+  tenueScolaire: boolean;
+  tenueSport: boolean;
+  tenueScout: boolean;
+  tenueKarate: boolean;
+  activiteKarate: boolean;
+  activiteNatation: boolean;
+  activiteRobotique: boolean;
+  coursCoranique: boolean;
+  coursBiblique: boolean;
+  garderie: boolean;
+};
+const emptyOptions = (): StudentOptionsType => ({
+  isReturning: false,
+  cantine: false,
+  transport: 'NONE',
+  tenueScolaire: false,
+  tenueSport: false,
+  tenueScout: false,
+  tenueKarate: false,
+  activiteKarate: false,
+  activiteNatation: false,
+  activiteRobotique: false,
+  coursCoranique: false,
+  coursBiblique: false,
+  garderie: false,
+});
+
 const emptyTeacher  = (): TeacherRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', employeeNumber: '', specialty: '', hireDate: '' });
 const emptyParent   = (): ParentRequest   => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT', address: '', relationship: '' });
 const emptyEmployee = (): EmployeeRequest => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'STAFF' });
@@ -135,11 +169,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
       fetch(`${API_BASE}/tuition-fees/families/${row.familyId}/status`, {
         headers: { 'enfantsfuture-auth-token': `enfantsfuture ${token}` }
       })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error('API Error');
+        return r.json();
+      })
       .then(d => {
-        if (d.status === 200) {
-          setFinancialSummary(d.data);
-        }
+        setFinancialSummary(d.data || d);
       })
       .catch(console.error)
       .finally(() => setLoadingFinances(false));
@@ -425,6 +460,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     return `${prefix}${nextNum}`;
   }, [students]);
 
+  const generateSiblingMatricule = useCallback((arrivalYear: string | undefined, offset = 0): string => {
+    const year = arrivalYear || new Date().getFullYear().toString();
+    const prefix = `EIEF_${year}`;
+    const base = generateMatricule(year);
+    const baseNumber = parseInt(base.substring(prefix.length), 10);
+    const siblingNumber = baseNumber + offset;
+    return `${prefix}${siblingNumber.toString().padStart(3, '0')}`;
+  }, [generateMatricule]);
+
 
   // ── State familles (parents = chefs de famille côté backend) ──────────────
   const [parents,   setParents]   = useState<ParentResponse[]>([]);
@@ -455,6 +499,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   const [reenrollForm,   setReenrollForm]   = useState({ classId: '', enrollmentDate: '' });
   const [reenrolling,    setReenrolling]    = useState(false);
 
+  // ── State import Excel ────────────────────────────────────────────────────
+  const [importModalOpen,   setImportModalOpen]   = useState(false);
+  const [importFile,        setImportFile]        = useState<File | null>(null);
+  const [importLoading,     setImportLoading]     = useState(false);
+  const [importResult,      setImportResult]      = useState<BulkImportResponse | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
   // ── State classes ──────────────────────────────────────────────────────────
   const [classes, setClasses] = useState<{ id: string; name: string; level: string }[]>([]);
 
@@ -484,6 +535,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   }, [location.search]);
   const [searchQuery,      setSearchQuery]      = useState('');
   const [isAddModalOpen,   setIsAddModalOpen]   = useState(false);
+  const [modalForceTab,    setModalForceTab]    = useState<TabId | null>(null);
   const [openMenuRowId,    setOpenMenuRowId]    = useState<string | null>(null);
   const [submitting,       setSubmitting]       = useState(false);
   const [editingId,        setEditingId]        = useState<string | null>(null);
@@ -494,6 +546,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
 
   // Formulaires
   const [studentForm,  setStudentForm]  = useState<StudentRequest>(emptyStudent());
+  const [additionalStudentForms, setAdditionalStudentForms] = useState<StudentRequest[]>([]);
   const [teacherForm,  setTeacherForm]  = useState<TeacherRequest>(emptyTeacher());
   const [parentForm,   setParentForm]   = useState<ParentRequest>(emptyParent());
   const [employeeForm, setEmployeeForm] = useState<EmployeeRequest>(emptyEmployee());
@@ -511,21 +564,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     familyEmail: '',
   });
 
-  const [studentOptions, setStudentOptions] = useState({
-    isReturning: false,
-    cantine: false,
-    transport: 'NONE' as 'NONE' | 'PETIT_TRAJET' | 'LONG_TRAJET',
-    tenueScolaire: false,
-    tenueSport: false,
-    tenueScout: false,
-    tenueKarate: false,
-    activiteKarate: false,
-    activiteNatation: false,
-    activiteRobotique: false,
-    coursCoranique: false,
-    coursBiblique: false,
-    garderie: false,
-  });
+  const [studentOptions, setStudentOptions] = useState<StudentOptionsType>(emptyOptions());
+  /** Options individuelles pour chaque enfant additionnel (index 0 = enfant 2, etc.) */
+  const [additionalStudentOptions, setAdditionalStudentOptions] = useState<StudentOptionsType[]>([]);
 
   /** Filtre par cycle pour la vue Inscriptions (style screenshot 1). */
   const [niveauFilter, setNiveauFilter] = useState<string>('TOUS');
@@ -726,6 +767,18 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     // Garde null-safe : un élève sans classe assignée renvoie '—'.
     if (!name || typeof name !== 'string') return '—';
     const safeName = name;
+    
+    // 1. Déduction robuste via la même logique que la comptabilité
+    const cycle = detecterCycle(safeName);
+    if (cycle === 'MATERNELLE' || safeName.toUpperCase().includes('CRECHE') || safeName.toUpperCase().includes('GARDERIE')) return 'Maternelle';
+    if (cycle === 'PRIMAIRE' || cycle === 'CEE') return 'Primaire';
+    if (cycle === 'COLLEGE' || cycle === 'BEPC') return 'Collège';
+    if (cycle === 'LYCEE' || cycle === 'BAC') return 'Lycée';
+
+    // 2. Fallback base de données (priorité aux classes qui ont des élèves pour éviter de choisir une classe erronée dupliquée)
+    const activeKlass = classes.find(c => c.name === safeName && (c as any).studentCount > 0);
+    if (activeKlass?.level) return activeKlass.level;
+    
     const klass = classes.find(c => {
       if (!c?.name) return false;
       if (c.name === safeName) return true;
@@ -733,6 +786,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       return false;
     });
     if (klass?.level) return klass.level;
+    
+    // 3. Fallback brut
     const n = safeName.toUpperCase();
     if (n.startsWith('PS') || n.startsWith('MS') || n.startsWith('GS')) return 'Maternelle';
     if (n.startsWith('CP') || n.startsWith('CE') || n.startsWith('CM')) return 'Primaire';
@@ -884,6 +939,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     const s = emptyStudent();
     s.registrationNumber = generateMatricule(s.arrivalDate!);
     setStudentForm(s);
+    setAdditionalStudentForms([]);
+    setAdditionalStudentOptions([]);
     setTeacherForm(emptyTeacher());
     setParentForm(emptyParent());
     setEmployeeForm(emptyEmployee());
@@ -894,21 +951,38 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
       familyEmail: '',
     });
-    setStudentOptions({
-      isReturning: false,
-      cantine: false,
-      transport: 'NONE',
-      tenueScolaire: false,
-      tenueSport: false,
-      tenueScout: false,
-      tenueKarate: false,
-      activiteKarate: false,
-      activiteNatation: false,
-      activiteRobotique: false,
-      coursCoranique: false,
-      coursBiblique: false,
-      garderie: false,
-    });
+    setStudentOptions(emptyOptions());
+  };
+
+  const addChildForm = () => {
+    setAdditionalStudentForms(forms => [
+      ...forms,
+      {
+        ...emptyStudent(),
+        arrivalDate: studentForm.arrivalDate,
+        registrationNumber: generateSiblingMatricule(studentForm.arrivalDate, forms.length + 1),
+      },
+    ]);
+    // Chaque nouvel enfant hérite des options de l'enfant 1 par défaut
+    setAdditionalStudentOptions(opts => [...opts, { ...studentOptions }]);
+  };
+
+  const updateChildForm = (index: number, updates: Partial<StudentRequest>) => {
+    setAdditionalStudentForms(forms => forms.map((form, idx) => idx === index ? { ...form, ...updates } : form));
+  };
+
+  const removeChildForm = (index: number) => {
+    setAdditionalStudentForms(forms => forms.filter((_, idx) => idx !== index));
+    setAdditionalStudentOptions(opts => opts.filter((_, idx) => idx !== index));
+  };
+
+  const updateChildOptions = (index: number, updates: Partial<StudentOptionsType>) => {
+    setAdditionalStudentOptions(opts => opts.map((opt, idx) => idx === index ? { ...opt, ...updates } : opt));
+  };
+
+  /** Copie les options de l'enfant 1 vers tous les enfants additionnels */
+  const copyOptionsToAll = () => {
+    setAdditionalStudentOptions(opts => opts.map(() => ({ ...studentOptions })));
   };
 
   // ── Ouvrir profil ──────────────────────────────────────────────────────────
@@ -976,7 +1050,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     if (!token) { showNotif('error', 'Token manquant.'); return; }
     setSubmitting(true);
     try {
-      if (activeTab === 'eleves') {
+      const currentSubmitTab = effectiveModalTab;
+      if (currentSubmitTab === 'eleves') {
         if (editingId) {
           // Édition : on met simplement à jour la fiche élève existante.
           await editStudent(editingId, studentForm);
@@ -1006,7 +1081,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
           if (!studentForm.email.trim() || (studentForm.password ?? '').length < 8) {
             throw new Error("Email + mot de passe (≥ 8 car.) du compte élève requis.");
           }
-          await userService.registerFamilyAndStudent(token, {
+          const registrationResponse = await userService.registerFamilyAndStudent(token, {
             studentFirstName: studentForm.firstName,
             studentLastName: studentForm.lastName,
             studentBirthDate: studentForm.birthDate,
@@ -1038,14 +1113,45 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             hasTenueScout: studentOptions.tenueScout,
             hasTenueKarate: studentOptions.tenueKarate,
           });
+
+          if (additionalStudentForms.length > 0) {
+            const familyId = registrationResponse.approvedFamilyId;
+            if (!familyId) {
+              throw new Error('Impossible de déterminer l\'ID de la famille créée.');
+            }
+
+            for (let i = 0; i < additionalStudentForms.length; i += 1) {
+              const child = additionalStudentForms[i];
+              const childIndex = i + 2;
+              if (!child.classId) {
+                throw new Error(`Classe obligatoire pour l'enfant ${childIndex}.`);
+              }
+              if (!child.birthDate) {
+                throw new Error(`Date de naissance obligatoire pour l'enfant ${childIndex}.`);
+              }
+              if (!child.gender) {
+                throw new Error(`Genre obligatoire pour l'enfant ${childIndex}.`);
+              }
+              if (!child.email.trim() || (child.password ?? '').length < 8) {
+                throw new Error(`Email + mot de passe (≥ 8 car.) requis pour l'enfant ${childIndex}.`);
+              }
+
+              await userService.createStudent(token, {
+                ...child,
+                familyId,
+                registrationNumber: child.registrationNumber || generateSiblingMatricule(child.arrivalDate || studentForm.arrivalDate, i + 1),
+              });
+            }
+          }
+
           await refetchUT();
           await fetchParents();
 
         }
-      } else if (activeTab === 'enseignants') {
+      } else if (currentSubmitTab === 'enseignants') {
         if (editingId) await editTeacher(editingId, teacherForm);
         else           await addTeacher(teacherForm);
-      } else if (activeTab === 'familles') {
+      } else if (currentSubmitTab === 'familles') {
         if (editingId) await userService.updateParent(token, editingId, parentForm);
         else           await userService.createParent(token, parentForm);
         await fetchParents();
@@ -1055,14 +1161,18 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
         await fetchEmployees();
       }
       setIsAddModalOpen(false);
+      setModalForceTab(null);
       const savedMatricule = studentForm.registrationNumber;
       const savedYear = studentForm.arrivalDate;
+      const childCount = !editingId && currentSubmitTab === 'eleves' ? 1 + additionalStudentForms.length : 1;
       setEditingId(null);
       resetForms();
       showNotif('success', editingId 
         ? 'Modification enregistrée.' 
-        : activeTab === 'eleves' && eleveSubTab === 'inscription'
-          ? `Inscription réussie pour le matricule ${savedMatricule} (année ${savedYear}).`
+        : currentSubmitTab === 'eleves' && eleveSubTab === 'inscription'
+          ? childCount > 1
+            ? `Inscription réussie pour ${childCount} enfants (${savedMatricule}, année ${savedYear}).`
+            : `Inscription réussie pour le matricule ${savedMatricule} (année ${savedYear}).`
           : 'Enregistrement réussi.');
     } catch (err: any) {
       showNotif('error', err?.message ?? 'Une erreur est survenue.');
@@ -1523,6 +1633,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     familles:    ["Modifier la Famille",   'Nouvelle Famille'],
     employes:    ["Modifier l'Employé",    'Nouvel Employé'],
   };
+  const effectiveModalTab = modalForceTab ?? activeTab;
+  const isModalEleve = effectiveModalTab === 'eleves';
+  const isModalEnseignant = effectiveModalTab === 'enseignants';
+  const isModalFamille = effectiveModalTab === 'familles';
+  const isModalEmploye = effectiveModalTab === 'employes';
 
   /* -------- Approuver / rejeter une pré-inscription -------- */
   const handleApprove = async () => {
@@ -1601,6 +1716,158 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     } finally { setReenrolling(false); }
   };
 
+  /* -------- Import Excel élèves -------- */
+  const handleBulkImport = async () => {
+    if (!importFile) { showNotif('error', 'Sélectionnez un fichier Excel.'); return; }
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const result = await userService.bulkImportStudents(token, importFile);
+      setImportResult(result);
+      if (result.errorCount === 0) {
+        showNotif('success', `${result.successCount} élève(s) importé(s) avec succès.`);
+        await refetchUT();
+      } else {
+        showNotif('error', `${result.successCount} importé(s), ${result.errorCount} erreur(s).`);
+        if (result.successCount > 0) await refetchUT();
+      }
+    } catch (err: any) {
+      showNotif('error', err?.message ?? "L'import a échoué.");
+    } finally { setImportLoading(false); }
+  };
+
+  const handleDownloadTemplate = async () => {
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    try {
+      await userService.downloadImportTemplate(token);
+    } catch {
+      showNotif('error', 'Impossible de télécharger le modèle.');
+    }
+  };
+
+  // ─── Helper : panneau d'options pour un enfant ────────────────────────────
+  const renderChildOptions = (
+    opts: StudentOptionsType,
+    setOpts: (updater: (prev: StudentOptionsType) => StudentOptionsType) => void,
+  ) => (
+    <div className="space-y-4">
+      {/* Cantine */}
+      <button type="button"
+        onClick={() => setOpts(p => ({ ...p, cantine: !p.cantine }))}
+        className={cn('w-full text-left flex gap-4 items-start p-4 rounded-2xl border-2 transition-all', opts.cantine ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400' : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 hover:border-bleu-300')}
+      >
+        <div className={cn('w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5', opts.cantine ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300')}>
+          {opts.cantine && <CheckCircle2 size={12} className="text-white" />}
+        </div>
+        <div className="rounded-xl bg-bleu-100 dark:bg-bleu-900/30 p-2 text-bleu-700 dark:text-bleu-300 shrink-0"><Utensils size={18} /></div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Cantine scolaire</h4>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 leading-tight">Repas chauds et équilibrés servis chaque jour à l'école.</p>
+          <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-400 flex items-center gap-1"><Coins size={10} /> 400 000 GNF / mois</p>
+        </div>
+      </button>
+
+      {/* Transport */}
+      <div className={cn('p-4 rounded-2xl border-2 transition-all space-y-3', opts.transport !== 'NONE' ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400' : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 hover:border-bleu-300')}>
+        <div className="flex gap-4 items-start">
+          <div className={cn('w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5', opts.transport !== 'NONE' ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300')}>
+            {opts.transport !== 'NONE' && <CheckCircle2 size={12} className="text-white" />}
+          </div>
+          <div className="rounded-xl bg-bleu-100 dark:bg-bleu-900/30 p-2 text-bleu-700 dark:text-bleu-300 shrink-0"><Bus size={18} /></div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Transport scolaire</h4>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2 leading-tight">Navette aller-retour sécurisée avec chauffeur dédié.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 pl-9">
+          {(['PETIT_TRAJET', 'LONG_TRAJET'] as const).map(mode => {
+            const ModeIcon = mode === 'PETIT_TRAJET' ? Car : Truck;
+            return (
+              <button key={mode} type="button"
+                onClick={() => setOpts(p => ({ ...p, transport: p.transport === mode ? 'NONE' : mode }))}
+                className={cn('flex items-center gap-2 p-2 rounded-xl border text-[10px] font-bold transition-all', opts.transport === mode ? 'bg-bleu-600 text-white border-bleu-600' : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400')}
+              >
+                <ModeIcon size={14} />
+                <span>{mode === 'PETIT_TRAJET' ? 'Petit trajet — 300 000 GNF' : 'Long trajet — 350 000 GNF'}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Uniformes */}
+      <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="rounded-xl bg-or-100 dark:bg-or-900/30 p-2 text-or-700 dark:text-or-300"><Shirt size={18} /></div>
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white">Uniformes & Équipements</h4>
+            <p className="text-[10px] text-gray-400">Sélectionnez les tenues souhaitées</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {([
+            { id: 'tenueScolaire', Icon: Shirt,    title: 'Tenue scolaire (2 complets)', price: '350 000 / 450 000 GNF' },
+            { id: 'tenueSport',    Icon: Activity, title: 'Tenue de sport (EPS)',        price: '100 000 GNF' },
+            { id: 'tenueScout',    Icon: Tent,     title: 'Tenue Scout',                 price: '250 000 GNF' },
+            { id: 'tenueKarate',   Icon: Swords,   title: 'Tenue Karaté (kimono)',       price: '200 000 GNF' },
+          ] as const).map(u => (
+            <button key={u.id} type="button"
+              onClick={() => setOpts(p => ({ ...p, [u.id]: !p[u.id as keyof StudentOptionsType] }))}
+              className={cn('flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all', opts[u.id as keyof StudentOptionsType] ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm' : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200')}
+            >
+              <div className={cn('w-4 h-4 rounded-full border items-center justify-center shrink-0 flex', opts[u.id as keyof StudentOptionsType] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300')}>
+                {opts[u.id as keyof StudentOptionsType] && <CheckCircle2 size={10} className="text-white" />}
+              </div>
+              <div className="rounded-lg bg-gray-100 dark:bg-white/5 p-1.5 text-gray-700 dark:text-gray-300 shrink-0"><u.Icon size={14} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-gray-900 dark:text-white">{u.title}</p>
+                <p className="text-[10px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Activités */}
+      <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="rounded-xl bg-vert-100 dark:bg-vert-900/30 p-2 text-vert-700 dark:text-vert-300"><Rocket size={18} /></div>
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white">Activités & Options</h4>
+            <p className="text-[10px] text-gray-400">Activités extrascolaires et cours spéciaux</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {([
+            { id: 'activiteKarate',    Icon: Swords,   title: 'Cours Karaté',         price: '200 000 GNF / mois' },
+            { id: 'activiteNatation',  Icon: Waves,    title: 'Cours de Natation',    price: '300 000 GNF / mois' },
+            { id: 'activiteRobotique', Icon: Bot,      title: 'Robotique / Atelier+', price: '200 000 GNF / mois' },
+            { id: 'coursCoranique',    Icon: Moon,     title: 'Cours Coranique',      price: '100 000 GNF / mois' },
+            { id: 'coursBiblique',     Icon: BookOpen, title: 'Cours Biblique',       price: '100 000 GNF / mois' },
+            { id: 'garderie',          Icon: Baby,     title: 'Garderie',             price: '100 000 GNF / mois' },
+          ] as const).map(u => (
+            <button key={u.id} type="button"
+              onClick={() => setOpts(p => ({ ...p, [u.id]: !p[u.id as keyof StudentOptionsType] }))}
+              className={cn('flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all', opts[u.id as keyof StudentOptionsType] ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm' : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200')}
+            >
+              <div className={cn('w-4 h-4 rounded-full border items-center justify-center shrink-0 flex', opts[u.id as keyof StudentOptionsType] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300')}>
+                {opts[u.id as keyof StudentOptionsType] && <CheckCircle2 size={10} className="text-white" />}
+              </div>
+              <div className="rounded-lg bg-gray-100 dark:bg-white/5 p-1.5 text-gray-700 dark:text-gray-300 shrink-0"><u.Icon size={14} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-gray-900 dark:text-white">{u.title}</p>
+                <p className="text-[10px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   // ─── Rendu ─────────────────────────────────────────────────────────────────
   return (
     <motion.div
@@ -1626,18 +1893,37 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             - Vue Réinscription (action par ligne)
             - Onglet Familles (les familles sont créées automatiquement à l'inscription d'un élève) */}
         {!(activeTab === 'eleves' && (eleveSubTab === 'preinscription' || eleveSubTab === 'reinscription')) && (
-          <Button
-            onClick={e => {
-              e.stopPropagation();
-              setEditingId(null);
-              resetForms();
-              setIsAddModalOpen(true);
-            }}
-            className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
-          >
-            <UserPlus size={18} />
-            {activeTab === 'eleves' ? 'Inscrire un élève' : activeTab === 'enseignants' ? 'Ajouter enseignant' : activeTab === 'familles' ? 'Ajouter une famille' : 'Ajouter employé'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Bouton Import Excel — visible uniquement sur l'onglet élèves inscription */}
+            {activeTab === 'eleves' && eleveSubTab === 'inscription' && (
+              <button
+                onClick={() => { setImportModalOpen(true); setImportFile(null); setImportResult(null); }}
+                className="flex items-center gap-2 h-11 px-4 rounded-xl border border-dashed border-vert-400 dark:border-vert-600 bg-vert-50 dark:bg-vert-900/20 text-vert-700 dark:text-vert-300 text-[11px] font-semibold hover:bg-vert-100 dark:hover:bg-vert-900/40 transition-colors"
+                title="Importer des élèves depuis un fichier Excel"
+              >
+                <FileSpreadsheet size={16} />
+                Importer (Excel)
+              </button>
+            )}
+            <Button
+              onClick={e => {
+                e.stopPropagation();
+                setEditingId(null);
+                resetForms();
+                if (activeTab === 'familles') {
+                  setModalForceTab('eleves');
+                  setEleveSubTab('inscription');
+                } else {
+                  setModalForceTab(null);
+                }
+                setIsAddModalOpen(true);
+              }}
+              className="flex gap-2 bg-gradient-to-r from-bleu-600 to-bleu-500 border-none font-semibold text-[10px] h-11 px-6 shadow-lg shadow-bleu-600/20"
+            >
+              <UserPlus size={18} />
+              {activeTab === 'eleves' ? 'Inscrire un élève' : activeTab === 'enseignants' ? 'Ajouter enseignant' : activeTab === 'familles' ? 'Ajouter une famille' : 'Ajouter employé'}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -1842,7 +2128,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                         onClick={() => {
                           // On affiche le profil du 1er parent comme représentant de la famille
                           if (fc.parents[0]) {
-                            setProfileRow({ ...fc.parents[0], students: fc.students });
+                            setProfileRow({ ...fc.parents[0], students: fc.students, familyId: fc.familyId });
                             setIsProfileOpen(true);
                           }
                         }}
@@ -1976,10 +2262,10 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       {/* ── MODALE AJOUT / ÉDITION ─────────────────────────────────────────────── */}
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => { setIsAddModalOpen(false); setEditingId(null); }}
+        onClose={() => { setIsAddModalOpen(false); setEditingId(null); setModalForceTab(null); }}
         title={(() => {
-          const { Icon, color } = modalIconMap[activeTab];
-          const [edit, create] = modalLabels[activeTab];
+          const { Icon, color } = modalIconMap[effectiveModalTab];
+          const [edit, create] = modalLabels[effectiveModalTab];
           return (
             <div className="flex items-center gap-3">
               <div className={cn('p-2 rounded-xl', color)}><Icon size={22} /></div>
@@ -1992,7 +2278,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
         <div className="space-y-8 text-left py-2" onClick={e => e.stopPropagation()}>
 
           {/* ─ Type d'inscription ─ */}
-          {activeTab === 'eleves' && (
+          {isModalEleve && (
             <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-2xl w-full">
               <button
                 type="button"
@@ -2017,179 +2303,508 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             </div>
           )}
 
-          {/* ─ Identité (commun à tous) ─ */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Identité
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Input label="Prénom" placeholder="ex: Mamadou Sory"
-                value={activeTab === 'eleves' ? studentForm.firstName : activeTab === 'enseignants' ? teacherForm.firstName : activeTab === 'familles' ? parentForm.firstName : employeeForm.firstName}
-                onChange={e => {
-                  const v = e.target.value;
-                  if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, firstName: v }));
-                  else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, firstName: v }));
-                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, firstName: v }));
-                  else                                  setEmployeeForm(f => ({ ...f, firstName: v }));
-                }}
-              />
-              <Input label="Nom de famille" placeholder="ex: Diallo"
-                value={activeTab === 'eleves' ? studentForm.lastName : activeTab === 'enseignants' ? teacherForm.lastName : activeTab === 'familles' ? parentForm.lastName : employeeForm.lastName}
-                onChange={e => {
-                  const v = e.target.value;
-                  if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, lastName: v }));
-                  else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, lastName: v }));
-                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, lastName: v }));
-                  else                                  setEmployeeForm(f => ({ ...f, lastName: v }));
-                }}
-              />
-            </div>
-          </div>
-
-          {/* ─ Accès au compte (commun à tous) ─ */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="w-1 h-3 bg-purple-500 rounded-full" /> Accès au Compte
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Input label="Adresse Email" placeholder="utilisateur@eief.edu.gn" type="email"
-                value={activeTab === 'eleves' ? studentForm.email : activeTab === 'enseignants' ? teacherForm.email : activeTab === 'familles' ? parentForm.email : employeeForm.email}
-                onChange={e => {
-                  const v = e.target.value;
-                  if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, email: v }));
-                  else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, email: v }));
-                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, email: v }));
-                  else                                  setEmployeeForm(f => ({ ...f, email: v }));
-                }}
-              />
-              <Input label={editingId ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'} placeholder="Min. 8 caractères" type="password"
-                value={activeTab === 'eleves' ? studentForm.password : activeTab === 'enseignants' ? teacherForm.password : activeTab === 'familles' ? parentForm.password : employeeForm.password}
-                onChange={e => {
-                  const v = e.target.value;
-                  if (activeTab === 'eleves')           setStudentForm(f => ({ ...f, password: v }));
-                  else if (activeTab === 'enseignants') setTeacherForm(f => ({ ...f, password: v }));
-                  else if (activeTab === 'familles')    setParentForm(f => ({ ...f, password: v }));
-                  else                                  setEmployeeForm(f => ({ ...f, password: v }));
-                }}
-              />
-            </div>
-          </div>
-
-          {/* ─ Champs spécifiques élèves ─ */}
-          {activeTab === 'eleves' && (
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input label="Année d'arrivée" type="number"
-                  min="2000" max="2100"
-                  value={studentForm.arrivalDate ?? ''}
-                  onChange={e => {
-                    const year = e.target.value;
-                    const matricule = generateMatricule(year);
-                    setStudentForm(f => ({ 
-                      ...f, 
-                      arrivalDate: year,
-                      registrationNumber: editingId ? f.registrationNumber : matricule 
-                    }));
-                  }}
-                />
-                <Input label="Date de naissance" type="date"
-                  value={studentForm.birthDate ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, birthDate: e.target.value }))}
-                />
-                <Select label="Genre"
-                  options={[
-                    { value: '', label: 'Sélectionner...' },
-                    { value: 'M', label: 'Masculin' },
-                    { value: 'F', label: 'Féminin' },
-                  ]}
-                  value={studentForm.gender ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, gender: e.target.value }))}
-                />
-                <Input label="Téléphone" placeholder="+224 ..."
-                  value={studentForm.phone ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
-                />
-                <div className="col-span-1 md:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">
-                    Photo de l'eleve
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <div className="relative w-20 h-20 shrink-0 rounded-2xl overflow-hidden border-2 border-bleu-200 dark:border-bleu-700/50 bg-white dark:bg-gray-800 flex items-center justify-center">
-                      {studentForm.avatarUrl ? (
-                        <img src={studentForm.avatarUrl} alt="Apercu" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-bleu-400 text-xs font-bold">Aucune</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={async e => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          if (!file.type.startsWith('image/')) { showNotif('error', 'Le fichier doit etre une image'); return; }
-                          if (file.size > 8 * 1024 * 1024) { showNotif('error', 'Image trop volumineuse (8 Mo max)'); return; }
-                          const dataUrl = await new Promise<string>((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const img = new Image();
-                              img.onload = () => {
-                                const ratio = Math.min(1, 480 / Math.max(img.width, img.height));
-                                const w = Math.round(img.width * ratio);
-                                const h = Math.round(img.height * ratio);
-                                const canvas = document.createElement('canvas');
-                                canvas.width = w; canvas.height = h;
-                                const ctx = canvas.getContext('2d');
-                                if (!ctx) { reject(new Error('Canvas non supporte')); return; }
-                                ctx.drawImage(img, 0, 0, w, h);
-                                resolve(canvas.toDataURL('image/jpeg', 0.85));
-                              };
-                              img.onerror = () => reject(new Error('Image invalide'));
-                              img.src = String(reader.result);
-                            };
-                            reader.onerror = () => reject(reader.error ?? new Error('Lecture impossible'));
-                            reader.readAsDataURL(file);
-                          }).catch((err: any) => { showNotif('error', err?.message || "Impossible de traiter l'image"); return ''; });
-                          if (dataUrl) {
-                            setStudentForm(f => ({ ...f, avatarUrl: dataUrl }));
-                            showNotif('success', "Photo de l'eleve prete");
-                          }
-                          e.target.value = '';
-                        }}
-                        className="block w-full text-xs text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-widest file:bg-bleu-600 file:text-white hover:file:bg-bleu-700 file:cursor-pointer"
+          {/* ════════════════════════════════════════════════════════════
+              INSCRIPTION NOUVELLE : Parents d'abord, puis enfants
+          ════════════════════════════════════════════════════════════ */}
+          {isModalEleve && !editingId && (
+            <>
+              {/* ── ÉTAPE 1 : Informations de la famille ── */}
+              <div className="rounded-2xl border-2 border-bleu-200 dark:border-bleu-800/60 overflow-hidden">
+                {/* Header étape */}
+                <div className="flex items-center gap-3 px-5 py-4 bg-bleu-50 dark:bg-bleu-900/20 border-b border-bleu-100 dark:border-bleu-800/40">
+                  <div className="w-8 h-8 rounded-full bg-bleu-600 text-white flex items-center justify-center text-sm font-black shrink-0">1</div>
+                  <div>
+                    <h3 className="text-sm font-black text-bleu-700 dark:text-bleu-300 uppercase tracking-wider">Informations de la Famille</h3>
+                    <p className="text-[10px] text-bleu-500 dark:text-bleu-400 mt-0.5">Ces informations sont partagées par tous les enfants de la famille</p>
+                  </div>
+                </div>
+                <div className="p-5 space-y-6">
+                  {/* Parent Référent */}
+                  <div>
+                    <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-bleu-500 rounded-full" /> 👨 Parent Référent
+                      <span className="ml-auto text-[8px] text-rouge-500 font-bold normal-case tracking-normal">obligatoire</span>
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <Select label="Relation avec l'enfant"
+                        options={[
+                          { value: 'Pere', label: 'Père' },
+                          { value: 'Mere', label: 'Mère' },
+                          { value: 'Tuteur', label: 'Tuteur/Autre' },
+                        ]}
+                        value={familyForm.guardianRelationship ?? 'Pere'}
+                        onChange={e => setFamilyForm(f => ({ ...f, guardianRelationship: e.target.value }))}
                       />
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
-                        Utilisee sur la carte scolaire et le releve de notes. JPG/PNG, 8 Mo max.
+                      <Input label="Prénom du parent" placeholder="ex: Mamadou"
+                        value={familyForm.fatherFirstName}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherFirstName: e.target.value }))}
+                      />
+                      <Input label="Nom du parent" placeholder="ex: Diallo"
+                        value={familyForm.fatherLastName}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherLastName: e.target.value }))}
+                      />
+                      <Input label="Email du parent" type="email" placeholder="parent@exemple.com"
+                        value={familyForm.fatherEmail}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherEmail: e.target.value }))}
+                      />
+                      <Input label="Téléphone du parent" placeholder="+224 ..."
+                        value={familyForm.fatherPhone}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherPhone: e.target.value }))}
+                      />
+                      <Input label="Profession (optionnel)" placeholder="ex: Ingénieur"
+                        value={familyForm.fatherProfession}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherProfession: e.target.value }))}
+                      />
+                      <Input label="Mot de passe du Parent" type="password" placeholder="Min. 8 caractères"
+                        value={familyForm.fatherTemporaryPassword}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherTemporaryPassword: e.target.value }))}
+                      />
+                      <Input label="Adresse (Quartier/Ville)" placeholder="ex: Dixinn, Conakry"
+                        value={familyForm.fatherAddress}
+                        onChange={e => setFamilyForm(f => ({ ...f, fatherAddress: e.target.value }))}
+                      />
+                      <Input label="Email de contact général (optionnel)" placeholder="famille@exemple.com"
+                        value={familyForm.familyEmail}
+                        onChange={e => setFamilyForm(f => ({ ...f, familyEmail: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Autre Parent */}
+                  <div>
+                    <p className="text-[10px] font-bold text-rouge-500 dark:text-rouge-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-rouge-500 rounded-full" /> 👩 Autre Parent
+                      <span className="ml-auto text-[8px] text-gray-400 font-bold normal-case tracking-normal">optionnel</span>
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <Input label="Prénom" placeholder="ex: Mariama"
+                        value={familyForm.motherFirstName}
+                        onChange={e => setFamilyForm(f => ({ ...f, motherFirstName: e.target.value }))}
+                      />
+                      <Input label="Nom" placeholder="ex: Diallo"
+                        value={familyForm.motherLastName}
+                        onChange={e => setFamilyForm(f => ({ ...f, motherLastName: e.target.value }))}
+                      />
+                      <Input label="Email" type="email" placeholder="autre@exemple.com"
+                        value={familyForm.motherEmail}
+                        onChange={e => setFamilyForm(f => ({ ...f, motherEmail: e.target.value }))}
+                      />
+                      <Input label="Téléphone" placeholder="+224 ..."
+                        value={familyForm.motherPhone}
+                        onChange={e => setFamilyForm(f => ({ ...f, motherPhone: e.target.value }))}
+                      />
+                      <Input label="Profession (optionnel)" placeholder="ex: Enseignante"
+                        value={familyForm.motherProfession}
+                        onChange={e => setFamilyForm(f => ({ ...f, motherProfession: e.target.value }))}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 italic mt-3">
+                      La famille est créée automatiquement avec ce Parent Référent lors de l'enregistrement.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── ÉTAPE 2 : Premier enfant ── */}
+              <div className="rounded-2xl border-2 border-or-200 dark:border-or-800/60 overflow-hidden">
+                {/* Header étape */}
+                <div className="flex items-center gap-3 px-5 py-4 bg-or-50 dark:bg-or-900/20 border-b border-or-100 dark:border-or-800/40">
+                  <div className="w-8 h-8 rounded-full bg-or-500 text-white flex items-center justify-center text-sm font-black shrink-0">2</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-black text-or-700 dark:text-or-300 uppercase tracking-wider">Enfant 1</h3>
+                    <p className="text-[10px] text-or-500 dark:text-or-400 mt-0.5">Informations du premier enfant à inscrire</p>
+                  </div>
+                </div>
+                <div className="p-5 space-y-6">
+                  {/* Identité */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Identité
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <Input label="Prénom" placeholder="ex: Ibrahima"
+                        value={studentForm.firstName}
+                        onChange={e => setStudentForm(f => ({ ...f, firstName: e.target.value }))}
+                      />
+                      <Input label="Nom de famille" placeholder="ex: Diallo"
+                        value={studentForm.lastName}
+                        onChange={e => setStudentForm(f => ({ ...f, lastName: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Compte élève */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-purple-500 rounded-full" /> Compte Élève
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <Input label="Email de l'élève" placeholder="eleve@eief.edu.gn" type="email"
+                        value={studentForm.email}
+                        onChange={e => setStudentForm(f => ({ ...f, email: e.target.value }))}
+                      />
+                      <Input label="Mot de passe" placeholder="Min. 8 caractères" type="password"
+                        value={studentForm.password}
+                        onChange={e => setStudentForm(f => ({ ...f, password: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Informations scolaires */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <Input label="Année d'arrivée" type="number"
+                        min="2000" max="2100"
+                        value={studentForm.arrivalDate ?? ''}
+                        onChange={e => {
+                          const year = e.target.value;
+                          const matricule = generateMatricule(year);
+                          setStudentForm(f => ({
+                            ...f,
+                            arrivalDate: year,
+                            registrationNumber: matricule,
+                          }));
+                        }}
+                      />
+                      <Input label="Date de naissance" type="date"
+                        value={studentForm.birthDate ?? ''}
+                        onChange={e => setStudentForm(f => ({ ...f, birthDate: e.target.value }))}
+                      />
+                      <Select label="Genre"
+                        options={[
+                          { value: '', label: 'Sélectionner...' },
+                          { value: 'M', label: 'Masculin' },
+                          { value: 'F', label: 'Féminin' },
+                        ]}
+                        value={studentForm.gender ?? ''}
+                        onChange={e => setStudentForm(f => ({ ...f, gender: e.target.value }))}
+                      />
+                      <Input label="Téléphone" placeholder="+224 ..."
+                        value={studentForm.phone ?? ''}
+                        onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
+                      />
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">
+                          Photo de l'élève
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-20 h-20 shrink-0 rounded-2xl overflow-hidden border-2 border-bleu-200 dark:border-bleu-700/50 bg-white dark:bg-gray-800 flex items-center justify-center">
+                            {studentForm.avatarUrl ? (
+                              <img src={studentForm.avatarUrl} alt="Apercu" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-bleu-400 text-xs font-bold">Aucune</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={async e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                if (!file.type.startsWith('image/')) { showNotif('error', 'Le fichier doit etre une image'); return; }
+                                if (file.size > 8 * 1024 * 1024) { showNotif('error', 'Image trop volumineuse (8 Mo max)'); return; }
+                                const dataUrl = await new Promise<string>((resolve, reject) => {
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    const img = new Image();
+                                    img.onload = () => {
+                                      const ratio = Math.min(1, 480 / Math.max(img.width, img.height));
+                                      const w = Math.round(img.width * ratio);
+                                      const h = Math.round(img.height * ratio);
+                                      const canvas = document.createElement('canvas');
+                                      canvas.width = w; canvas.height = h;
+                                      const ctx = canvas.getContext('2d');
+                                      if (!ctx) { reject(new Error('Canvas non supporte')); return; }
+                                      ctx.drawImage(img, 0, 0, w, h);
+                                      resolve(canvas.toDataURL('image/jpeg', 0.85));
+                                    };
+                                    img.onerror = () => reject(new Error('Image invalide'));
+                                    img.src = String(reader.result);
+                                  };
+                                  reader.onerror = () => reject(reader.error ?? new Error('Lecture impossible'));
+                                  reader.readAsDataURL(file);
+                                }).catch((err: any) => { showNotif('error', err?.message || "Impossible de traiter l'image"); return ''; });
+                                if (dataUrl) {
+                                  setStudentForm(f => ({ ...f, avatarUrl: dataUrl }));
+                                  showNotif('success', "Photo de l'élève prête");
+                                }
+                                e.target.value = '';
+                              }}
+                              className="block w-full text-xs text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-widest file:bg-bleu-600 file:text-white hover:file:bg-bleu-700 file:cursor-pointer"
+                            />
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                              Utilisée sur la carte scolaire et le relevé de notes. JPG/PNG, 8 Mo max.
+                            </p>
+                            {studentForm.avatarUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setStudentForm(f => ({ ...f, avatarUrl: '' }))}
+                                className="mt-1 text-[10px] font-bold uppercase tracking-widest text-rouge-600 hover:text-rouge-700"
+                              >
+                                Retirer la photo
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Select
+                        label="Classe"
+                        options={[
+                          { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
+                          ...classes.map(c => ({
+                            value: c.id,
+                            label: c.level ? `${c.name} — ${c.level}` : c.name,
+                          })),
+                        ]}
+                        value={studentForm.classId ?? ''}
+                        onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Options */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 flex-1">
+                        <span className="w-1 h-3 bg-vert-500 rounded-full" />
+                        <Settings size={12} className="text-vert-500" />
+                        Options — Enfant 1
                       </p>
-                      {studentForm.avatarUrl && (
+                      {/* Bouton copier vers tous les autres enfants */}
+                      {additionalStudentForms.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setStudentForm(f => ({ ...f, avatarUrl: '' }))}
-                          className="mt-1 text-[10px] font-bold uppercase tracking-widest text-rouge-600 hover:text-rouge-700"
+                          onClick={copyOptionsToAll}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-or-100 dark:bg-or-900/30 text-or-700 dark:text-or-300 hover:bg-or-200 dark:hover:bg-or-900/50 transition-colors text-[10px] font-bold uppercase tracking-widest"
+                          title="Copier ces options vers tous les autres enfants"
                         >
-                          Retirer la photo
+                          <CheckCircle2 size={11} />
+                          Copier à tous
                         </button>
+                      )}
+                    </div>
+                    {renderChildOptions(studentOptions, setStudentOptions)}
+                    <div className="mt-4 rounded-3xl border border-amber-300 bg-amber-50/70 p-5 text-amber-900 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-200">
+                      <p className="text-sm font-bold flex items-center gap-2"><Wallet size={14} /> Paiement initial déplacé vers la comptabilité</p>
+                      <p className="mt-2 text-[11px] font-semibold">
+                        Les paiements d'inscription, de réinscription et de scolarité doivent être saisis depuis Comptabilité → Scolarité.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── ENFANTS ADDITIONNELS ── */}
+              {additionalStudentForms.map((child, idx) => (
+                <div key={idx} className="rounded-2xl border-2 border-vert-200 dark:border-vert-800/60 overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 px-5 py-4 bg-vert-50 dark:bg-vert-900/20 border-b border-vert-100 dark:border-vert-800/40">
+                    <div className="w-8 h-8 rounded-full bg-vert-600 text-white flex items-center justify-center text-sm font-black shrink-0">{idx + 3}</div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-vert-700 dark:text-vert-300 uppercase tracking-wider">Enfant {idx + 2}</h3>
+                      <p className="text-[10px] text-vert-500 dark:text-vert-400 mt-0.5">Sera rattaché à la même famille</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeChildForm(idx)}
+                      className="p-2 rounded-xl bg-rouge-100 dark:bg-rouge-900/30 text-rouge-600 dark:text-rouge-400 hover:bg-rouge-200 transition-colors"
+                      title="Supprimer cet enfant"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-6">
+                    {/* Identité */}
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Identité
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <Input label="Prénom" placeholder="ex: Fatoumata"
+                          value={child.firstName}
+                          onChange={e => updateChildForm(idx, { firstName: e.target.value })}
+                        />
+                        <Input label="Nom de famille" placeholder="ex: Diallo"
+                          value={child.lastName}
+                          onChange={e => updateChildForm(idx, { lastName: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    {/* Compte */}
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-1 h-3 bg-purple-500 rounded-full" /> Compte Élève
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <Input label="Email de l'élève" placeholder="eleve@eief.edu.gn" type="email"
+                          value={child.email}
+                          onChange={e => updateChildForm(idx, { email: e.target.value })}
+                        />
+                        <Input label="Mot de passe" placeholder="Min. 8 caractères" type="password"
+                          value={child.password}
+                          onChange={e => updateChildForm(idx, { password: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    {/* Infos scolaires */}
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <Input label="Date de naissance" type="date"
+                          value={child.birthDate ?? ''}
+                          onChange={e => updateChildForm(idx, { birthDate: e.target.value })}
+                        />
+                        <Select label="Genre"
+                          options={[
+                            { value: '', label: 'Sélectionner...' },
+                            { value: 'M', label: 'Masculin' },
+                            { value: 'F', label: 'Féminin' },
+                          ]}
+                          value={child.gender ?? ''}
+                          onChange={e => updateChildForm(idx, { gender: e.target.value })}
+                        />
+                        <Select
+                          label="Classe"
+                          options={[
+                            { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
+                            ...classes.map(c => ({
+                              value: c.id,
+                              label: c.level ? `${c.name} — ${c.level}` : c.name,
+                            })),
+                          ]}
+                          value={child.classId ?? ''}
+                          onChange={e => updateChildForm(idx, { classId: e.target.value })}
+                        />
+                        <Input label="Téléphone (optionnel)" placeholder="+224 ..."
+                          value={child.phone ?? ''}
+                          onChange={e => updateChildForm(idx, { phone: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    {/* Options individuelles de cet enfant */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 flex-1">
+                          <span className="w-1 h-3 bg-vert-500 rounded-full" />
+                          <Settings size={12} className="text-vert-500" />
+                          Options — Enfant {idx + 2}
+                        </p>
+                        {/* Copier depuis l'enfant 1 */}
+                        <button
+                          type="button"
+                          onClick={() => updateChildOptions(idx, { ...studentOptions })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bleu-100 dark:bg-bleu-900/30 text-bleu-700 dark:text-bleu-300 hover:bg-bleu-200 transition-colors text-[10px] font-bold uppercase tracking-widest"
+                          title="Copier les options de l'enfant 1"
+                        >
+                          <CheckCircle2 size={11} />
+                          Copier depuis enfant 1
+                        </button>
+                      </div>
+                      {renderChildOptions(
+                        additionalStudentOptions[idx] ?? emptyOptions(),
+                        updater => updateChildOptions(idx, updater(additionalStudentOptions[idx] ?? emptyOptions())),
                       )}
                     </div>
                   </div>
                 </div>
-                <Select
-                  label="Classe"
-                  options={[
-                    { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
-                    ...classes.map(c => ({
-                      value: c.id,
-                      label: c.level ? `${c.name} — ${c.level}` : c.name,
-                    })),
-                  ]}
-                  value={studentForm.classId ?? ''}
-                  onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
-                />
-                {editingId && (
+              ))}
+
+              {/* ── Bouton Ajouter un enfant ── */}
+              <button
+                type="button"
+                onClick={addChildForm}
+                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-dashed border-vert-300 dark:border-vert-700/60 bg-vert-50/50 dark:bg-vert-900/10 text-vert-700 dark:text-vert-400 hover:bg-vert-100 dark:hover:bg-vert-900/20 hover:border-vert-400 transition-all font-bold text-sm"
+              >
+                <div className="w-7 h-7 rounded-full bg-vert-600 text-white flex items-center justify-center">
+                  <Plus size={16} />
+                </div>
+                Ajouter un autre enfant ({additionalStudentForms.length + 2}ème enfant)
+              </button>
+            </>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════
+              ÉDITION ÉLÈVE : formulaire simplifié
+          ════════════════════════════════════════════════════════════ */}
+          {isModalEleve && editingId && (
+            <div className="space-y-8">
+              {/* Identité */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Identité
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input label="Prénom" placeholder="ex: Mamadou Sory"
+                    value={studentForm.firstName}
+                    onChange={e => setStudentForm(f => ({ ...f, firstName: e.target.value }))}
+                  />
+                  <Input label="Nom de famille" placeholder="ex: Diallo"
+                    value={studentForm.lastName}
+                    onChange={e => setStudentForm(f => ({ ...f, lastName: e.target.value }))}
+                  />
+                </div>
+              </div>
+              {/* Compte */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-purple-500 rounded-full" /> Accès au Compte
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input label="Adresse Email" placeholder="utilisateur@eief.edu.gn" type="email"
+                    value={studentForm.email}
+                    onChange={e => setStudentForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                  <Input label="Nouveau mot de passe (optionnel)" placeholder="Min. 8 caractères" type="password"
+                    value={studentForm.password}
+                    onChange={e => setStudentForm(f => ({ ...f, password: e.target.value }))}
+                  />
+                </div>
+              </div>
+              {/* Infos scolaires */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-or-500 rounded-full" /> Informations Scolaires
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input label="Année d'arrivée" type="number" min="2000" max="2100"
+                    value={studentForm.arrivalDate ?? ''}
+                    onChange={e => setStudentForm(f => ({ ...f, arrivalDate: e.target.value, registrationNumber: f.registrationNumber }))}
+                  />
+                  <Input label="Date de naissance" type="date"
+                    value={studentForm.birthDate ?? ''}
+                    onChange={e => setStudentForm(f => ({ ...f, birthDate: e.target.value }))}
+                  />
+                  <Select label="Genre"
+                    options={[
+                      { value: '', label: 'Sélectionner...' },
+                      { value: 'M', label: 'Masculin' },
+                      { value: 'F', label: 'Féminin' },
+                    ]}
+                    value={studentForm.gender ?? ''}
+                    onChange={e => setStudentForm(f => ({ ...f, gender: e.target.value }))}
+                  />
+                  <Input label="Téléphone" placeholder="+224 ..."
+                    value={studentForm.phone ?? ''}
+                    onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                  <Select
+                    label="Classe"
+                    options={[
+                      { value: '', label: classes.length === 0 ? 'Aucune classe disponible' : 'Sélectionner une classe...' },
+                      ...classes.map(c => ({
+                        value: c.id,
+                        label: c.level ? `${c.name} — ${c.level}` : c.name,
+                      })),
+                    ]}
+                    value={studentForm.classId ?? ''}
+                    onChange={e => setStudentForm(f => ({ ...f, classId: e.target.value }))}
+                  />
                   <Select
                     label="Famille (rattachement existant)"
                     options={[
@@ -2202,338 +2817,72 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                     value={studentForm.familyId ?? ''}
                     onChange={e => setStudentForm(f => ({ ...f, familyId: e.target.value }))}
                   />
-                )}
+                </div>
               </div>
             </div>
           )}
 
-          {/* ─ Père & Mère (création uniquement) ─ */}
-          {activeTab === 'eleves' && !editingId && (
+
+          {/* ════════════════════════════════════════════════════════════
+              AUTRES ONGLETS : Identité + Compte (enseignants, familles, employés)
+          ════════════════════════════════════════════════════════════ */}
+          {!isModalEleve && (
             <>
               <div>
-                <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-bleu-500 rounded-full" /> 👨 Informations du Parent Référent
-                  <span className="ml-auto text-[8px] text-rouge-500 font-bold normal-case tracking-normal">obligatoire</span>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-bleu-500 rounded-full" /> Identité
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Select label="Relation avec l'enfant"
-                    options={[
-                      { value: 'Pere', label: 'Père' },
-                      { value: 'Mere', label: 'Mère' },
-                      { value: 'Tuteur', label: 'Tuteur/Autre' },
-                    ]}
-                    value={familyForm.guardianRelationship ?? 'Pere'}
-                    onChange={e => setFamilyForm(f => ({ ...f, guardianRelationship: e.target.value }))}
+                  <Input label="Prénom" placeholder="ex: Mamadou Sory"
+                    value={effectiveModalTab === 'enseignants' ? teacherForm.firstName : effectiveModalTab === 'familles' ? parentForm.firstName : employeeForm.firstName}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (effectiveModalTab === 'enseignants') setTeacherForm(f => ({ ...f, firstName: v }));
+                      else if (effectiveModalTab === 'familles') setParentForm(f => ({ ...f, firstName: v }));
+                      else setEmployeeForm(f => ({ ...f, firstName: v }));
+                    }}
                   />
-                  <Input label="Prénom du parent" placeholder="ex: Mamadou"
-                    value={familyForm.fatherFirstName}
-                    onChange={e => setFamilyForm(f => ({ ...f, fatherFirstName: e.target.value }))}
-                  />
-                  <Input label="Nom du parent" placeholder="ex: Diallo"
-                    value={familyForm.fatherLastName}
-                    onChange={e => setFamilyForm(f => ({ ...f, fatherLastName: e.target.value }))}
-                  />
-                  <Input label="Email du parent" type="email" placeholder="parent@exemple.com"
-                    value={familyForm.fatherEmail}
-                    onChange={e => setFamilyForm(f => ({ ...f, fatherEmail: e.target.value }))}
-                  />
-                  <Input label="Téléphone du parent" placeholder="+224 ..."
-                    value={familyForm.fatherPhone}
-                    onChange={e => setFamilyForm(f => ({ ...f, fatherPhone: e.target.value }))}
-                  />
-                  <Input label="Profession (optionnel)" placeholder="ex: Ingénieur"
-                   value={familyForm.fatherProfession}
-                   onChange={e => setFamilyForm(f => ({ ...f, fatherProfession: e.target.value }))}
-                  />
-                  <Input label="Mot de passe du Parent" type="password" placeholder="Min. 8 caractères"
-                   value={familyForm.fatherTemporaryPassword}
-                   onChange={e => setFamilyForm(f => ({ ...f, fatherTemporaryPassword: e.target.value }))}
-                  />
-                  <Input label="Adresse (Quartier/Ville)" placeholder="ex: Dixinn, Conakry"
-                    value={familyForm.fatherAddress}
-                    onChange={e => setFamilyForm(f => ({ ...f, fatherAddress: e.target.value }))}
-                  />
-                  <Input label="Email de contact général (optionnel)" placeholder="famille@exemple.com"
-                    value={familyForm.familyEmail}
-                    onChange={e => setFamilyForm(f => ({ ...f, familyEmail: e.target.value }))}
+                  <Input label="Nom de famille" placeholder="ex: Diallo"
+                    value={effectiveModalTab === 'enseignants' ? teacherForm.lastName : effectiveModalTab === 'familles' ? parentForm.lastName : employeeForm.lastName}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (effectiveModalTab === 'enseignants') setTeacherForm(f => ({ ...f, lastName: v }));
+                      else if (effectiveModalTab === 'familles') setParentForm(f => ({ ...f, lastName: v }));
+                      else setEmployeeForm(f => ({ ...f, lastName: v }));
+                    }}
                   />
                 </div>
               </div>
-
-              <div>
-                <p className="text-[10px] font-bold text-rouge-500 dark:text-rouge-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-rouge-500 rounded-full" /> 👩 Informations de l'Autre Parent
-                  <span className="ml-auto text-[8px] text-gray-400 font-bold normal-case tracking-normal">optionnel</span>
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Input label="Prénom" placeholder="ex: Mariama"
-                    value={familyForm.motherFirstName}
-                    onChange={e => setFamilyForm(f => ({ ...f, motherFirstName: e.target.value }))}
-                  />
-                  <Input label="Nom" placeholder="ex: Diallo"
-                    value={familyForm.motherLastName}
-                    onChange={e => setFamilyForm(f => ({ ...f, motherLastName: e.target.value }))}
-                  />
-                  <Input label="Email" type="email" placeholder="autre@exemple.com"
-                    value={familyForm.motherEmail}
-                    onChange={e => setFamilyForm(f => ({ ...f, motherEmail: e.target.value }))}
-                  />
-                  <Input label="Téléphone" placeholder="+224 ..."
-                    value={familyForm.motherPhone}
-                    onChange={e => setFamilyForm(f => ({ ...f, motherPhone: e.target.value }))}
-                  />
-                  <Input label="Profession (optionnel)" placeholder="ex: Enseignante"
-                    value={familyForm.motherProfession}
-                    onChange={e => setFamilyForm(f => ({ ...f, motherProfession: e.target.value }))}
-                  />
-                </div>
-                <p className="text-[10px] text-gray-400 italic mt-3">
-                  La famille est créée automatiquement avec ce Parent Référent lors de l'enregistrement de l'élève.
-                </p>
-              </div>
-
-              {/* ─ Options pour cet enfant ─ */}
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-vert-500 rounded-full" />
-                  <Settings size={12} className="text-vert-500" />
-                  Options pour cet enfant
+                  <span className="w-1 h-3 bg-purple-500 rounded-full" /> Accès au Compte
                 </p>
-
-                <div className="space-y-4">
-                  {/* Cantine */}
-                  <button
-                    type="button"
-                    onClick={() => setStudentOptions(p => ({ ...p, cantine: !p.cantine }))}
-                    className={cn(
-                      'w-full text-left flex gap-4 items-start p-4 rounded-2xl border-2 transition-all',
-                      studentOptions.cantine
-                        ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400'
-                        : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 hover:border-bleu-300',
-                    )}
-                  >
-                    <div className={cn(
-                      'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
-                      studentOptions.cantine ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
-                    )}>
-                      {studentOptions.cantine && <CheckCircle2 size={12} className="text-white" />}
-                    </div>
-                    <div className="rounded-xl bg-bleu-100 dark:bg-bleu-900/30 p-2 text-bleu-700 dark:text-bleu-300 shrink-0">
-                      <Utensils size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Cantine scolaire</h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 leading-tight">Repas chauds et équilibrés servis chaque jour à l'école.</p>
-                      <p className="text-[10px] font-bold text-bleu-600 dark:text-bleu-400 flex items-center gap-1">
-                        <Coins size={10} /> 400 000 GNF / mois
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Transport */}
-                  <div className={cn(
-                    'p-4 rounded-2xl border-2 transition-all space-y-3',
-                    studentOptions.transport !== 'NONE'
-                      ? 'bg-bleu-50 dark:bg-bleu-900/20 border-bleu-400'
-                      : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 hover:border-bleu-300'
-                  )}>
-                    <div className="flex gap-4 items-start">
-                      <div className={cn(
-                        'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
-                        studentOptions.transport !== 'NONE' ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
-                      )}>
-                        {studentOptions.transport !== 'NONE' && <CheckCircle2 size={12} className="text-white" />}
-                      </div>
-                      <div className="rounded-xl bg-bleu-100 dark:bg-bleu-900/30 p-2 text-bleu-700 dark:text-bleu-300 shrink-0">
-                        <Bus size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Transport scolaire</h4>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2 leading-tight">Navette aller-retour sécurisée avec chauffeur dédié.</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pl-9">
-                      {(['PETIT_TRAJET', 'LONG_TRAJET'] as const).map(mode => {
-                        const ModeIcon = mode === 'PETIT_TRAJET' ? Car : Truck;
-                        return (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setStudentOptions(p => ({ ...p, transport: p.transport === mode ? 'NONE' : mode }))}
-                            className={cn(
-                              'flex items-center gap-2 p-2 rounded-xl border text-[10px] font-bold transition-all',
-                              studentOptions.transport === mode
-                                ? 'bg-bleu-600 text-white border-bleu-600'
-                                : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400'
-                            )}
-                          >
-                            <ModeIcon size={14} />
-                            <span>
-                              {mode === 'PETIT_TRAJET' ? 'Petit trajet — 300 000 GNF' : 'Long trajet — 350 000 GNF'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Uniformes */}
-                  <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="rounded-xl bg-or-100 dark:bg-or-900/30 p-2 text-or-700 dark:text-or-300">
-                        <Shirt size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Uniformes & Équipements</h4>
-                        <p className="text-[10px] text-gray-400">Sélectionnez les tenues souhaitées</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {[
-                        { id: 'tenueScolaire', Icon: Shirt,    title: 'Tenue scolaire (2 complets)', price: '350 000 GNF / 450 000 GNF' },
-                        { id: 'tenueSport',    Icon: Activity, title: 'Tenue de sport (EPS)',        price: '100 000 GNF' },
-                        { id: 'tenueScout',    Icon: Tent,     title: 'Tenue Scout',                 price: '250 000 GNF' },
-                        { id: 'tenueKarate',   Icon: Swords,   title: 'Tenue Karaté (kimono)',       price: '200 000 GNF' },
-                      ].map(u => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => setStudentOptions(p => ({ ...p, [u.id]: !(p as any)[u.id] }))}
-                          className={cn(
-                            'flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all',
-                            (studentOptions as any)[u.id]
-                              ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm'
-                              : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200',
-                          )}
-                        >
-                          <div className={cn(
-                            'w-4 h-4 rounded-full border items-center justify-center shrink-0 flex',
-                            (studentOptions as any)[u.id] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
-                          )}>
-                            {(studentOptions as any)[u.id] && <CheckCircle2 size={10} className="text-white" />}
-                          </div>
-                          <div className="rounded-lg bg-gray-100 dark:bg-white/5 p-1.5 text-gray-700 dark:text-gray-300 shrink-0">
-                            <u.Icon size={14} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-bold text-gray-900 dark:text-white">{u.title}</p>
-                            <p className="text-[10px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Activités & Options Supplémentaires */}
-                  <div className="rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 p-4">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="rounded-xl bg-vert-100 dark:bg-vert-900/30 p-2 text-vert-700 dark:text-vert-300">
-                        <Rocket size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">Activités & Options</h4>
-                        <p className="text-[10px] text-gray-400">Activités extrascolaires et cours spéciaux</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {[
-                        { id: 'activiteKarate',    Icon: Swords,   title: 'Cours Karaté',              price: '200 000 GNF / mois' },
-                        { id: 'activiteNatation',  Icon: Waves,    title: 'Cours de Natation',         price: '300 000 GNF / mois' },
-                        { id: 'activiteRobotique', Icon: Bot,      title: 'Robotique / Atelier+',      price: '200 000 GNF / mois' },
-                        { id: 'coursCoranique',    Icon: Moon,     title: 'Cours Coranique',           price: '100 000 GNF / mois' },
-                        { id: 'coursBiblique',     Icon: BookOpen, title: 'Cours Biblique',            price: '100 000 GNF / mois' },
-                        { id: 'garderie',          Icon: Baby,     title: 'Garderie',                  price: '100 000 GNF / mois' },
-                      ].map(u => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => setStudentOptions(p => ({ ...p, [u.id]: !(p as any)[u.id] }))}
-                          className={cn(
-                            'flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all',
-                            (studentOptions as any)[u.id]
-                              ? 'bg-white dark:bg-white/10 border-bleu-400 shadow-sm'
-                              : 'bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 hover:border-bleu-200',
-                          )}
-                        >
-                          <div className={cn(
-                            'w-4 h-4 rounded-full border items-center justify-center shrink-0 flex',
-                            (studentOptions as any)[u.id] ? 'bg-bleu-600 border-bleu-600' : 'border-gray-300'
-                          )}>
-                            {(studentOptions as any)[u.id] && <CheckCircle2 size={10} className="text-white" />}
-                          </div>
-                          <div className="rounded-lg bg-gray-100 dark:bg-white/5 p-1.5 text-gray-700 dark:text-gray-300 shrink-0">
-                            <u.Icon size={14} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-bold text-gray-900 dark:text-white">{u.title}</p>
-                            <p className="text-[10px] text-bleu-600 dark:text-bleu-400 font-bold">{u.price}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* RÉSUMÉ FINANCIER & PLAN DE PAIEMENT */}
-                  {(() => {
-                    const { base, fee, total, installments } = calculateTotalScolarite();
-                    if (total === 0) return null;
-                    return (
-                      <div className="rounded-3xl bg-gradient-to-br from-bleu-600 to-bleu-700 p-6 text-white shadow-xl shadow-bleu-600/20">
-                        <div className="flex justify-between items-start mb-6">
-                          <div>
-                            <h4 className="text-xs font-bold uppercase tracking-widest opacity-75 mb-1">Total Scolarité</h4>
-                            <p className="text-3xl font-black">{total.toLocaleString()} GNF</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-[10px] font-bold opacity-75">Frais Inscr/Réinscr</p>
-                            <p className="text-sm font-bold">{fee === 0 ? 'GRATUIT (3+ enfants)' : `${fee.toLocaleString()} GNF`}</p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <p className="text-[10px] font-bold uppercase tracking-widest opacity-75 flex items-center gap-2">
-                            <Calendar size={12} /> Échéancier de paiement
-                          </p>
-                          <div className="grid grid-cols-1 gap-2">
-                            {installments.map((inst, idx) => (
-                              <div key={idx} className="flex justify-between items-center py-2 px-3 rounded-xl bg-white/10 backdrop-blur-md border border-white/10">
-                                <span className="text-[10px] font-bold">{inst.label}</span>
-                                <span className="text-xs font-black">{inst.amount.toLocaleString()} GNF</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="mt-6 pt-4 border-t border-white/10">
-                          <p className="text-[9px] opacity-75 italic">
-                            * Les frais de services (cantine, transport, etc.) seront facturés mensuellement en sus.
-                            L'exonération des frais d'inscription s'applique aux familles de 3 enfants ou plus.
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {!editingId && (
-                    <div className="rounded-3xl border border-amber-300 bg-amber-50/70 p-5 text-amber-900 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-200">
-                      <p className="text-sm font-bold flex items-center gap-2">
-                        <Wallet size={14} /> Paiement initial déplacé vers la comptabilité
-                      </p>
-                      <p className="mt-2 text-[11px] font-semibold">
-                        Pour éviter les encaissements non rattachés à la bonne échéance de scolarité,
-                        les paiements d'inscription, de réinscription et de scolarité doivent maintenant
-                        être saisis depuis Comptabilité → Scolarité.
-                      </p>
-                    </div>
-                  )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input label="Adresse Email" placeholder="utilisateur@eief.edu.gn" type="email"
+                    value={effectiveModalTab === 'enseignants' ? teacherForm.email : effectiveModalTab === 'familles' ? parentForm.email : employeeForm.email}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (effectiveModalTab === 'enseignants') setTeacherForm(f => ({ ...f, email: v }));
+                      else if (effectiveModalTab === 'familles') setParentForm(f => ({ ...f, email: v }));
+                      else setEmployeeForm(f => ({ ...f, email: v }));
+                    }}
+                  />
+                  <Input label={editingId ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'} placeholder="Min. 8 caractères" type="password"
+                    value={effectiveModalTab === 'enseignants' ? teacherForm.password : effectiveModalTab === 'familles' ? parentForm.password : employeeForm.password}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (effectiveModalTab === 'enseignants') setTeacherForm(f => ({ ...f, password: v }));
+                      else if (effectiveModalTab === 'familles') setParentForm(f => ({ ...f, password: v }));
+                      else setEmployeeForm(f => ({ ...f, password: v }));
+                    }}
+                  />
                 </div>
               </div>
             </>
           )}
 
-
           {/* ─ Champs spécifiques enseignants ─ */}
-          {activeTab === 'enseignants' && (
+          {isModalEnseignant && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <span className="w-1 h-3 bg-or-500 rounded-full" /> Détails Professionnels
@@ -2560,7 +2909,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
           )}
 
           {/* ─ Champs spécifiques familles (chef de famille = parent référent) ─ */}
-          {activeTab === 'familles' && (
+          {isModalFamille && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <span className="w-1 h-3 bg-vert-500 rounded-full" /> Détails de la Famille
@@ -2591,7 +2940,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
           )}
 
           {/* ─ Champs spécifiques employés ─ */}
-          {activeTab === 'employes' && (
+          {isModalEmploye && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <span className="w-1 h-3 bg-purple-500 rounded-full" /> Fonction
@@ -3015,6 +3364,136 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ── MODALE IMPORT EXCEL ──────────────────────────────────────────── */}
+      <Modal
+        isOpen={importModalOpen}
+        onClose={() => !importLoading && setImportModalOpen(false)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-vert-100 dark:bg-vert-900/30 rounded-xl text-vert-600 dark:text-vert-300">
+              <FileSpreadsheet size={22} />
+            </div>
+            <span className="font-bold gradient-bleu-or-text">Importer des élèves (Excel)</span>
+          </div>
+        }
+        size="md"
+      >
+        <div className="space-y-5 text-left py-2">
+          {/* Étape 1 : télécharger le modèle */}
+          <div className="bg-bleu-50 dark:bg-bleu-900/20 rounded-xl p-4 border border-bleu-100 dark:border-bleu-800">
+            <p className="text-[12px] font-bold text-bleu-700 dark:text-bleu-300 mb-2 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-bleu-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
+              Télécharger le modèle Excel
+            </p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+              Remplissez le fichier modèle avec les informations de vos élèves (colonnes obligatoires marquées *).
+            </p>
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-bleu-600 hover:bg-bleu-500 text-white text-[11px] font-semibold transition-colors"
+            >
+              <Download size={14} />
+              Télécharger modele_import_eleves.xlsx
+            </button>
+          </div>
+
+          {/* Étape 2 : uploader le fichier rempli */}
+          <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-white/10 p-5 text-center">
+            <p className="text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-or-500 text-white text-[10px] font-black flex items-center justify-center">2</span>
+              Uploader votre fichier complété
+            </p>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={e => {
+                const f = e.target.files?.[0] ?? null;
+                setImportFile(f);
+                setImportResult(null);
+              }}
+            />
+            {importFile ? (
+              <div className="flex items-center justify-center gap-3 mt-2">
+                <FileSpreadsheet size={18} className="text-vert-600" />
+                <span className="text-[12px] font-semibold text-gray-700 dark:text-gray-200">{importFile.name}</span>
+                <button
+                  onClick={() => { setImportFile(null); setImportResult(null); if (importFileRef.current) importFileRef.current.value = ''; }}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => importFileRef.current?.click()}
+                className="mt-2 flex items-center gap-2 mx-auto h-9 px-5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300 text-[11px] font-semibold transition-colors"
+              >
+                <Upload size={14} />
+                Choisir un fichier .xlsx
+              </button>
+            )}
+          </div>
+
+          {/* Résultats */}
+          {importResult && (
+            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+              <div className={`px-4 py-3 flex items-center gap-3 ${importResult.errorCount === 0 ? 'bg-vert-50 dark:bg-vert-900/20' : 'bg-or-50 dark:bg-or-900/20'}`}>
+                {importResult.errorCount === 0
+                  ? <CheckCircle size={16} className="text-vert-600 dark:text-vert-400 shrink-0" />
+                  : <AlertTriangle size={16} className="text-or-600 dark:text-or-400 shrink-0" />
+                }
+                <div className="text-[12px]">
+                  <span className="font-bold text-vert-700 dark:text-vert-300">{importResult.successCount} élève(s) importé(s)</span>
+                  {importResult.errorCount > 0 && (
+                    <span className="font-bold text-red-600 dark:text-red-400 ml-2">{importResult.errorCount} erreur(s)</span>
+                  )}
+                  <span className="text-gray-400 ml-1">/ {importResult.totalRows} lignes traitées</span>
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 dark:divide-white/5">
+                  {importResult.errors.map((err, i) => (
+                    <div key={i} className="px-4 py-2 flex items-start gap-2">
+                      <span className="text-[10px] font-bold text-gray-400 shrink-0 pt-0.5">L.{err.rowNumber}</span>
+                      <div>
+                        <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">{err.studentName || '—'}</p>
+                        <p className="text-[10px] text-red-500">{err.reason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+            <Button
+              variant="outline"
+              onClick={() => setImportModalOpen(false)}
+              disabled={importLoading}
+              className="flex-1 h-12"
+            >
+              {importResult ? 'Fermer' : 'Annuler'}
+            </Button>
+            {!importResult && (
+              <Button
+                onClick={handleBulkImport}
+                disabled={!importFile || importLoading}
+                className="flex-1 h-12 bg-vert-600 hover:bg-vert-500 border-none flex items-center justify-center gap-2"
+              >
+                {importLoading
+                  ? <><Loader2 size={16} className="animate-spin" />Importation...</>
+                  : <><Upload size={16} />Lancer l'import</>
+                }
+              </Button>
+            )}
+          </div>
+        </div>
       </Modal>
 
       <NotificationToast notif={notif} onClose={closeNotif} />

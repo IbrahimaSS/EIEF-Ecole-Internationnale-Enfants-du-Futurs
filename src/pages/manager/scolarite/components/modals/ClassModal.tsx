@@ -14,6 +14,7 @@ interface Props {
   years: AcademicYearResponse[];
   teachers: TeacherResponse[];
   submitting: boolean;
+  isEditing?: boolean;
   onChange: (form: ClassForm) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -26,6 +27,7 @@ const ClassModal: React.FC<Props> = ({
   years,
   teachers,
   submitting,
+  isEditing = false,
   onChange,
   onClose,
   onSubmit,
@@ -39,7 +41,7 @@ const ClassModal: React.FC<Props> = ({
         <div className="p-2 bg-bleu-100 dark:bg-bleu-900/30 rounded-xl text-bleu-600">
           <Building2 size={22} />
         </div>
-        <span className="font-bold gradient-bleu-or-text">Nouvelle Classe</span>
+        <span className="font-bold gradient-bleu-or-text">{isEditing ? 'Modifier la Classe' : 'Nouvelle Classe'}</span>
       </div>
     }
     size="lg"
@@ -107,7 +109,7 @@ const ClassModal: React.FC<Props> = ({
           className="flex-1 h-12 bg-bleu-600 border-none text-white shadow-lg"
         >
           {submitting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
-          Créer la Classe
+          {isEditing ? 'Enregistrer les modifications' : 'Créer la Classe'}
         </Button>
       </div>
     </div>

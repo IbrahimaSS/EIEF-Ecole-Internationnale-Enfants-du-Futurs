@@ -27,6 +27,7 @@ interface Props {
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   onOpenClassDetail: (cls: ClassResponse) => void;
+  onEditClass?: (cls: ClassResponse) => void;
   onAddSchedule: (cls: ClassResponse) => void;
   onPrintClass: (cls: ClassResponse) => void;
   onEditSchedule: (s: ScheduleResponse) => void;
@@ -40,6 +41,7 @@ const EmploisTab: React.FC<Props> = ({
   openMenuId,
   setOpenMenuId,
   onOpenClassDetail,
+  onEditClass,
   onAddSchedule,
   onPrintClass,
   onEditSchedule,
@@ -195,6 +197,14 @@ const EmploisTab: React.FC<Props> = ({
                     >
                       <Eye size={11} /> Voir
                     </button>
+                    {onEditClass && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onEditClass(cls); }}
+                        className="px-3 py-1.5 text-[9px] font-bold bg-vert-50 dark:bg-vert-900/20 text-vert-600 dark:text-vert-300 rounded-lg hover:bg-vert-100 transition-all flex items-center gap-1"
+                      >
+                        <Edit size={11} /> Modifier
+                      </button>
+                    )}
                     <button
                       onClick={() => onAddSchedule(cls)}
                       className="px-3 py-1.5 text-[9px] font-bold bg-or-50 dark:bg-or-900/20 text-or-600 dark:text-or-300 rounded-lg hover:bg-or-100 transition-all flex items-center gap-1"

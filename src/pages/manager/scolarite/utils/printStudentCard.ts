@@ -55,9 +55,22 @@ export async function printStudentCard({
   const avatarUrl = (student.avatarUrl || student.photoUrl || "").trim();
   const academicYear = schoolClass?.academicYearName || "-";
   const parentName = student.parentName?.trim() || "-";
-  const level = schoolClass?.level || "-";
   const mainTeacherName = schoolClass?.mainTeacherName || "-";
   const gender = student.gender || "-";
+
+  let level = schoolClass?.level || "-";
+  if (student.className) {
+    const upper = student.className.toUpperCase();
+    if (/(LYCEE|LYCÉE|2NDE|1ERE|1ÈRE|SECONDE|PREMIERE|PREMIÈRE|1[12]\s*[EÈ]ME?\s*ANN[EÉ]E)/.test(upper) || /(TERMINALE|^TLE\b|\bTLE\b|BACCALAUR|^BAC\b|\bBAC\b)/.test(upper)) {
+      level = 'Lycée';
+    } else if (/(COLLEGE|COLLÈGE|6E|5E|4E|3E|6EME|5EME|4EME|3EME|SIXIEME|CINQUIEME|QUATRIEME|TROISIEME|[7-9]\s*[EÈ]ME?\s*ANN[EÉ]E|[7-9]\s*A)/.test(upper) || /(10\s*[EÈ]ME?\s*ANN[EÉ]E|10\s*A|BEPC|BREVET)/.test(upper)) {
+      level = 'Collège';
+    } else if (/(PRIMAIRE|CP|CE1|CE2|CM1|CM2|[1-5]\s*AP|[1-5]\s*[EÈ]ME?\s*ANN[EÉ]E\s*PRIMAIRE)/.test(upper) || /(6\s*[EÈ]ME?\s*ANN[EÉ]E|6\s*AP|CEE|CERTIFICAT\s+D[''ÉE]?TUDES)/.test(upper)) {
+      level = 'Primaire';
+    } else if (/(MATERNELLE|CRECHE|GARDERIE|PS|MS|GS|PETITE\s+SECTION|MOYENNE\s+SECTION|GRANDE\s+SECTION)/.test(upper)) {
+      level = 'Maternelle';
+    }
+  }
 
   const html = `<!DOCTYPE html>
   <html lang="fr">

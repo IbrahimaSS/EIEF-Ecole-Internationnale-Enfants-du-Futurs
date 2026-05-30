@@ -143,6 +143,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
   // ── Modales ───────────────────────────────────────────────────────────────
   const [isScheduleModalOpen,     setIsScheduleModalOpen]     = useState(false);
   const [isClassModalOpen,        setIsClassModalOpen]        = useState(false);
+  const [editingClassId,          setEditingClassId]          = useState<string | null>(null);
   const [isSubjectModalOpen,      setIsSubjectModalOpen]      = useState(false);
   const [isAcademicYearModalOpen, setIsAcademicYearModalOpen] = useState(false);
   const [isDetailModalOpen,       setIsDetailModalOpen]       = useState(false);
@@ -436,22 +437,46 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     }
     setSubmitting(true);
     try {
-      await apiFetch('/courses/classes', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...classForm,
-          mainTeacherId: classForm.mainTeacherId || null,
-        }),
-      });
-      onSuccess('Classe créée avec succès.');
+      if (editingClassId) {
+        await apiFetch(`/courses/classes/${editingClassId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            ...classForm,
+            mainTeacherId: classForm.mainTeacherId || null,
+          }),
+        });
+        onSuccess('Classe modifiée avec succès.');
+      } else {
+        await apiFetch('/courses/classes', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...classForm,
+            mainTeacherId: classForm.mainTeacherId || null,
+          }),
+        });
+        onSuccess('Classe créée avec succès.');
+      }
       setIsClassModalOpen(false);
+      setEditingClassId(null);
       setClassForm(empty.class());
       await fetchAll();
     } catch (e: any) {
-      onError(e?.message ?? 'Erreur création classe.');
+      onError(e?.message ?? (editingClassId ? 'Erreur modification classe.' : 'Erreur création classe.'));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openEditClass = (cls: ClassResponse) => {
+    setEditingClassId(cls.id);
+    setClassForm({
+      name: cls.name,
+      level: cls.level || '',
+      academicYearId: cls.academicYearId || '',
+      mainTeacherId: cls.mainTeacherId || '',
+      maxStudents: cls.maxStudents,
+    });
+    setIsClassModalOpen(true);
   };
 
   const handleSubmitSubject = async () => {
@@ -783,6 +808,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
                 onOpenClassDetail={openClassDetail}
+                onEditClass={openEditClass}
                 onAddSchedule={openAddSchedule}
                 onPrintClass={handlePrintClass}
                 onEditSchedule={openEditSchedule}
@@ -911,8 +937,9 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
         years={years}
         teachers={teachers}
         submitting={submitting}
+        isEditing={!!editingClassId}
         onChange={setClassForm}
-        onClose={() => setIsClassModalOpen(false)}
+        onClose={() => { setIsClassModalOpen(false); setEditingClassId(null); setClassForm(empty.class()); }}
         onSubmit={handleSubmitClass}
         onOpenYearModal={allowCatalogManagement ? () => setIsAcademicYearModalOpen(true) : undefined}
       />

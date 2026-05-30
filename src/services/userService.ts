@@ -329,6 +329,19 @@ export interface UserPreferencesResponse {
   twoFactorEnabled: boolean;
 }
 
+export interface BulkImportRowError {
+  rowNumber: number;
+  studentName: string;
+  reason: string;
+}
+
+export interface BulkImportResponse {
+  totalRows: number;
+  successCount: number;
+  errorCount: number;
+  errors: BulkImportRowError[];
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const userService = {
@@ -372,6 +385,36 @@ export const userService = {
 
   deleteStudent: (token: string, id: string) =>
     apiRequest<void>(`/users/students/${id}`, { method: "DELETE", token }),
+
+  /** Télécharge le fichier Excel modèle d'import. */
+  downloadImportTemplate: async (token: string): Promise<void> => {
+    const { AUTH_HEADER_NAME, AUTH_HEADER_PREFIX } = await import("./api");
+    const API_BASE_URL =
+      process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, "") ||
+      "http://localhost:8080/api/v1";
+    const response = await fetch(`${API_BASE_URL}/users/students/import-template`, {
+      headers: { [AUTH_HEADER_NAME]: `${AUTH_HEADER_PREFIX} ${token}` },
+    });
+    if (!response.ok) throw new Error("Impossible de télécharger le modèle");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "modele_import_eleves.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  /** Importe des élèves depuis un fichier Excel. */
+  bulkImportStudents: (token: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return apiRequest<BulkImportResponse>("/users/students/bulk-import", {
+      method: "POST",
+      body: fd,
+      token,
+    });
+  },
 
   /** Réinscription — réaffectation d'un élève existant à une nouvelle classe (nouvelle année). */
   reenrollStudent: (

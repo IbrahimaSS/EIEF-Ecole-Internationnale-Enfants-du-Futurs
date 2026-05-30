@@ -90,6 +90,7 @@ export interface ClassOption {
   id: string;
   name: string;
   level: string;
+  academicYearId: string | null;
   academicYearName: string;
   mainTeacherName: string | null;
   maxStudents: number;
