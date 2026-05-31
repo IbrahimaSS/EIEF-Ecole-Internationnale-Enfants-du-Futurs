@@ -75,7 +75,7 @@ const CoachEIEF: React.FC<CoachEIEFProps> = ({ studentName, className: schoolCla
         <div>
           <p className="text-white font-black text-sm leading-tight">Coach EIEF</p>
           <p className="text-white/70 text-[10px] font-semibold flex items-center gap-1">
-            <Sparkles size={9} /> IA propulsée par DeepSeek
+            <Sparkles size={9} /> IA propulsée par Groq
           </p>
         </div>
       </div>
