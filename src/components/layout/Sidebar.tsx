@@ -259,7 +259,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
       { id: 'emploi',        label: 'Emploi du temps',   icon: <Calendar size={18} />,      href: '/eleve/emploi' },
       { id: 'devoirs',       label: 'Mes devoirs',       icon: <ClipboardList size={18} />, href: '/eleve/devoirs' },
       { id: 'ressources',    label: 'Ressources',        icon: <BookOpen size={18} />,      href: '/eleve/ressources' },
-      { id: 'jeux',          label: 'Jeux Éducatifs',    icon: <Gamepad2 size={18} />,      href: '/eleve/jeux', badge: { count: 1, color: 'or' } },
+      { id: 'jeux',          label: 'Espace Étude IA',   icon: <Gamepad2 size={18} />,      href: '/eleve/jeux' },
       { id: 'communication', label: 'Communication',     icon: <MessageSquare size={18} />, href: '/eleve/communication' },
     ],
   }];

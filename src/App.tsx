@@ -52,6 +52,7 @@ import EleveCommunication from './pages/eleve/Communication';
 import EleveProfile from './pages/eleve/Profile';
 import ElevePreferences from './pages/eleve/Preferences';
 import CatalogueJeux from './pages/eleve/CatalogueJeux';
+import EspaceEtude from './pages/eleve/EspaceEtude';
 import MathAdventure from './pages/eleve/MathAdventure';
 import LogicPuzzle from './pages/eleve/LogicPuzzle';
 import ColorMaster from './pages/eleve/ColorMaster';
@@ -245,7 +246,7 @@ function App() {
             <Route path="devoirs" element={<EleveDevoirs />} />
             <Route path="ressources" element={<EleveRessources />} />
             <Route path="communication" element={<EleveCommunication />} />
-            <Route path="jeux" element={<CatalogueJeux />} />
+            <Route path="jeux" element={<EspaceEtude />} />
             <Route path="jeux/math" element={<MathAdventure />} />
             <Route path="jeux/logic" element={<LogicPuzzle />} />
             <Route path="jeux/color" element={<ColorMaster />} />
@@ -371,7 +372,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'devoirs': { title: 'Mes Devoirs', subtitle: 'Tes devoirs à rendre' },
           'profil': { title: 'Mon Profil', subtitle: 'Mes informations personnelles' },
           'preferences': { title: 'Préférences', subtitle: 'Paramètres et notifications' },
-          'jeux': { title: 'Catalogue de Jeux', subtitle: "Apprends en t'amusant !" },
+          'jeux': { title: 'Espace Étude IA', subtitle: "Transforme ton cours en fiche, quiz et podcast" },
         };
         return elevePages[currentPage] || elevePages['dashboard'];
       default: return { title: 'Espace EIEF', subtitle: '' };
