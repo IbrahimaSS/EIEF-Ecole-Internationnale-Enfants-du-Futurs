@@ -138,8 +138,8 @@ export interface StudentAttendanceResponse {
 
 // ─── Types UI ────────────────────────────────────────────────────────────────
 
-export type TabId = "emplois" | "notes" | "pointage" | "cartes";
-export type PointageTab = "eleves" | "professeurs";
+export type TabId = "emplois" | "notes" | "pointage" | "cartes" | "cartes-profs";
+export type PointageTab = "live" | "eleves" | "professeurs";
 export type NotifKind = "success" | "error";
 
 export interface Notif {

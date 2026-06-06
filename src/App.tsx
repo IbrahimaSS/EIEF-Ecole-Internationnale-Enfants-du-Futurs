@@ -1,5 +1,6 @@
 import React from 'react';
 import { useEffect } from 'react';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/authStore';
@@ -67,6 +68,8 @@ import PreInscription from './pages/PreInscription';
 import Contact from './pages/Contact';
 import Jeux from './pages/eleve/Jeux';
 import StudentCardScan from './pages/public/StudentCardScan';
+import QrPointage from './pages/public/QrPointage';
+import QrTeacherPointage from './pages/public/QrTeacherPointage';
 
 // Composants partagés
 import ProtectedRoute from './components/shared/ProtectedRoute';
@@ -102,6 +105,7 @@ function App() {
   return (
     <Router>
       <div className="App">
+        <PWAInstallBanner />
         <Toaster
           position="top-right"
           richColors
@@ -118,6 +122,8 @@ function App() {
           {/* Route publique - Login */}
           <Route path="/login" element={<Login />} />
           <Route path="/carte-eleve/:token" element={<StudentCardScan />} />
+          <Route path="/pointage/:token" element={<QrPointage />} />
+          <Route path="/pointage-prof/:token" element={<QrTeacherPointage />} />
           <Route path="/eleve/landing" element={<EleveLanding />} />
           <Route path="/parent/landing" element={<ParentLanding />} />
           <Route path="/employe/landing" element={<EmployeLanding />} />

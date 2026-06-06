@@ -1,16 +1,20 @@
 // src/pages/manager/scolarite/tabs/PointageTab.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
+  Activity,
   CheckCircle2,
   GraduationCap,
   History as HistoryIcon,
   Printer,
+  QrCode,
   Save,
   UserCheck,
   Users,
 } from 'lucide-react';
 import { Button, Card, Input, Select } from '../../../../components/ui';
+import QrScannerModal, { ScannerMode } from '../../../../components/shared/QrScannerModal';
+import LiveAttendanceBoard from '../../../../components/shared/LiveAttendanceBoard';
 import { ATTENDANCE_STATUSES } from '../constants';
 import {
   ClassResponse,
@@ -83,7 +87,13 @@ const PointageTab: React.FC<Props> = ({
   onSaveSingleTeacherAttendance,
   onShowTeacherHistory,
   onPrintTeacherReport,
-}) => (
+}) => {
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const scannerMode: ScannerMode = activePointageTab === 'professeurs' ? 'professeur' : 'eleve';
+
+  return (
+  <>
+  <QrScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} mode={scannerMode} />
   <motion.div
     key="pointage"
     initial={{ opacity: 0, x: 20 }}
@@ -92,8 +102,40 @@ const PointageTab: React.FC<Props> = ({
     transition={{ duration: 0.25 }}
     className="space-y-6"
   >
+    {/* Barre d'action — bouton scan QR */}
+    <div className="flex items-center justify-between mb-2">
+      <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+        Pointage manuel ou par QR code
+      </p>
+      <Button
+        onClick={() => setScannerOpen(true)}
+        className={`border-none text-white h-10 px-4 flex items-center gap-2 ${
+          scannerMode === 'professeur'
+            ? 'bg-purple-600 hover:bg-purple-700'
+            : 'bg-cyan-600 hover:bg-cyan-700'
+        }`}
+      >
+        <QrCode size={15} />
+        {scannerMode === 'professeur' ? 'Scanner carte professeur' : 'Scanner carte élève'}
+      </Button>
+    </div>
+
     {/* Sous-onglets */}
     <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700 mb-6">
+      <button
+        onClick={() => setActivePointageTab('live')}
+        className={`py-2 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+          activePointageTab === 'live'
+            ? 'border-cyan-500 text-cyan-600'
+            : 'border-transparent text-slate-500'
+        }`}
+      >
+        <Activity size={15} />
+        <span>Temps réel</span>
+        {activePointageTab === 'live' && (
+          <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+        )}
+      </button>
       <button
         onClick={() => setActivePointageTab('eleves')}
         className={`py-2 px-4 border-b-2 font-medium text-sm transition-colors ${
@@ -116,7 +158,17 @@ const PointageTab: React.FC<Props> = ({
       </button>
     </div>
 
-    {activePointageTab === 'eleves' ? (
+    {activePointageTab === 'live' ? (
+      <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50 dark:backdrop-blur-md">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.25em] text-cyan-500 mb-1">Dashboard live</p>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">Pointages QR — aujourd'hui</h3>
+          </div>
+        </div>
+        <LiveAttendanceBoard />
+      </Card>
+    ) : activePointageTab === 'eleves' ? (
       <Card className="p-6 border-none shadow-soft dark:bg-gray-900/50 dark:backdrop-blur-md">
         <div className="flex flex-wrap items-end gap-4 mb-3">
           <Select
@@ -475,6 +527,8 @@ const PointageTab: React.FC<Props> = ({
       </Card>
     )}
   </motion.div>
-);
+  </>
+  );
+};
 
 export default PointageTab;

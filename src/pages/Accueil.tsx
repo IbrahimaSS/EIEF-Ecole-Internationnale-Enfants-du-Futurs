@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -65,8 +66,13 @@ const NIVEAUX = [
 
 const formatGNF = (n: number) => `${new Intl.NumberFormat('fr-GN').format(n)} GNF`;
 
+// Détection iOS (Safari ne supporte pas beforeinstallprompt)
+const isIOS = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
 const Accueil: React.FC = () => {
   const navigate = useNavigate();
+  const { isInstallable, isInstalled, install } = usePWAInstall();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -74,6 +80,21 @@ const Accueil: React.FC = () => {
   const [selectedNiveau, setSelectedNiveau] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [fichesOpen, setFichesOpen] = useState<boolean>(false);
+  const [showIOSModal, setShowIOSModal] = useState(false);
+
+  const handleInstall = async () => {
+    if (isIOS()) {
+      setShowIOSModal(true);
+      return;
+    }
+    if (isInstallable) {
+      await install();
+      return;
+    }
+    // Navigateur qui ne supporte pas encore l'event (desktop hors Chrome, dev, etc.)
+    // On ouvre une modal d'info générique
+    setShowIOSModal(true);
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -267,6 +288,18 @@ const Accueil: React.FC = () => {
             >
               Découvrir l'école <ChevronRightIcon size={18} />
             </button>
+            {!isInstalled && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.8 }}
+                onClick={handleInstall}
+                className="h-14 px-8 bg-white text-gray-950 rounded-2xl font-black text-sm shadow-2xl hover:scale-105 transition-all flex items-center gap-2"
+              >
+                <Download size={18} className="text-bleu-600" />
+                Installer l'Application
+              </motion.button>
+            )}
           </motion.div>
         </div>
       </section>
@@ -590,9 +623,19 @@ const Accueil: React.FC = () => {
             <Button onClick={() => navigate('/preinscription')} className="h-14 px-8 bg-or-500 hover:bg-or-400 text-gray-950 rounded-2xl font-black text-sm shadow-2xl shadow-or-500/40 hover:scale-105 transition-all flex items-center gap-2">
               <GraduationCap size={20} /> Pré-inscrire mon enfant <ArrowRight size={18} />
             </Button>
-            <button className="h-14 px-8 bg-white/10 backdrop-blur-md text-white rounded-2xl font-bold text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2">
-              <Download size={18} /> Installer l'Appli
-            </button>
+            {!isInstalled && (
+              <button
+                onClick={handleInstall}
+                className="h-14 px-8 bg-white/10 backdrop-blur-md text-white rounded-2xl font-bold text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2"
+              >
+                <Download size={18} /> Installer l'Appli
+              </button>
+            )}
+            {isInstalled && (
+              <div className="h-14 px-8 bg-vert-600/20 text-vert-300 rounded-2xl font-bold text-sm border border-vert-500/30 flex items-center gap-2 cursor-default">
+                <Sparkles size={18} /> Application installée ✓
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -631,7 +674,13 @@ const Accueil: React.FC = () => {
             <ul className="space-y-4 text-sm font-medium text-white/70">
               <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2" onClick={() => navigate('/admin/dashboard')}><ChevronRightIcon size={14} /> Espace Admin</li>
               <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2" onClick={() => navigate('/login')}><ChevronRightIcon size={14} /> Portail Employé</li>
-              <li className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2"><ChevronRightIcon size={14} /> Télécharger l'Appli</li>
+              <li
+                className="hover:text-or-400 cursor-pointer transition-colors flex items-center gap-2"
+                onClick={handleInstall}
+              >
+                <ChevronRightIcon size={14} />
+                {isInstalled ? 'Application installée ✓' : 'Installer l\'Application'}
+              </li>
               <li>
                 <button
                   type="button"
@@ -698,6 +747,101 @@ const Accueil: React.FC = () => {
         </div>
       </footer>
 
+      {/* 📱 MODAL INSTRUCTIONS iOS */}
+      {showIOSModal && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-4 sm:pb-0"
+          onClick={() => setShowIOSModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 60 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 60 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-2xl border border-gray-100 dark:border-white/10"
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-bleu-50 dark:bg-bleu-900/20 flex items-center justify-center">
+                <img src="/logo192.png" alt="EIEF" className="w-9 h-9 rounded-xl" />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900 dark:text-white text-base">Installer l'application</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {isIOS() ? 'Suivez ces étapes sur votre iPhone / iPad' : 'Comment installer l\'application sur votre appareil'}
+                </p>
+              </div>
+              <button onClick={() => setShowIOSModal(false)} className="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={20} />
+              </button>
+            </div>
+
+            {isIOS() ? (
+              <ol className="space-y-4">
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bleu-600 text-white text-xs font-black flex items-center justify-center">1</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Appuyez sur le bouton Partager</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      L'icône <span className="font-black text-bleu-600">⬆</span> en bas de Safari (ou en haut sur iPad)
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bleu-600 text-white text-xs font-black flex items-center justify-center">2</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Faites défiler et tapez</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      <span className="font-black text-bleu-600">"Sur l'écran d'accueil"</span> dans le menu
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bleu-600 text-white text-xs font-black flex items-center justify-center">3</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Confirmez l'ajout</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Appuyez sur <span className="font-black text-bleu-600">"Ajouter"</span> en haut à droite</p>
+                  </div>
+                </li>
+              </ol>
+            ) : (
+              <ol className="space-y-4">
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bleu-600 text-white text-xs font-black flex items-center justify-center">1</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Ouvrez le menu du navigateur</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Cliquez sur les <span className="font-black text-bleu-600">⋮</span> (3 points) en haut à droite de Chrome ou Edge
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bleu-600 text-white text-xs font-black flex items-center justify-center">2</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Choisissez "Installer l'application"</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Ou <span className="font-black text-bleu-600">"Ajouter à l'écran d'accueil"</span> selon votre navigateur
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bleu-600 text-white text-xs font-black flex items-center justify-center">3</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Confirmez l'installation</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Cliquez sur <span className="font-black text-bleu-600">"Installer"</span> dans la popup</p>
+                  </div>
+                </li>
+              </ol>
+            )}
+
+            <button
+              onClick={() => setShowIOSModal(false)}
+              className="mt-6 w-full h-12 bg-bleu-600 hover:bg-bleu-700 text-white font-black text-sm rounded-2xl transition-colors"
+            >
+              Compris !
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

@@ -29,6 +29,7 @@ import EmploisTab          from './scolarite/tabs/EmploisTab';
 import NotesTab            from './scolarite/tabs/NotesTab';
 import PointageTab         from './scolarite/tabs/PointageTab';
 import StudentCardsTab     from './scolarite/tabs/StudentCardsTab';
+import TeacherCardsTab     from '../../components/shared/TeacherCardsTab';
 import ScheduleModal       from './scolarite/components/modals/ScheduleModal';
 import ClassModal          from './scolarite/components/modals/ClassModal';
 import SubjectModal        from './scolarite/components/modals/SubjectModal';
@@ -113,15 +114,15 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as TabId | null;
     const allowedTabs: TabId[] = allowStudentCards
-      ? ['emplois', 'notes', 'pointage', 'cartes']
-      : ['emplois', 'notes', 'pointage'];
+      ? ['emplois', 'notes', 'pointage', 'cartes', 'cartes-profs']
+      : ['emplois', 'notes', 'pointage', 'cartes-profs'];
 
     if (tab && allowedTabs.includes(tab)) {
       setActiveTab(tab);
       return;
     }
 
-    if (tab === 'cartes' && !allowStudentCards) {
+    if (tab === 'cartes' && !allowStudentCards) {  // 'cartes-profs' is always allowed
       const nextParams = new URLSearchParams(location.search);
       nextParams.set('tab', 'emplois');
       navigate(
@@ -289,6 +290,14 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     });
   }
 
+  tabItems.push({
+    id: 'cartes-profs',
+    label: 'Cartes professeurs',
+    description: 'Génération des cartes QR des enseignants pour le pointage automatique.',
+    metric: `${teachers.length} prof.${teachers.length > 1 ? 's' : ''}`,
+    icon: ShieldCheck,
+  });
+
   const activeYearLabel = years.find(y => y.isActive)?.name || 'Année non définie';
   const currentTab = tabItems.find(tab => tab.id === activeTab) ?? tabItems[0];
   const searchEnabled = activeTab !== 'pointage';
@@ -309,6 +318,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     allowCatalogManagement ? 'Catalogue complet' : 'Catalogue restreint',
     allowSubjectCreation ? 'Création de matières active' : 'Création de matières désactivée',
     allowStudentCards ? 'Cartes scolaires disponibles' : 'Cartes scolaires masquées',
+    'Cartes professeurs disponibles',
   ];
 
   const handleTabChange = (tab: TabId) => {
@@ -887,6 +897,15 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
                 loading={loading}
                 filteredStudents={filteredStudents}
                 classes={classes}
+                onSuccess={onSuccess}
+                onError={onError}
+              />
+            )}
+
+            {activeTab === 'cartes-profs' && (
+              <TeacherCardsTab
+                teachers={teachers}
+                loading={loading}
                 onSuccess={onSuccess}
                 onError={onError}
               />

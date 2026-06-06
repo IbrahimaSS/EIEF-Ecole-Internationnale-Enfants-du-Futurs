@@ -27,6 +27,7 @@ import { formatCurrency, generateFamilyReceiptHTML } from './utils';
 import FamilyStatusOverview from './components/FamilyStatusOverview';
 import PaymentsList from './components/PaymentsList';
 import ExpensesList from './components/ExpensesList';
+import { generateFamilyCode } from '../../../utils/familyUtils';
 
 const VALID_TABS = ['tuition', 'payments', 'expenses'] as const;
 type TabType = typeof VALID_TABS[number];
@@ -401,12 +402,17 @@ const AdminAccounting: React.FC = () => {
   const filteredFamilies = useMemo(() => {
     const q = familySearchQuery.trim().toLowerCase();
     if (!q) return parents.slice(0, 5);
-    return parents.filter(p =>
-      `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
-      (p.email && p.email.toLowerCase().includes(q)) ||
-      (p.phone && String(p.phone).toLowerCase().includes(q)) ||
-      (p.address && String(p.address).toLowerCase().includes(q))
-    ).slice(0, 10);
+    return parents.filter(p => {
+      const familyCode = generateFamilyCode(p.familyId, (p.lastName ?? '').toUpperCase()).toLowerCase();
+      return (
+        `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
+        (p.email && p.email.toLowerCase().includes(q)) ||
+        (p.phone && String(p.phone).toLowerCase().includes(q)) ||
+        (p.address && String(p.address).toLowerCase().includes(q)) ||
+        familyCode.includes(q) ||
+        (p.familyId && p.familyId.toLowerCase().includes(q))
+      );
+    }).slice(0, 10);
   }, [familySearchQuery, parents]);
 
   const totalFamilies = allFamiliesStatus.length;
@@ -689,7 +695,12 @@ const AdminAccounting: React.FC = () => {
                         onClick={() => handleFamilySearch(p)}
                         className="w-full border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-bleu-50 dark:border-white/5 dark:hover:bg-white/5 last:border-0"
                       >
-                        <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
+                          <span className="shrink-0 rounded-full bg-vert-50 px-2 py-0.5 font-mono text-[9px] font-bold text-vert-700 dark:bg-vert-900/30 dark:text-vert-400">
+                            {generateFamilyCode(p.familyId, (p.lastName ?? '').toUpperCase())}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-gray-400 font-bold uppercase">{p.email}</p>
                       </button>
                     ))}

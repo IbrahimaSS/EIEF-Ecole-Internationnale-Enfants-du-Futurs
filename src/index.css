@@ -3,10 +3,49 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Responsive / PWA base ── */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Respect la safe-area des appareils à encoche/barre de navigation */
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    /* Empêche le zoom sur double-tap iOS */
+    touch-action: manipulation;
+    /* Défilement fluide */
+    scroll-behavior: smooth;
+    /* Meilleur rendu texte */
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-[#F0F4F8] text-neutral-800 font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Overscroll natif sur mobile */
+    overscroll-behavior-y: contain;
+    /* Évite le flash blanc en mode standalone */
+    min-height: 100dvh;
+  }
+
+  /* Cible spécifiquement les appareils en mode standalone (PWA installée) */
+  @media (display-mode: standalone) {
+    body {
+      /* Marge supplémentaire en bas pour éviter la barre système iOS */
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
+  /* Défilement fluide au touch sur les zones scrollables */
+  [class*="overflow-"] {
+    -webkit-overflow-scrolling: touch;
   }
 
   ::selection {

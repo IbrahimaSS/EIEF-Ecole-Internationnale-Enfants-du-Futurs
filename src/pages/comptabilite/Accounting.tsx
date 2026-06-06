@@ -25,6 +25,7 @@ import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStat
 import TuitionModalityManager from './components/TuitionModalityManager';
 import { AcademicYearOption, ClassOption, TuitionFeePayload, TuitionFeeResponse } from './types';
 import { apiRequest } from '../../services/api';
+import { generateFamilyCode } from '../../utils/familyUtils';
 
 const ComptableAccounting: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tuition' | 'misc'>('tuition');
@@ -354,12 +355,17 @@ const ComptableAccounting: React.FC = () => {
     if (!q) return parents.slice(0, 5);
     // Sinon on filtre TOUJOURS, même si une famille est déjà sélectionnée :
     // l'utilisateur doit pouvoir retaper pour changer de famille.
-    return parents.filter(p =>
-      `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
-      (p.email && p.email.toLowerCase().includes(q)) ||
-      (p.phone && String(p.phone).toLowerCase().includes(q)) ||
-      (p.address && String(p.address).toLowerCase().includes(q))
-    ).slice(0, 10);
+    return parents.filter(p => {
+      const familyCode = generateFamilyCode(p.familyId, (p.lastName ?? '').toUpperCase()).toLowerCase();
+      return (
+        `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
+        (p.email && p.email.toLowerCase().includes(q)) ||
+        (p.phone && String(p.phone).toLowerCase().includes(q)) ||
+        (p.address && String(p.address).toLowerCase().includes(q)) ||
+        familyCode.includes(q) ||
+        (p.familyId && p.familyId.toLowerCase().includes(q))
+      );
+    }).slice(0, 10);
   }, [familySearchQuery, parents]);
 
   const totalFamilies = allFamiliesStatus.length;
@@ -668,7 +674,12 @@ const ComptableAccounting: React.FC = () => {
                         onClick={() => handleFamilySearch(p)}
                         className="w-full border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-bleu-50 dark:border-white/5 dark:hover:bg-white/5 last:border-0"
                       >
-                        <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
+                          <span className="shrink-0 rounded-full bg-vert-50 px-2 py-0.5 font-mono text-[9px] font-bold text-vert-700 dark:bg-vert-900/30 dark:text-vert-400">
+                            {generateFamilyCode(p.familyId, (p.lastName ?? '').toUpperCase())}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-gray-400 font-bold uppercase">{p.email}</p>
                       </button>
                     ))}

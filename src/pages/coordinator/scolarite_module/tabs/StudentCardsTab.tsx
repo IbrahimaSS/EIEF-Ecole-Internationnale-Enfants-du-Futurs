@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Avatar, Badge, Button, Card } from "../../../../components/ui";
 import { cn } from "../../../../utils/cn";
-import { studentCardService, buildStudentCardPublicUrl } from "../../../../services/studentCardService";
+import { studentCardService, buildStudentCardPointageUrl, buildStudentCardPublicUrl } from "../../../../services/studentCardService";
 import { printStudentCard } from "../utils/printStudentCard";
 import { ClassResponse, StudentCardSummary, StudentResponse } from "../types";
 
@@ -80,7 +80,7 @@ const StudentCardsTab: React.FC<Props> = ({
       };
     }
 
-    void QRCode.toDataURL(buildStudentCardPublicUrl(card.qrToken), {
+    void QRCode.toDataURL(buildStudentCardPointageUrl(card.qrToken), {
       width: 220,
       margin: 1,
       errorCorrectionLevel: "M",
@@ -130,7 +130,7 @@ const StudentCardsTab: React.FC<Props> = ({
       await printStudentCard({
         student: selectedStudent,
         schoolClass: selectedClass,
-        qrUrl: buildStudentCardPublicUrl(card.qrToken),
+        qrUrl: buildStudentCardPointageUrl(card.qrToken),
       });
       onSuccess("Carte scolaire envoyée à l'impression.");
     } catch (error: any) {
@@ -142,7 +142,7 @@ const StudentCardsTab: React.FC<Props> = ({
 
   const handleOpenPublic = () => {
     if (!card?.generated || !card.qrToken) return;
-    window.open(buildStudentCardPublicUrl(card.qrToken), "_blank", "noopener,noreferrer");
+    window.open(buildStudentCardPointageUrl(card.qrToken), "_blank", "noopener,noreferrer");
   };
 
   const previewImage = card?.avatarUrl || selectedStudent?.avatarUrl || selectedStudent?.photoUrl || null;
@@ -286,7 +286,7 @@ const StudentCardsTab: React.FC<Props> = ({
                       </div>
                       <div className="rounded-2xl bg-white/10 px-4 py-3">
                         <div className="text-[10px] uppercase tracking-widest text-white/65 font-bold">Usage</div>
-                        <div className="text-sm font-bold mt-1">Scan lecture seule des notes</div>
+                        <div className="text-sm font-bold mt-1">Pointage arrivée &amp; départ</div>
                       </div>
                     </div>
                   </div>
@@ -296,7 +296,7 @@ const StudentCardsTab: React.FC<Props> = ({
                       <>
                         <img src={qrPreviewUrl} alt="QR code de la carte scolaire" className="w-44 h-44 object-contain" />
                         <div className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-700 text-center">
-                          QR lecture notes
+                          QR Pointage auto
                         </div>
                       </>
                     ) : (
@@ -348,7 +348,7 @@ const StudentCardsTab: React.FC<Props> = ({
                 <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-4 py-4">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Lien public du QR</div>
                   <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 break-all">
-                    {buildStudentCardPublicUrl(card.qrToken)}
+                    {buildStudentCardPointageUrl(card.qrToken)}
                   </div>
                 </div>
               )}

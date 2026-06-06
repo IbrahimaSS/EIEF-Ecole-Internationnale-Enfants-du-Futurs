@@ -1,17 +1,21 @@
 // src/pages/manager/scolarite/tabs/PointageTab.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
+  Activity,
   CheckCircle2,
   GraduationCap,
   History as HistoryIcon,
   Printer,
+  QrCode,
   Save,
   UserCheck,
   Users,
 } from 'lucide-react';
 import { Button, Card, Input, Select } from '../../../../components/ui';
 import { cn } from '../../../../utils/cn';
+import QrScannerModal, { ScannerMode } from '../../../../components/shared/QrScannerModal';
+import LiveAttendanceBoard from '../../../../components/shared/LiveAttendanceBoard';
 import { ATTENDANCE_STATUSES } from '../constants';
 import {
   ClassResponse,
@@ -85,7 +89,17 @@ const PointageTab: React.FC<Props> = ({
   onShowTeacherHistory,
   onPrintTeacherReport,
 }) => {
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const scannerMode: ScannerMode = activePointageTab === 'professeurs' ? 'professeur' : 'eleve';
+
   const pointageModes = [
+    {
+      id: 'live' as PointageTabId,
+      label: 'Temps réel',
+      description: 'Flux live des scans QR du jour avec auto-rafraîchissement.',
+      icon: Activity,
+      accentClassName: 'bg-cyan-500 text-white shadow-[0_18px_35px_-20px_rgba(6,182,212,0.85)]',
+    },
     {
       id: 'eleves' as PointageTabId,
       label: 'Élèves',
@@ -105,6 +119,8 @@ const PointageTab: React.FC<Props> = ({
   const activeMode = pointageModes.find(mode => mode.id === activePointageTab) ?? pointageModes[0];
 
   return (
+    <>
+    <QrScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} mode={scannerMode} />
     <motion.div
       key="pointage"
       initial={{ opacity: 0, x: 20 }}
@@ -113,6 +129,24 @@ const PointageTab: React.FC<Props> = ({
       transition={{ duration: 0.25 }}
       className="space-y-6"
     >
+      {/* Bouton scan QR */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+          Pointage manuel ou par QR code
+        </p>
+        <Button
+          onClick={() => setScannerOpen(true)}
+          className={`border-none text-white h-10 px-4 flex items-center gap-2 ${
+            scannerMode === 'professeur'
+              ? 'bg-purple-600 hover:bg-purple-700'
+              : 'bg-cyan-600 hover:bg-cyan-700'
+          }`}
+        >
+          <QrCode size={15} />
+          {scannerMode === 'professeur' ? 'Scanner carte professeur' : 'Scanner carte élève'}
+        </Button>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {pointageModes.map(({ id, label, description, icon: Icon, accentClassName }) => {
@@ -167,7 +201,11 @@ const PointageTab: React.FC<Props> = ({
         </div>
       </div>
 
-      {activePointageTab === 'eleves' ? (
+      {activePointageTab === 'live' ? (
+        <Card className="border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+          <LiveAttendanceBoard />
+        </Card>
+      ) : activePointageTab === 'eleves' ? (
         <Card className="border border-slate-200/70 bg-white/90 p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
         <div className="flex flex-wrap items-end gap-4 mb-3">
           <Select
@@ -526,6 +564,7 @@ const PointageTab: React.FC<Props> = ({
         </Card>
       )}
     </motion.div>
+    </>
   );
 };
 

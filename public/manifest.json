@@ -1,6 +1,7 @@
 {
-  "short_name": "EIEF Jeux",
-  "name": "EIEF - Espace Ludo-Éducatif",
+  "short_name": "EIEF",
+  "name": "EIEF — École Internationale Les Enfants du Futur",
+  "description": "Application de l'École Internationale Les Enfants du Futur",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,16 +11,41 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": "/jeux",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
   "theme_color": "#2563EB",
-  "background_color": "#030712"
+  "background_color": "#030712",
+  "lang": "fr-FR",
+  "dir": "ltr",
+  "categories": ["education", "kids"],
+  "shortcuts": [
+    {
+      "name": "Tableau de bord",
+      "short_name": "Dashboard",
+      "description": "Accéder au tableau de bord",
+      "url": "/dashboard",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Espace Jeux",
+      "short_name": "Jeux",
+      "description": "Accéder aux jeux éducatifs",
+      "url": "/jeux",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
 }

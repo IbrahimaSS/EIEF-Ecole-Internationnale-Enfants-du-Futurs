@@ -10,7 +10,7 @@ import {
   RefreshCw, ClipboardList, ChevronRight, Map as MapIcon, Wallet,
   Settings, Utensils, Bus, Car, Truck, Shirt, Tent, Swords,
   Rocket, Waves, Bot, Moon, Baby, Activity, Coins, Plus, X,
-  Upload, Download, FileSpreadsheet, CheckCircle, AlertTriangle,
+  Upload, Download, FileSpreadsheet, CheckCircle, AlertTriangle, CreditCard,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import NotificationToast from '../../components/shared/NotificationToast';
@@ -27,11 +27,16 @@ import type {
   StudentResponse, BulkImportResponse,
 } from '../../services/userService';
 import { detecterCycle } from '../comptabilite/tarifs';
+import { printFamilyCard } from './printFamilyCard';
+import type { FamilyCardData } from './printFamilyCard';
+import { generateFamilyCode } from '../../utils/familyUtils';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 /** Familles remplace l'ancien onglet "parents" pour s'aligner sur le modèle backend Family. */
 type TabId = 'eleves' | 'enseignants' | 'familles' | 'employes';
+
+
 
 /** Sous-onglets dédiés aux élèves : pré-inscription publique, réinscription, inscription directe. */
 type EleveSubTab = 'preinscription' | 'reinscription' | 'inscription';
@@ -271,8 +276,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
               <span className="w-1 h-3 rounded-full bg-gradient-to-b from-vert-500 to-vert-600" />
               Détails de la Famille
             </p>
-            <DetailRow icon={<UserCheck size={14} />} label="Relation" value={row.parents?.[0]?.relationship} />
-            <DetailRow icon={<MapIcon size={14} />}       label="Adresse"  value={row.parents?.[0]?.address} />
+            <DetailRow icon={<Hash size={14} />}       label="Identifiant Famille" value={row.familyCode ?? generateFamilyCode(row.familyId, row.key ?? row.lastName ?? '')} />
+            <DetailRow icon={<UserCheck size={14} />} label="Relation"            value={row.parents?.[0]?.relationship} />
+            <DetailRow icon={<MapIcon size={14} />}   label="Adresse"             value={row.parents?.[0]?.address} />
 
             {loadingFinances ? (
               <div className="mt-4 flex items-center justify-center p-4">
@@ -391,22 +397,51 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
-          {activeTab !== 'familles' && (
+        <div className="flex flex-col gap-2 pt-2 border-t border-gray-100 dark:border-white/5">
+          {activeTab === 'familles' && (
             <Button
               variant="outline"
-              onClick={() => { onClose(); onEdit(row); }}
-              className="flex-1 h-11 gap-2 text-sm"
+              onClick={async () => {
+                const qrUrl = `${window.location.origin}/famille/${row.familyId ?? row.key}/paiement`;
+                const fCode = row.familyCode ?? generateFamilyCode(row.familyId, row.key ?? row.lastName ?? '');
+                const cardData: FamilyCardData = {
+                  familyCode: fCode,
+                  familyLabel: row.label ?? `FAMILLE ${row.lastName ?? ''}`,
+                  fatherName: row.parents?.[0] ? `${row.parents[0].firstName} ${row.parents[0].lastName}` : (row.firstName ? `${row.firstName} ${row.lastName}` : undefined),
+                  motherName: row.parents?.[1] ? `${row.parents[1].firstName} ${row.parents[1].lastName}` : undefined,
+                  parentPhone: row.parents?.[0]?.phone ?? row.phone,
+                  children: (row.students ?? []).map((s: any) => ({ firstName: s.firstName, lastName: s.lastName, className: s.className })),
+                  totalPaid: financialSummary?.totalPaid,
+                  totalRemaining: financialSummary?.totalRemaining,
+                  paymentStatus: financialSummary
+                    ? (financialSummary.totalRemaining <= 0 ? 'A_JOUR' : 'EN_RETARD')
+                    : 'INCONNU',
+                };
+                try { await printFamilyCard(cardData, qrUrl); }
+                catch (err: any) { alert(err?.message ?? 'Erreur impression'); }
+              }}
+              className="w-full h-11 gap-2 text-sm text-vert-700 border-vert-200 hover:bg-vert-50"
             >
-              <Edit size={15} /> Modifier
+              <CreditCard size={15} /> Imprimer la carte famille
             </Button>
           )}
-          <Button
-            onClick={() => { onClose(); onDelete(activeTab === 'familles' ? { id: row.familyId || row.key, name: row.label } : { id: row.id, name: fullName }); }}
-            className="flex-1 h-11 gap-2 text-sm bg-red-600 hover:bg-red-700 border-none shadow-lg shadow-red-600/20"
-          >
-            <Trash2 size={15} /> Supprimer
-          </Button>
+          <div className="flex gap-3">
+            {activeTab !== 'familles' && (
+              <Button
+                variant="outline"
+                onClick={() => { onClose(); onEdit(row); }}
+                className="flex-1 h-11 gap-2 text-sm"
+              >
+                <Edit size={15} /> Modifier
+              </Button>
+            )}
+            <Button
+              onClick={() => { onClose(); onDelete(activeTab === 'familles' ? { id: row.familyId || row.key, name: row.label } : { id: row.id, name: fullName }); }}
+              className="flex-1 h-11 gap-2 text-sm bg-red-600 hover:bg-red-700 border-none shadow-lg shadow-red-600/20"
+            >
+              <Trash2 size={15} /> Supprimer
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
@@ -827,6 +862,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   type FamilyCard = {
     key: string;            // lastName (uppercase) or familyId
     familyId?: string;      // Actual UUID from backend
+    familyCode: string;     // ex: FAM-A1B2C3D4 (généré automatiquement)
     label: string;          // ex: "FAMILLE DIALLO"
     parents: ParentResponse[];
     students: StudentResponse[];
@@ -840,7 +876,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       const k = p.familyId || upper(p.lastName);
       if (!k) return;
       if (!map.has(k)) {
-        map.set(k, { key: k, familyId: p.familyId, label: `FAMILLE ${upper(p.lastName)}`, parents: [], students: [] });
+        map.set(k, { key: k, familyId: p.familyId, familyCode: '', label: `FAMILLE ${upper(p.lastName)}`, parents: [], students: [] });
       }
       const entry = map.get(k)!;
       entry.parents.push(p);
@@ -851,20 +887,25 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       const k = s.familyId || upper(s.lastName);
       if (!k) return;
       if (!map.has(k)) {
-        map.set(k, { key: k, familyId: s.familyId, label: `FAMILLE ${upper(s.lastName)}`, parents: [], students: [] });
+        map.set(k, { key: k, familyId: s.familyId, familyCode: '', label: `FAMILLE ${upper(s.lastName)}`, parents: [], students: [] });
       }
       const entry = map.get(k)!;
       entry.students.push(s);
       if (!entry.familyId && s.familyId) entry.familyId = s.familyId;
     });
 
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    // Génération des codes famille après consolidation
+    const result = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    result.forEach(fc => { fc.familyCode = generateFamilyCode(fc.familyId, fc.key); });
+    return result;
   })();
 
   const familySearchQ = q;
   const filteredFamilyCards = familyCards.filter(fc =>
     safeIncludes(fc.label, familySearchQ) ||
-    fc.parents.some(p => safeIncludes(`${p.firstName ?? ''} ${p.lastName ?? ''}`, familySearchQ) || safeIncludes(p.email, familySearchQ)) ||
+    safeIncludes(fc.familyCode, familySearchQ) ||
+    safeIncludes(fc.familyId ?? '', familySearchQ) ||
+    fc.parents.some(p => safeIncludes(`${p.firstName ?? ''} ${p.lastName ?? ''}`, familySearchQ) || safeIncludes(p.email, familySearchQ) || safeIncludes(p.phone ?? '', familySearchQ)) ||
     fc.students.some(s => safeIncludes(`${s.firstName ?? ''} ${s.lastName ?? ''}`, familySearchQ)),
   );
 
@@ -1366,7 +1407,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
       render: (_: any, row: FamilyCard) => (
         <div className="flex items-center justify-end gap-2 px-2">
           <button
-            onClick={(e) => { e.stopPropagation(); setProfileRow(row); setIsProfileOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); setProfileRow({ ...row, familyCode: row.familyCode ?? generateFamilyCode(row.familyId, row.key) }); setIsProfileOpen(true); }}
             className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-400 hover:text-bleu-600 transition-colors"
             title="Voir le détail"
           >
@@ -1391,6 +1432,33 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                 className="absolute right-12 mt-2 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden"
               >
                 <div className="p-1">
+                  <button
+                    onClick={async e => {
+                      e.stopPropagation();
+                      setOpenMenuRowId(null);
+                      const API_BASE = (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+                      const qrUrl = `${window.location.origin}/famille/${row.familyId ?? row.key}/paiement`;
+                      const cardData: FamilyCardData = {
+                        familyCode: row.familyCode,
+                        familyLabel: row.label,
+                        fatherName: row.parents[0] ? `${row.parents[0].firstName} ${row.parents[0].lastName}` : undefined,
+                        motherName: row.parents[1] ? `${row.parents[1].firstName} ${row.parents[1].lastName}` : undefined,
+                        parentPhone: row.parents[0]?.phone,
+                        children: row.students.map((s: any) => ({ firstName: s.firstName, lastName: s.lastName, className: s.className })),
+                      };
+                      try { await printFamilyCard(cardData, qrUrl); }
+                      catch (err: any) { alert(err?.message ?? 'Erreur impression'); }
+                    }}
+                    className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-vert-700 dark:text-vert-300 hover:bg-vert-50 dark:hover:bg-vert-900/40 rounded-xl transition-all w-full"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-vert-50 dark:bg-vert-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <CreditCard size={14} />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span>Carte Famille</span>
+                      <span className="text-[9px] font-normal text-vert-500">Imprimer la carte</span>
+                    </div>
+                  </button>
                   <button
                     onClick={e => {
                       e.stopPropagation();
@@ -2127,10 +2195,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                         key={fc.key}
                         onClick={() => {
                           // On affiche le profil du 1er parent comme représentant de la famille
-                          if (fc.parents[0]) {
-                            setProfileRow({ ...fc.parents[0], students: fc.students, familyId: fc.familyId });
-                            setIsProfileOpen(true);
-                          }
+                          setProfileRow({ ...fc.parents[0], students: fc.students, familyId: fc.familyId, familyCode: fc.familyCode, label: fc.label, parents: fc.parents, key: fc.key });
+                          setIsProfileOpen(true);
                         }}
                         className={cn(
                           'group relative rounded-2xl bg-white dark:bg-gray-900 border-l-4 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-lg p-4 transition-all cursor-pointer',
@@ -2146,6 +2212,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                             </p>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                               {fc.students.length} enfant{fc.students.length > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-[10px] font-mono font-bold text-vert-600 dark:text-vert-400 mt-0.5 tracking-wider">
+                              {fc.familyCode}
                             </p>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

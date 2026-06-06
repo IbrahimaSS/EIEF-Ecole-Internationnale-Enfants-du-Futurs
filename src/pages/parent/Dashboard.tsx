@@ -1,24 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Users, 
-  GraduationCap, 
-  Wallet, 
-  Calendar, 
-  Bell, 
-  TrendingUp, 
+import {
+  Users,
+  GraduationCap,
+  Wallet,
+  Calendar,
+  Bell,
+  TrendingUp,
   Activity,
   CreditCard,
   MessageCircle,
   FileText,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  LogIn,
+  LogOut,
+  QrCode,
 } from 'lucide-react';
 import { Card, Button, Avatar, Badge } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { StudentResponse } from '../../services/userService';
 import { studentService, StudentDashboardResponse } from '../../services/studentService';
+import { studentCardService, QrAttendanceLogEntry } from '../../services/studentCardService';
 import {
   isOpenParentPaymentStatus,
   ParentPaymentResponse,
@@ -35,6 +39,7 @@ const ParentDashboard: React.FC = () => {
    const [studentDashboards, setStudentDashboards] = useState<Record<string, StudentDashboardResponse>>({});
    const [payments, setPayments] = useState<ParentPaymentResponse[]>([]);
    const [tuitionStatus, setTuitionStatus] = useState<ParentTuitionStatusResponse | null>(null);
+   const [todayLogs, setTodayLogs] = useState<Record<string, QrAttendanceLogEntry | null>>({});
 
    useEffect(() => {
       const loadData = async () => {
@@ -58,6 +63,22 @@ const ParentDashboard: React.FC = () => {
             setStudentDashboards(dashboardMap);
             setPayments(overview.payments);
             setTuitionStatus(overview.tuitionStatus);
+
+            // Charger le pointage QR du jour pour chaque enfant
+            const today = new Date().toISOString().slice(0, 10);
+            const logsResults = await Promise.allSettled(
+               linkedStudents.map((s) => studentCardService.getAttendanceHistory(s.id))
+            );
+            const logsMap: Record<string, QrAttendanceLogEntry | null> = {};
+            linkedStudents.forEach((student, i) => {
+               const r = logsResults[i];
+               if (r.status === 'fulfilled') {
+                  logsMap[student.id] = r.value.find((l) => l.date === today) ?? null;
+               } else {
+                  logsMap[student.id] = null;
+               }
+            });
+            setTodayLogs(logsMap);
          } catch (_error) {
             setStudents([]);
             setStudentDashboards({});
@@ -200,6 +221,63 @@ const ParentDashboard: React.FC = () => {
                })}
             </div>
             
+            {/* POINTAGE DU JOUR */}
+            {students.length > 0 && (
+               <>
+                  <div className="flex items-center justify-between mb-2 mt-8">
+                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <QrCode size={20} className="text-cyan-500" /> Pointage du jour
+                     </h2>
+                     <Button onClick={() => navigate('/parent/eleves')} variant="ghost" className="text-[11px] font-bold text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20">
+                        Historique complet
+                     </Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     {students.map((student) => {
+                        const log = todayLogs[student.id];
+                        const hasArrived = !!log?.checkInTime;
+                        const hasDeparted = !!log?.checkOutTime;
+                        return (
+                           <Card key={student.id} className="p-4 border border-gray-100 dark:border-white/5 shadow-soft dark:bg-gray-900/50">
+                              <div className="flex items-center gap-3 mb-3">
+                                 <Avatar name={`${student.firstName} ${student.lastName}`} size="sm" />
+                                 <div>
+                                    <p className="font-bold text-sm text-gray-900 dark:text-white leading-tight">{student.firstName} {student.lastName}</p>
+                                    <p className="text-[10px] text-gray-400 font-medium">{student.className}</p>
+                                 </div>
+                              </div>
+                              <div className="flex gap-2">
+                                 <div className={`flex-1 rounded-xl px-3 py-2.5 flex items-center gap-2 ${hasArrived ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-gray-50 dark:bg-white/5'}`}>
+                                    <LogIn size={13} className={hasArrived ? 'text-emerald-600' : 'text-gray-400'} />
+                                    <div>
+                                       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Arrivée</p>
+                                       <p className={`text-sm font-black leading-tight ${hasArrived ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-400'}`}>
+                                          {hasArrived ? log!.checkInTime!.slice(0, 5).replace(':', 'h') : '—'}
+                                       </p>
+                                    </div>
+                                 </div>
+                                 <div className={`flex-1 rounded-xl px-3 py-2.5 flex items-center gap-2 ${hasDeparted ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-white/5'}`}>
+                                    <LogOut size={13} className={hasDeparted ? 'text-blue-600' : 'text-gray-400'} />
+                                    <div>
+                                       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Départ</p>
+                                       <p className={`text-sm font-black leading-tight ${hasDeparted ? 'text-blue-700 dark:text-blue-300' : 'text-gray-400'}`}>
+                                          {hasDeparted ? log!.checkOutTime!.slice(0, 5).replace(':', 'h') : '—'}
+                                       </p>
+                                    </div>
+                                 </div>
+                              </div>
+                              {!hasArrived && (
+                                 <p className="text-[10px] text-gray-400 font-medium mt-2 text-center">
+                                    Pas encore pointé aujourd'hui
+                                 </p>
+                              )}
+                           </Card>
+                        );
+                     })}
+                  </div>
+               </>
+            )}
+
             {/* RÉCENT ANNONCES */}
             <div className="flex items-center justify-between mb-2 mt-8">
                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">

@@ -401,8 +401,8 @@ export async function printStudentCard({
 
             <div class="qr-shell">
               <img src="${qrCodeDataUrl}" alt="QR carte scolaire" />
-              <div class="label">Scanner pour le bulletin</div>
-              <div class="hint">Accès lecture seule</div>
+              <div class="label">Scanner pour pointer</div>
+              <div class="hint">Arrivée &amp; départ auto</div>
             </div>
           </div>
 
