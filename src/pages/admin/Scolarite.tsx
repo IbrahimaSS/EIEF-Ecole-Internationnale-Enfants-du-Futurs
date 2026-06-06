@@ -5,8 +5,9 @@ import {
   Building2, CalendarDays, BookOpen, Plus, Trash2, Search,
   GraduationCap, Clock, Users, X, CheckCircle2,
   AlertCircle, Loader2, FileText, Download, Printer, MoreVertical,
-  Edit, Eye, ClipboardList, Award, BarChart3, Save,
+  Edit, Eye, ClipboardList, Award, BarChart3, Save, ShieldCheck,
 } from 'lucide-react';
+import TeacherCardsTab from '../../components/shared/TeacherCardsTab';
 import { Card, Badge, Button, Modal, Input, Select, Avatar, Table } from '../../components/ui';
 import { cn } from '../../utils/cn';
 
@@ -122,7 +123,7 @@ interface AcademicYearResponse {
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const DAY_OPTIONS = DAYS.map((d, i) => ({ value: String(i + 1), label: d }));
 
-type TabId = 'emplois' | 'notes';
+type TabId = 'emplois' | 'notes' | 'cartes-profs';
 type NotifKind = 'success' | 'error';
 interface Notif { kind: NotifKind; message: string }
 interface EditableGradeRow {
@@ -1115,8 +1116,9 @@ const AdminScolarite: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
             {([
-              { id: 'emplois', label: 'Emplois du temps', icon: CalendarDays },
-              { id: 'notes',   label: 'Relevés de notes', icon: ClipboardList },
+              { id: 'emplois',     label: 'Emplois du temps',   icon: CalendarDays  },
+              { id: 'notes',       label: 'Relevés de notes',   icon: ClipboardList },
+              { id: 'cartes-profs', label: 'Cartes professeurs', icon: ShieldCheck   },
             ] as const).map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1425,6 +1427,18 @@ const AdminScolarite: React.FC = () => {
             </div>
           </motion.div>
         )}
+        {/* ── TAB: CARTES PROFESSEURS ─────────────────────────────────────── */}
+        {activeTab === 'cartes-profs' && (
+          <motion.div key="cartes-profs" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
+            <TeacherCardsTab
+              teachers={teachers}
+              loading={loading}
+              onSuccess={msg => showNotif('success', msg)}
+              onError={msg => showNotif('error', msg)}
+            />
+          </motion.div>
+        )}
+
       </AnimatePresence>
 
       {/* ── MODALE: DÉTAIL EMPLOI DU TEMPS D'UNE CLASSE ────────────────────── */}
