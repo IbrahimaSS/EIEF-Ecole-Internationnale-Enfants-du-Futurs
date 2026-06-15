@@ -80,7 +80,7 @@ React.useEffect(() => {
       [SETTING_KEYS.NOM_ETABLISSEMENT]: getValue(SETTING_KEYS.NOM_ETABLISSEMENT, 'Écoles Internationales Enfants du Futur'),
       [SETTING_KEYS.SLOGAN]:            getValue(SETTING_KEYS.SLOGAN,            'Faisons Plus !'),
       [SETTING_KEYS.EMAIL]:             getValue(SETTING_KEYS.EMAIL,             'admin@eief.edu.gn'),
-      [SETTING_KEYS.TELEPHONE]:         getValue(SETTING_KEYS.TELEPHONE,         '+224 622 00 00 00'),
+      [SETTING_KEYS.TELEPHONE]:         getValue(SETTING_KEYS.TELEPHONE,         '+224 625 35 21 48'),
     });
     setInitialized(true);
   }
