@@ -14,6 +14,7 @@ import { Avatar, Badge, Button, Card } from "../../../../components/ui";
 import { cn } from "../../../../utils/cn";
 import { studentCardService, buildStudentCardPointageUrl, buildStudentCardPublicUrl } from "../../../../services/studentCardService";
 import { printStudentCard } from "../utils/printStudentCard";
+import { useAdminSettings, SETTING_KEYS } from "../../../../hooks/useAdminSettings";
 import { ClassResponse, StudentCardSummary, StudentResponse } from "../types";
 
 interface Props {
@@ -36,6 +37,8 @@ const StudentCardsTab: React.FC<Props> = ({
   const [cardLoading, setCardLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
+
+  const { getValue } = useAdminSettings();
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.name === selectedStudent?.className && (item as any).studentCount > 0) 
@@ -127,10 +130,18 @@ const StudentCardsTab: React.FC<Props> = ({
     if (!selectedStudent || !card?.generated || !card.qrToken) return;
     setProcessing(true);
     try {
+      const schoolInfo = {
+        name: getValue(SETTING_KEYS.NOM_ETABLISSEMENT, "Ecole Internationale Les Enfants du Futur"),
+        phone: getValue(SETTING_KEYS.TELEPHONE, "+224 620 00 00 00"),
+        email: getValue(SETTING_KEYS.EMAIL, "contact@enfantsfuture.com"),
+        address: "Conakry, République de Guinée",
+      };
+
       await printStudentCard({
         student: selectedStudent,
         schoolClass: selectedClass,
         qrUrl: buildStudentCardPointageUrl(card.qrToken),
+        schoolInfo,
       });
       onSuccess("Carte scolaire envoyée à l'impression.");
     } catch (error: any) {

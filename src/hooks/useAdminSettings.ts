@@ -21,16 +21,26 @@ interface SettingsResponse {
 
 interface AuditLog {
   id: string;
-  action: string;
-  performedBy?: string;
+  userId?: string;
   userName?: string;
-  utilisateur?: string;
+  userRole?: string;
+  module?: string;
+  action: string;
+  description?: string;
+  status?: 'success' | 'failed' | string;
+  level?: 'info' | 'warning' | 'danger' | string;
+  ipAddress?: string;
+  userAgent?: string;
   createdAt?: string;
+  oldValue?: string;
+  newValue?: string;
+  
+  // legacy fields for compatibility
+  performedBy?: string;
+  utilisateur?: string;
   date?: string;
   timestamp?: string;
-  module?: string;
   moduleName?: string;
-  status?: string;
   statut?: string;
 }
 
@@ -185,4 +195,54 @@ export function useAuditLogs(filters?: { module?: string; userId?: string }) {
   }
 
   return { logs, loading, error, reload };
+}
+
+// ─── Hook useBackup ────────────────────────────────────────────────────────
+export interface BackupStatusResponse {
+  lastBackupDate: string | null;
+  status: string;
+  message: string;
+}
+
+export function useBackup() {
+  const [status, setStatus] = useState<BackupStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [backingUp, setBackingUp] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadStatus = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiFetch<BackupStatusResponse>('/admin/backup/status');
+      setStatus(data);
+    } catch (e: any) {
+      setError(e?.message ?? 'Erreur lors de la récupération du statut de sauvegarde.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const triggerBackup = useCallback(async () => {
+    setBackingUp(true);
+    setError(null);
+    try {
+      await apiFetch<string>('/admin/backup', { method: 'POST' });
+      await loadStatus(); // Recharger le statut après sauvegarde
+    } catch (e: any) {
+      setError(e?.message ?? 'Erreur lors de la sauvegarde.');
+      throw e;
+    } finally {
+      setBackingUp(false);
+    }
+  }, [loadStatus]);
+
+  // Chargement initial
+  const [mounted, setMounted] = useState(false);
+  if (!mounted) {
+    setMounted(true);
+    loadStatus();
+  }
+
+  return { status, loading, backingUp, error, triggerBackup, loadStatus };
 }
