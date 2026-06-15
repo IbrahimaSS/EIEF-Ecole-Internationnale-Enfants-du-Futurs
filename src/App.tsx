@@ -70,6 +70,7 @@ import Jeux from './pages/eleve/Jeux';
 import StudentCardScan from './pages/public/StudentCardScan';
 import QrPointage from './pages/public/QrPointage';
 import QrTeacherPointage from './pages/public/QrTeacherPointage';
+import FamilyFinanceScan from './pages/public/FamilyFinanceScan';
 
 // Composants partagés
 import ProtectedRoute from './components/shared/ProtectedRoute';
@@ -124,6 +125,7 @@ function App() {
           <Route path="/carte-eleve/:token" element={<StudentCardScan />} />
           <Route path="/pointage/:token" element={<QrPointage />} />
           <Route path="/pointage-prof/:token" element={<QrTeacherPointage />} />
+          <Route path="/famille/:familyId/paiement" element={<FamilyFinanceScan />} />
           <Route path="/eleve/landing" element={<EleveLanding />} />
           <Route path="/parent/landing" element={<ParentLanding />} />
           <Route path="/employe/landing" element={<EmployeLanding />} />

@@ -6,7 +6,7 @@ import { cn } from '../../utils/cn';
 
 interface PublicNavProps {
   /** Page courante pour highlight du lien actif */
-  active?: 'Accueil' | 'Programmes' | 'PreInscription' | 'Contact' | 'Jeux';
+  active?: 'Accueil' | 'Programmes' | 'PreInscription' | 'Contact';
   /** Forcer le style "scrolled" même en haut (utile sur les pages sans hero plein écran) */
   forceSolid?: boolean;
 }
@@ -17,7 +17,6 @@ const LINK_PATHS: Record<string, string> = {
   Programmes: '/programmes',
   PreInscription: '/preinscription',
   Contact: '/contact',
-  Jeux: '/jeux',
 };
 
 /** Label affiché dans la navbar (différent de la "key" interne) */
@@ -26,12 +25,11 @@ const LINK_LABELS: Record<string, string> = {
   Programmes: 'Programmes',
   PreInscription: 'Pré-inscription',
   Contact: 'Contact',
-  Jeux: 'Jeux',
 };
 
 /**
  * Navbar public partagée — transparente sur les heros plein écran,
- * passe en glass blanc/or au scroll. Utilisée sur Accueil, Programmes, Pré-inscription, Contact, Jeux.
+ * passe en glass blanc/or au scroll. Utilisée sur Accueil, Programmes, Pré-inscription, Contact.
  */
 const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = false }) => {
   const navigate = useNavigate();
@@ -63,7 +61,7 @@ const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = 
   };
 
   const isSolid = scrolled || forceSolid;
-  const links: Array<typeof active> = ['Accueil', 'Programmes', 'PreInscription', 'Contact', 'Jeux'];
+  const links: Array<typeof active> = ['Accueil', 'Programmes', 'PreInscription', 'Contact'];
 
   return (
     <>

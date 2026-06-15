@@ -19,7 +19,9 @@ import {
   TrendingUp,
   Receipt,
   ArrowDownCircle,
+  QrCode,
 } from 'lucide-react';
+import QrFinanceModal from '../../components/shared/QrFinanceModal';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
 import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse } from '../../services/accountingService';
 import TuitionModalityManager from './components/TuitionModalityManager';
@@ -29,6 +31,7 @@ import { generateFamilyCode } from '../../utils/familyUtils';
 
 const ComptableAccounting: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tuition' | 'misc'>('tuition');
+  const [isFinanceScannerOpen, setIsFinanceScannerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -443,6 +446,16 @@ const ComptableAccounting: React.FC = () => {
                   {incomeCategories.length} catégories d'encaissement
                 </span>
               </div>
+
+              {/* Bouton scanner carte parent */}
+              <button
+                type="button"
+                onClick={() => setIsFinanceScannerOpen(true)}
+                className="inline-flex items-center gap-2.5 rounded-2xl border border-emerald-400/40 bg-emerald-900/40 px-5 py-2.5 text-sm font-black text-emerald-200 backdrop-blur-sm transition-all hover:bg-emerald-800/60 hover:text-white hover:border-emerald-300/60"
+              >
+                <QrCode size={18} />
+                Scanner Carte Parent
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[420px] xl:grid-cols-2">
@@ -981,6 +994,20 @@ const ComptableAccounting: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Scanner Finance — Carte Parent */}
+      <QrFinanceModal
+        open={isFinanceScannerOpen}
+        onClose={() => setIsFinanceScannerOpen(false)}
+        onFamilyScanned={(familyId, status) => {
+          // Sélectionne automatiquement la famille dans le tab Scolarité
+          const parent = parents.find((p) => p.familyId === familyId);
+          if (parent) {
+            setActiveTab('tuition');
+            handleFamilySearch(parent);
+          }
+        }}
+      />
 
       {/* Misc Payment Modal */}
       <Modal isOpen={isMiscModalOpen} onClose={() => setIsMiscModalOpen(false)} title="Nouvel Encaissement Divers" size="md">
