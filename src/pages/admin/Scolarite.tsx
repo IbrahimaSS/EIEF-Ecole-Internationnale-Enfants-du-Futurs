@@ -7,7 +7,8 @@ import {
   AlertCircle, Loader2, FileText, Download, Printer, MoreVertical,
   Edit, Eye, ClipboardList, Award, BarChart3, Save, ShieldCheck,
 } from 'lucide-react';
-import TeacherCardsTab from '../../components/shared/TeacherCardsTab';
+import TeacherCardsTab   from '../../components/shared/TeacherCardsTab';
+import ClassRollCallTab  from '../../components/shared/ClassRollCallTab';
 import { Card, Badge, Button, Modal, Input, Select, Avatar, Table } from '../../components/ui';
 import { cn } from '../../utils/cn';
 
@@ -123,7 +124,7 @@ interface AcademicYearResponse {
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const DAY_OPTIONS = DAYS.map((d, i) => ({ value: String(i + 1), label: d }));
 
-type TabId = 'emplois' | 'notes' | 'cartes-profs';
+type TabId = 'emplois' | 'notes' | 'cartes-profs' | 'appels';
 type NotifKind = 'success' | 'error';
 interface Notif { kind: NotifKind; message: string }
 interface EditableGradeRow {
@@ -1119,6 +1120,7 @@ const AdminScolarite: React.FC = () => {
               { id: 'emplois',      label: 'Emplois du temps',   icon: CalendarDays  },
               { id: 'notes',        label: 'Relevés de notes',   icon: ClipboardList },
               { id: 'cartes-profs', label: 'Cartes professeurs', icon: ShieldCheck   },
+              { id: 'appels',       label: 'Appels de classe',   icon: Users         },
             ] as const).map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1437,6 +1439,14 @@ const AdminScolarite: React.FC = () => {
               onError={msg => showNotif('error', msg)}
             />
           </motion.div>
+        )}
+
+        {/* ── TAB: APPELS DE CLASSE ────────────────────────────────────────── */}
+        {activeTab === 'appels' && (
+          <ClassRollCallTab
+            classes={classes}
+            schedules={schedules}
+          />
         )}
 
       </AnimatePresence>
@@ -1995,7 +2005,7 @@ const AdminScolarite: React.FC = () => {
         <div className="space-y-6 text-left py-2" onClick={e => e.stopPropagation()}>
           <Input
             label="Nom de l'année"
-            placeholder="ex: 2025-2026"
+            placeholder="ex: 2026-2027"
             value={academicYearForm.name}
             onChange={e => setAcademicYearForm(f => ({ ...f, name: e.target.value }))}
           />

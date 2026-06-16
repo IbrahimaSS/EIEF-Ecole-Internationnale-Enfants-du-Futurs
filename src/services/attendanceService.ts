@@ -50,4 +50,8 @@ export const attendanceService = {
     apiRequest<void>(`${BASE_PATH}/${id}`, {
       method: "DELETE",
     }),
+
+  // Récupérer toutes les présences d'une classe pour une date donnée
+  getByClassAndDate: (classId: string, date: string): Promise<AttendanceResponse[]> =>
+    apiRequest<AttendanceResponse[]>(`${BASE_PATH}/class/${classId}/date/${date}`),
 };

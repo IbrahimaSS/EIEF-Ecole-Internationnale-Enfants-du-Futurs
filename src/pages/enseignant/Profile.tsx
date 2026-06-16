@@ -302,7 +302,7 @@ const EnseignantProfile: React.FC = () => {
                     Depuis
                   </p>
                   <p className="text-gray-500 text-[11px] font-semibold">
-                    Septembre 2024
+                    Septembre 2026
                   </p>
                 </div>
               </div>

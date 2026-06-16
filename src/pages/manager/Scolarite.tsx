@@ -8,6 +8,7 @@ import {
   AlertCircle,
   BookOpen,
   CalendarDays,
+  ClipboardList,
   FileText,
   IdCard,
   LucideIcon,
@@ -30,6 +31,7 @@ import NotesTab            from './scolarite/tabs/NotesTab';
 import PointageTab         from './scolarite/tabs/PointageTab';
 import StudentCardsTab     from './scolarite/tabs/StudentCardsTab';
 import TeacherCardsTab     from '../../components/shared/TeacherCardsTab';
+import ClassRollCallTab    from '../../components/shared/ClassRollCallTab';
 import ScheduleModal       from './scolarite/components/modals/ScheduleModal';
 import ClassModal          from './scolarite/components/modals/ClassModal';
 import SubjectModal        from './scolarite/components/modals/SubjectModal';
@@ -114,8 +116,8 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as TabId | null;
     const allowedTabs: TabId[] = allowStudentCards
-      ? ['emplois', 'notes', 'pointage', 'cartes', 'cartes-profs']
-      : ['emplois', 'notes', 'pointage', 'cartes-profs'];
+      ? ['emplois', 'notes', 'pointage', 'cartes', 'cartes-profs', 'appels']
+      : ['emplois', 'notes', 'pointage', 'cartes-profs', 'appels'];
 
     if (tab && allowedTabs.includes(tab)) {
       setActiveTab(tab);
@@ -298,8 +300,19 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     icon: ShieldCheck,
   });
 
+  tabItems.push({
+    id: 'appels',
+    label: 'Appels de classe',
+    description: 'Suivez en temps réel les appels soumis par les professeurs et contactez les parents.',
+    metric: `${classes.length} classe${classes.length > 1 ? 's' : ''}`,
+    icon: ClipboardList,
+  });
 
-  const activeYearLabel = years.find(y => y.isActive)?.name || 'Année non définie';
+
+  const activeYearLabel =
+    years.find(y => y.isActive)?.name ||
+    years.sort((a, b) => b.name.localeCompare(a.name))[0]?.name ||
+    '2026-2027';
   const currentTab = tabItems.find(tab => tab.id === activeTab) ?? tabItems[0];
   const searchEnabled = activeTab !== 'pointage';
   const searchPlaceholder =
@@ -909,6 +922,13 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
                 loading={loading}
                 onSuccess={onSuccess}
                 onError={onError}
+              />
+            )}
+
+            {activeTab === 'appels' && (
+              <ClassRollCallTab
+                classes={classes}
+                schedules={schedules}
               />
             )}
 

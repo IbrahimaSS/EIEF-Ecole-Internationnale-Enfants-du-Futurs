@@ -86,7 +86,7 @@ const CYCLES: Cycle[] = [
     highlights: [
       { label: 'Effectif max', value: '25 / classe' },
       { label: 'Examen', value: 'CEE' },
-      { label: 'Réussite', value: '100% en 2025' },
+      { label: 'Réussite', value: '100% en 2026' },
     ],
     totalNouvelle: 8300000,
     totalReinscription: 7100000,
@@ -128,7 +128,7 @@ const CYCLES: Cycle[] = [
     highlights: [
       { label: 'Effectif max', value: '25 / classe' },
       { label: 'Examen', value: 'BEPC' },
-      { label: 'Réussite', value: '100% en 2025' },
+      { label: 'Réussite', value: '100% en 2026' },
     ],
     totalNouvelle: 9800000,
     totalReinscription: 8600000,
@@ -170,7 +170,7 @@ const CYCLES: Cycle[] = [
     highlights: [
       { label: 'Effectif max', value: '25 / classe' },
       { label: 'Examen', value: 'BAC' },
-      { label: 'Réussite', value: '100% en 2025' },
+      { label: 'Réussite', value: '100% en 2026' },
     ],
     totalNouvelle: 10300000,
     totalReinscription: 9100000,

@@ -37,7 +37,7 @@ const AcademicYearModal: React.FC<Props> = ({
     <div className="space-y-6 text-left py-2" onClick={e => e.stopPropagation()}>
       <Input
         label="Nom de l'année"
-        placeholder="ex: 2025-2026"
+        placeholder="ex: 2026-2027"
         value={form.name}
         onChange={e => onChange({ ...form, name: e.target.value })}
       />
