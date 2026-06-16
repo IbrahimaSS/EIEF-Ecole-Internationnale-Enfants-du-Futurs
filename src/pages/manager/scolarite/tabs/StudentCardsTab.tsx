@@ -132,7 +132,7 @@ const StudentCardsTab: React.FC<Props> = ({
     try {
       const schoolInfo = {
         name: getValue(SETTING_KEYS.NOM_ETABLISSEMENT, "Ecole Internationale Les Enfants du Futur"),
-        phone: getValue(SETTING_KEYS.TELEPHONE, "+224 625 35 21 48"),
+        phone: getValue(SETTING_KEYS.TELEPHONE, "+224 625 549 579"),
         email: getValue(SETTING_KEYS.EMAIL, "contact@enfantsfuture.com"),
         address: "Sanoyah, Conakry - République de Guinée",
       };

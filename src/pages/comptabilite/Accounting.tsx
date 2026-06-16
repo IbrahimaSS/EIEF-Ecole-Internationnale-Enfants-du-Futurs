@@ -22,6 +22,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import QrFinanceModal from '../../components/shared/QrFinanceModal';
+import FamilyCardsTab, { FamilyEntry } from '../../components/shared/FamilyCardsTab';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
 import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse } from '../../services/accountingService';
 import TuitionModalityManager from './components/TuitionModalityManager';
@@ -30,7 +31,7 @@ import { apiRequest } from '../../services/api';
 import { generateFamilyCode } from '../../utils/familyUtils';
 
 const ComptableAccounting: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'tuition' | 'misc'>('tuition');
+  const [activeTab, setActiveTab] = useState<'tuition' | 'misc' | 'cartes'>('tuition');
   const [isFinanceScannerOpen, setIsFinanceScannerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,41 @@ const ComptableAccounting: React.FC = () => {
   });
   const [miscSubmitting, setMiscSubmitting] = useState(false);
   const [miscSearchQuery, setMiscSearchQuery] = useState('');
+
+  // --- Cartes familles ---
+  const [students, setStudents] = useState<any[]>([]);
+  useEffect(() => {
+    if (activeTab !== 'cartes') return;
+    apiRequest<any[]>('/users/students', { method: 'GET' })
+      .then(data => setStudents(Array.isArray(data) ? data : []))
+      .catch(() => setStudents([]));
+  }, [activeTab]);
+
+  const families = useMemo<FamilyEntry[]>(() => {
+    const up = (s: string) => s.toUpperCase().trim();
+    const map = new Map<string, FamilyEntry>();
+    parents.forEach(p => {
+      const k = p.familyId || up(p.lastName ?? p.familyName ?? '');
+      if (!map.has(k)) map.set(k, { key: k, familyId: p.familyId, label: `FAMILLE ${up(p.lastName ?? p.familyName ?? k)}`, parents: [], students: [] });
+      const e = map.get(k)!;
+      if (!e.familyId && p.familyId) e.familyId = p.familyId;
+      if (!e.parents.some(x => x.id === (p.id ?? p.userId))) {
+        e.parents.push({ id: p.id ?? p.userId, firstName: p.firstName, lastName: p.lastName, phone: p.phone ?? p.phoneNumber });
+      }
+    });
+    students.forEach(s => {
+      const k = s.familyId || up(s.lastName ?? '');
+      if (!map.has(k)) map.set(k, { key: k, familyId: s.familyId, label: `FAMILLE ${up(s.lastName ?? k)}`, parents: [], students: [] });
+      const e = map.get(k)!;
+      if (!e.familyId && s.familyId) e.familyId = s.familyId;
+      if (!e.students.some(x => x.id === s.id)) {
+        e.students.push({ id: s.id, firstName: s.firstName, lastName: s.lastName, className: s.className });
+      }
+    });
+    const result = Array.from(map.values());
+    result.forEach(f => { f.familyCode = generateFamilyCode(f.familyId, f.key); });
+    return result.sort((a, b) => a.label.localeCompare(b.label));
+  }, [parents, students]);
 
   // --- Refs ---
   const familySearchRef = useRef<HTMLDivElement>(null);
@@ -491,7 +527,7 @@ const ComptableAccounting: React.FC = () => {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.8fr)]">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setActiveTab('tuition')}
@@ -541,6 +577,33 @@ const ComptableAccounting: React.FC = () => {
                     <p className="text-base font-black tracking-tight">Encaissements divers</p>
                     <p className={`mt-2 text-sm leading-5 ${activeTab === 'misc' ? 'text-slate-600' : 'text-slate-100/78'}`}>
                       Paiements hors scolarité, recherche d'opérations et impression rapide des reçus.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('cartes')}
+                className={`rounded-[1.6rem] border p-4 text-left transition-all duration-300 ${
+                  activeTab === 'cartes'
+                    ? 'border-white/35 bg-white text-slate-950 shadow-[0_20px_50px_-32px_rgba(255,255,255,0.85)]'
+                    : 'border-white/12 bg-slate-950/25 text-white hover:border-white/25 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${activeTab === 'cartes' ? 'border-slate-200 bg-slate-100 text-amber-700' : 'border-white/15 bg-white/10 text-white'}`}>
+                      <QrCode size={20} />
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === 'cartes' ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
+                      {parents.length} famille{parents.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-base font-black tracking-tight">Cartes familles</p>
+                    <p className={`mt-2 text-sm leading-5 ${activeTab === 'cartes' ? 'text-slate-600' : 'text-slate-100/78'}`}>
+                      Générer et imprimer les cartes QR à remettre aux parents pour consulter leur solde.
                     </p>
                   </div>
                 </div>
@@ -958,8 +1021,17 @@ const ComptableAccounting: React.FC = () => {
         </div>
       )}
 
+      {activeTab === 'cartes' && (
+        <FamilyCardsTab
+          families={families}
+          loading={loading}
+          onSuccess={msg => { setSuccessMessage(msg); setIsSuccess(true); setTimeout(() => setIsSuccess(false), 3500); }}
+          onError={msg => setError(msg)}
+        />
+      )}
+
       {/* --- Modals --- */}
-      
+
       {/* Family Payment Modal */}
       <Modal isOpen={isFamilyPaymentModalOpen} onClose={() => setIsFamilyPaymentModalOpen(false)} title="Payer Scolarité Famille" size="md">
         <div className="space-y-6">

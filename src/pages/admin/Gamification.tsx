@@ -6,8 +6,8 @@ import {
   ChevronRight, Save, X, Sparkles, Trophy, ListOrdered, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { Card, Button, Badge } from '../../components/ui';
-import { GAMES_DATABASE, GameDef, CLASS_LEVELS, SUBJECTS } from '../eleve/gamesData';
-import { Question } from '../eleve/quizData';
+import { GAMES_DATABASE, GameDef, CLASS_LEVELS, SUBJECTS } from './gamesData';
+import { Question } from './quizData';
 
 // Clés LocalStorage
 const LOCAL_GAMES_KEY = "eief_custom_games";

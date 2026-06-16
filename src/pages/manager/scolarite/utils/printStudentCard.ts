@@ -66,7 +66,7 @@ export async function printStudentCard({
   const gender = student.gender === "M" ? "Masculin" : student.gender === "F" ? "Féminin" : (student.gender || "-");
 
   const sName = schoolInfo?.name || "Ecole Internationale Les Enfants du Futur";
-  const sPhone = schoolInfo?.phone || "+224 625 35 21 48";
+  const sPhone = schoolInfo?.phone || "+224 625 549 579";
   const sAddress = schoolInfo?.address || "Sanoyah, Conakry - République de Guinée";
 
   const html = `<!DOCTYPE html>

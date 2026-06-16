@@ -1116,8 +1116,8 @@ const AdminScolarite: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl w-fit">
             {([
-              { id: 'emplois',     label: 'Emplois du temps',   icon: CalendarDays  },
-              { id: 'notes',       label: 'Relevés de notes',   icon: ClipboardList },
+              { id: 'emplois',      label: 'Emplois du temps',   icon: CalendarDays  },
+              { id: 'notes',        label: 'Relevés de notes',   icon: ClipboardList },
               { id: 'cartes-profs', label: 'Cartes professeurs', icon: ShieldCheck   },
             ] as const).map(tab => {
               const Icon = tab.icon;

@@ -182,7 +182,6 @@ const Accueil: React.FC = () => {
                 { label: 'Programmes', path: '/programmes' },
                 { label: 'Pré-inscription', path: '/preinscription' },
                 { label: 'Contact', path: '/contact' },
-                { label: 'Jeux', path: '/jeux' },
               ].map((link) => (
                 <button
                   key={link.label}
@@ -217,7 +216,6 @@ const Accueil: React.FC = () => {
               { label: 'Programmes', path: '/programmes' },
               { label: 'Pré-inscription', path: '/preinscription' },
               { label: 'Contact', path: '/contact' },
-              { label: 'Jeux', path: '/jeux' },
             ].map((link) => (
               <button key={link.label} onClick={() => { navigate(link.path); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-gray-900 dark:text-white font-bold text-sm rounded-lg hover:bg-vert-600 dark:hover:bg-or-600 hover:text-white transition-all">
                 {link.label}

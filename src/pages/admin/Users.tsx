@@ -402,20 +402,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
             <Button
               variant="outline"
               onClick={async () => {
-                const qrUrl = `${window.location.origin}/famille/${row.familyId ?? row.key}/paiement`;
                 const fCode = row.familyCode ?? generateFamilyCode(row.familyId, row.key ?? row.lastName ?? '');
+                const qrUrl = `${window.location.origin}/famille/${row.familyId ?? row.key}/paiement`;
                 const cardData: FamilyCardData = {
-                  familyCode: fCode,
+                  familyCode:  fCode,
                   familyLabel: row.label ?? `FAMILLE ${row.lastName ?? ''}`,
-                  fatherName: row.parents?.[0] ? `${row.parents[0].firstName} ${row.parents[0].lastName}` : (row.firstName ? `${row.firstName} ${row.lastName}` : undefined),
-                  motherName: row.parents?.[1] ? `${row.parents[1].firstName} ${row.parents[1].lastName}` : undefined,
                   parentPhone: row.parents?.[0]?.phone ?? row.phone,
-                  children: (row.students ?? []).map((s: any) => ({ firstName: s.firstName, lastName: s.lastName, className: s.className })),
-                  totalPaid: financialSummary?.totalPaid,
-                  totalRemaining: financialSummary?.totalRemaining,
-                  paymentStatus: financialSummary
-                    ? (financialSummary.totalRemaining <= 0 ? 'A_JOUR' : 'EN_RETARD')
-                    : 'INCONNU',
+                  children:    (row.students ?? []).map((s: any) => ({ firstName: s.firstName, lastName: s.lastName, className: s.className })),
                 };
                 try { await printFamilyCard(cardData, qrUrl); }
                 catch (err: any) { alert(err?.message ?? 'Erreur impression'); }
@@ -1436,15 +1429,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                     onClick={async e => {
                       e.stopPropagation();
                       setOpenMenuRowId(null);
-                      const API_BASE = (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
                       const qrUrl = `${window.location.origin}/famille/${row.familyId ?? row.key}/paiement`;
                       const cardData: FamilyCardData = {
-                        familyCode: row.familyCode,
+                        familyCode:  row.familyCode,
                         familyLabel: row.label,
-                        fatherName: row.parents[0] ? `${row.parents[0].firstName} ${row.parents[0].lastName}` : undefined,
-                        motherName: row.parents[1] ? `${row.parents[1].firstName} ${row.parents[1].lastName}` : undefined,
                         parentPhone: row.parents[0]?.phone,
-                        children: row.students.map((s: any) => ({ firstName: s.firstName, lastName: s.lastName, className: s.className })),
+                        children:    row.students.map((s: any) => ({ firstName: s.firstName, lastName: s.lastName, className: s.className })),
                       };
                       try { await printFamilyCard(cardData, qrUrl); }
                       catch (err: any) { alert(err?.message ?? 'Erreur impression'); }

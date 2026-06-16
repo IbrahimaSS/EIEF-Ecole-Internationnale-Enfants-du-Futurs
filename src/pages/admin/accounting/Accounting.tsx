@@ -20,6 +20,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import QrFinanceModal from '../../../components/shared/QrFinanceModal';
+import FamilyCardsTab, { FamilyEntry } from '../../../components/shared/FamilyCardsTab';
 import { StatCard, Card, Button, Modal, Input } from '../../../components/ui';
 import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse, ExpenseResponse, ExpenseRequestPayload, ExpenseCategoryResponse } from '../../../services/accountingService';
 import TuitionModalityManager from '../../comptabilite/components/TuitionModalityManager';
@@ -31,7 +32,7 @@ import PaymentsList from './components/PaymentsList';
 import ExpensesList from './components/ExpensesList';
 import { generateFamilyCode } from '../../../utils/familyUtils';
 
-const VALID_TABS = ['tuition', 'payments', 'expenses'] as const;
+const VALID_TABS = ['tuition', 'payments', 'expenses', 'cartes'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const AdminAccounting: React.FC = () => {
@@ -104,6 +105,41 @@ const AdminAccounting: React.FC = () => {
   });
   const [expenseSubmitting, setExpenseSubmitting] = useState(false);
   const [expenseSearchQuery, setExpenseSearchQuery] = useState('');
+
+  // --- Cartes familles ---
+  const [cartesStudents, setCartesStudents] = useState<any[]>([]);
+  useEffect(() => {
+    if (activeTab !== 'cartes') return;
+    apiRequest<any[]>('/users/students', { method: 'GET' })
+      .then(data => setCartesStudents(Array.isArray(data) ? data : []))
+      .catch(() => setCartesStudents([]));
+  }, [activeTab]);
+
+  const families = useMemo<FamilyEntry[]>(() => {
+    const up = (s: string) => s.toUpperCase().trim();
+    const map = new Map<string, FamilyEntry>();
+    parents.forEach(p => {
+      const k = p.familyId || up(p.lastName ?? p.familyName ?? '');
+      if (!map.has(k)) map.set(k, { key: k, familyId: p.familyId, label: `FAMILLE ${up(p.lastName ?? p.familyName ?? k)}`, parents: [], students: [] });
+      const e = map.get(k)!;
+      if (!e.familyId && p.familyId) e.familyId = p.familyId;
+      if (!e.parents.some(x => x.id === (p.id ?? p.userId))) {
+        e.parents.push({ id: p.id ?? p.userId, firstName: p.firstName, lastName: p.lastName, phone: p.phone ?? p.phoneNumber });
+      }
+    });
+    cartesStudents.forEach(s => {
+      const k = s.familyId || up(s.lastName ?? '');
+      if (!map.has(k)) map.set(k, { key: k, familyId: s.familyId, label: `FAMILLE ${up(s.lastName ?? k)}`, parents: [], students: [] });
+      const e = map.get(k)!;
+      if (!e.familyId && s.familyId) e.familyId = s.familyId;
+      if (!e.students.some(x => x.id === s.id)) {
+        e.students.push({ id: s.id, firstName: s.firstName, lastName: s.lastName, className: s.className });
+      }
+    });
+    const result = Array.from(map.values());
+    result.forEach(f => { f.familyCode = generateFamilyCode(f.familyId, f.key); });
+    return result.sort((a, b) => a.label.localeCompare(b.label));
+  }, [parents, cartesStudents]);
 
   // --- Refs ---
   const familySearchRef = useRef<HTMLDivElement>(null);
@@ -365,7 +401,7 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
-  const handleTabChange = (tab: 'tuition' | 'payments' | 'expenses') => {
+  const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setSearchParams({ tab });
   };
@@ -541,8 +577,8 @@ const AdminAccounting: React.FC = () => {
 
           {/* Tab Buttons */}
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.8fr)]">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {(['tuition', 'payments', 'expenses'] as const).map((tab) => (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              {(['tuition', 'payments', 'expenses', 'cartes'] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -559,11 +595,13 @@ const AdminAccounting: React.FC = () => {
                         {tab === 'tuition' && <Wallet size={20} className={activeTab === tab ? 'text-emerald-700' : 'text-white'} />}
                         {tab === 'payments' && <Receipt size={20} className={activeTab === tab ? 'text-cyan-700' : 'text-white'} />}
                         {tab === 'expenses' && <TrendingDown size={20} className={activeTab === tab ? 'text-rose-700' : 'text-white'} />}
+                        {tab === 'cartes' && <QrCode size={20} className={activeTab === tab ? 'text-amber-700' : 'text-white'} />}
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${activeTab === tab ? 'bg-slate-100 text-slate-500' : 'bg-white/10 text-slate-100/80'}`}>
                         {tab === 'tuition' && `${overdueFamilies} retard${overdueFamilies > 1 ? 's' : ''}`}
                         {tab === 'payments' && `${pendingMiscCount} en attente`}
                         {tab === 'expenses' && `${expenses.length} opération${expenses.length > 1 ? 's' : ''}`}
+                        {tab === 'cartes' && `${parents.length} famille${parents.length > 1 ? 's' : ''}`}
                       </span>
                     </div>
                     <div>
@@ -571,11 +609,13 @@ const AdminAccounting: React.FC = () => {
                         {tab === 'tuition' && 'Frais de scolarité'}
                         {tab === 'payments' && 'Encaissements'}
                         {tab === 'expenses' && 'Dépenses'}
+                        {tab === 'cartes' && 'Cartes familles'}
                       </p>
                       <p className={`mt-2 text-sm leading-5 ${activeTab === tab ? 'text-slate-600' : 'text-slate-100/78'}`}>
                         {tab === 'tuition' && 'Recherche famille, solde global, vue d\'ensemble et gestion des modalités de paiement.'}
                         {tab === 'payments' && 'Paiements hors scolarité, recherche d\'opérations et impression rapide des reçus.'}
                         {tab === 'expenses' && 'Suivi des charges de l\'école par catégorie et module.'}
+                        {tab === 'cartes' && 'Générer et imprimer les cartes QR à remettre aux parents pour consulter leur solde.'}
                       </p>
                     </div>
                   </div>
@@ -887,6 +927,15 @@ const AdminAccounting: React.FC = () => {
             onDelete={handleDeleteExpense}
           />
         </div>
+      )}
+
+      {activeTab === 'cartes' && (
+        <FamilyCardsTab
+          families={families}
+          loading={loading}
+          onSuccess={msg => { setSuccessMessage(msg); setIsSuccess(true); setTimeout(() => setIsSuccess(false), 3500); }}
+          onError={msg => setError(msg)}
+        />
       )}
 
       {/* Scanner Finance — Carte Parent */}

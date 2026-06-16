@@ -52,12 +52,6 @@ import EleveRessources from './pages/eleve/Ressources';
 import EleveCommunication from './pages/eleve/Communication';
 import EleveProfile from './pages/eleve/Profile';
 import ElevePreferences from './pages/eleve/Preferences';
-import CatalogueJeux from './pages/eleve/CatalogueJeux';
-import EspaceEtude from './pages/eleve/EspaceEtude';
-import MathAdventure from './pages/eleve/MathAdventure';
-import LogicPuzzle from './pages/eleve/LogicPuzzle';
-import ColorMaster from './pages/eleve/ColorMaster';
-import QuizGame from './pages/eleve/QuizGame';
 import EleveLanding from './pages/EleveLanding';
 import ParentLanding from './pages/ParentLanding';
 import EmployeLanding from './pages/EmployeLanding';
@@ -66,7 +60,6 @@ import Accueil from './pages/Accueil';
 import Programmes from './pages/Programmes';
 import PreInscription from './pages/PreInscription';
 import Contact from './pages/Contact';
-import Jeux from './pages/eleve/Jeux';
 import StudentCardScan from './pages/public/StudentCardScan';
 import QrPointage from './pages/public/QrPointage';
 import QrTeacherPointage from './pages/public/QrTeacherPointage';
@@ -254,11 +247,6 @@ function App() {
             <Route path="devoirs" element={<EleveDevoirs />} />
             <Route path="ressources" element={<EleveRessources />} />
             <Route path="communication" element={<EleveCommunication />} />
-            <Route path="jeux" element={<EspaceEtude />} />
-            <Route path="jeux/math" element={<MathAdventure />} />
-            <Route path="jeux/logic" element={<LogicPuzzle />} />
-            <Route path="jeux/color" element={<ColorMaster />} />
-            <Route path="jeux/quiz" element={<QuizGame />} />
             <Route path="profil" element={<EleveProfile />} />
             <Route path="preferences" element={<ElevePreferences />} />
           </Route>
@@ -270,8 +258,7 @@ function App() {
           {/* Ancienne URL /admission redirigée vers /preinscription pour rétrocompat */}
           <Route path="/admission" element={<PreInscription />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/jeux" element={<Jeux />} />
-          
+
           {/* Route 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -309,7 +296,6 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'transport': { title: 'Transport Scolaire', subtitle: 'Gestion des lignes et des bus' },
           'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
           'administration': { title: 'Administration', subtitle: 'Configuration système et sécurité' },
-          'jeux': { title: 'Jeux Éducatifs', subtitle: "Gérez le catalogue des jeux d'apprentissage" },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
         };
         return adminPages[currentPage] || adminPages['dashboard'];
@@ -380,7 +366,6 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'devoirs': { title: 'Mes Devoirs', subtitle: 'Tes devoirs à rendre' },
           'profil': { title: 'Mon Profil', subtitle: 'Mes informations personnelles' },
           'preferences': { title: 'Préférences', subtitle: 'Paramètres et notifications' },
-          'jeux': { title: 'Espace Étude IA', subtitle: "Transforme ton cours en fiche, quiz et podcast" },
         };
         return elevePages[currentPage] || elevePages['dashboard'];
       default: return { title: 'Espace EIEF', subtitle: '' };

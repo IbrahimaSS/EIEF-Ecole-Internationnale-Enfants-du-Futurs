@@ -6,16 +6,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
 import {
-  BookOpen,
   ExternalLink,
   IdCard,
   Loader2,
-  Phone,
   Printer,
   QrCode,
   RefreshCw,
   ShieldCheck,
-  Calendar,
 } from "lucide-react";
 import { Avatar, Badge, Button, Card } from "../ui";
 import { cn } from "../../utils/cn";
@@ -106,62 +103,193 @@ const TeacherCardsTab: React.FC<Props> = ({ teachers, loading, onSuccess, onErro
     try {
       const qrDataUrl = await QRCode.toDataURL(buildTeacherCardPointageUrl(card.qrToken), {
         width: 300, margin: 1, errorCorrectionLevel: "H",
-        color: { dark: "#0f172a", light: "#ffffff" },
+        color: { dark: "#0c2d48", light: "#ffffff" },
       });
 
       const hireDateFmt = card.hireDate
-        ? new Date(card.hireDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+        ? new Date(card.hireDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
         : "—";
 
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Carte Professeur</title>
-        <style>
-          body{margin:0;font-family:'Segoe UI',sans-serif;background:#f1f5f9}
-          .card{width:340px;border-radius:24px;overflow:hidden;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0e7490 100%);color:white;box-shadow:0 20px 60px rgba(0,0,0,.4);margin:40px auto}
-          .header{display:flex;align-items:center;gap:12px;padding:20px 24px 16px;border-bottom:1px solid rgba(255,255,255,.12)}
-          .logo{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9);padding:4px;object-fit:contain}
-          .school{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.25em;color:rgba(255,255,255,.5)}
-          .school-name{font-weight:900;font-size:13px}
-          .body{display:flex;gap:16px;padding:20px 24px}
-          .avatar{width:70px;height:80px;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.1);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:rgba(255,255,255,.6)}
-          .avatar img{width:100%;height:100%;object-fit:cover}
-          .info{flex:1}
-          .name{font-size:16px;font-weight:900;margin:0 0 4px}
-          .specialty{font-size:11px;color:rgba(255,255,255,.6);font-weight:600;margin-bottom:8px}
-          .row{font-size:10px;color:rgba(255,255,255,.5);font-weight:600;margin-bottom:3px}
-          .row span{color:white;font-weight:700}
-          .qr-section{background:white;border-radius:20px;margin:0 16px 16px;padding:14px 16px;display:flex;align-items:center;gap:16px}
-          .qr-img{width:80px;height:80px}
-          .qr-text{flex:1}
-          .qr-label{font-size:11px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:.15em;margin-bottom:4px}
-          .qr-hint{font-size:10px;color:#64748b;font-weight:600}
-          .footer{text-align:center;font-size:10px;color:rgba(255,255,255,.25);padding-bottom:16px}
-        </style></head><body>
-        <div class="card">
-          <div class="header">
-            <img class="logo" src="${window.location.origin}/logo_eief.jpeg" onerror="this.style.display='none'"/>
-            <div><div class="school">Carte Professeur</div><div class="school-name">École EIEF</div></div>
+      const initials = card.fullName.split(" ").map((p: string) => p[0] ?? "").slice(0, 2).join("").toUpperCase();
+
+      const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Carte Professeur — ${card.fullName}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: #e8ecf1;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 10mm;
+    }
+    .page { display: flex; flex-direction: column; align-items: center; gap: 8mm; }
+
+    /* ── CARTE ── */
+    .card {
+      width: 86mm; height: 54mm;
+      border-radius: 3.5mm; position: relative; overflow: hidden;
+      color: #fff; display: flex; flex-direction: column;
+      box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.12), 0 16px 40px rgba(0,0,0,.15);
+    }
+    .card::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg,#0a1628 0%,#0c2d48 35%,#145a7a 65%,#1a7a6d 100%);
+      z-index: 0;
+    }
+    .card::after {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 90% 10%, rgba(255,255,255,.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 80% at 10% 90%, rgba(26,122,109,.15) 0%, transparent 50%);
+      z-index: 1; pointer-events: none;
+    }
+    .gold-strip {
+      position: absolute; top: 0; left: 0; right: 0; height: 0.6mm;
+      background: linear-gradient(90deg,#c8a84e,#f0d878,#c8a84e); z-index: 5;
+    }
+    .card-inner { position: relative; z-index: 2; display: flex; flex-direction: column; height: 100%; }
+
+    /* ── EN-TÊTE ── */
+    .header { display: flex; align-items: center; gap: 2.5mm; padding: 3mm 4mm 2mm 4mm; }
+    .logo-circle {
+      width: 10mm; height: 10mm; border-radius: 50%;
+      background: rgba(255,255,255,.95); padding: 0.8mm; flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    }
+    .logo-circle img { width: 100%; height: 100%; border-radius: 50%; object-fit: contain; }
+    .header-info { flex: 1; min-width: 0; }
+    .school-name { font-size: 6.2pt; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; line-height: 1.15; }
+    .school-sub { font-size: 4.8pt; color: rgba(255,255,255,.55); margin-top: .3mm; letter-spacing: .04em; }
+    .badge-carte {
+      background: linear-gradient(135deg,#c8a84e,#e8c860); color: #0a1628;
+      font-size: 4.5pt; font-weight: 800; padding: .8mm 2.2mm; border-radius: 1mm;
+      text-transform: uppercase; letter-spacing: .12em; flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+
+    /* ── SÉPARATEUR ── */
+    .separator {
+      height: .3mm; margin: 0 4mm;
+      background: linear-gradient(90deg, transparent, rgba(200,168,78,.4) 20%, rgba(200,168,78,.4) 80%, transparent);
+    }
+
+    /* ── CORPS ── */
+    .body { display: flex; padding: 2.5mm 4mm 2mm 4mm; gap: 3mm; flex: 1; }
+
+    .photo-col { display: flex; flex-direction: column; align-items: center; gap: 1.5mm; width: 18mm; flex-shrink: 0; }
+    .photo-frame {
+      width: 18mm; height: 22mm; border-radius: 2mm; overflow: hidden;
+      border: .6mm solid rgba(200,168,78,.5); background: rgba(255,255,255,.08);
+    }
+    .photo-frame img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-fallback {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      font-size: 11pt; font-weight: 800; color: rgba(255,255,255,.5);
+      background: linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+    }
+
+    .info-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .teacher-name {
+      font-size: 9pt; font-weight: 900; line-height: 1.05;
+      text-transform: uppercase; letter-spacing: .02em; margin-bottom: 1.8mm;
+    }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2mm 2.5mm; }
+    .field { min-width: 0; }
+    .field-label {
+      font-size: 4pt; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+      color: rgba(200,168,78,.85); line-height: 1; margin-bottom: .2mm;
+    }
+    .field-value { font-size: 6pt; font-weight: 600; color: #fff; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .qr-col { display: flex; flex-direction: column; align-items: center; gap: .8mm; flex-shrink: 0; }
+    .qr-box { width: 17mm; height: 17mm; background: #fff; border-radius: 1.8mm; padding: 1mm; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+    .qr-box img { width: 100%; height: 100%; object-fit: contain; }
+    .qr-label { font-size: 3.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.5); text-align: center; }
+
+    /* ── PIED ── */
+    .footer { padding: 1.2mm 4mm 1.8mm 4mm; text-align: center; font-size: 4.2pt; color: rgba(255,255,255,.45); font-weight: 500; line-height: 1.3; }
+    .footer strong { color: rgba(255,255,255,.7); font-weight: 700; }
+
+    @page { size: 86mm 54mm; margin: 0; }
+    @media print {
+      body { background: none; padding: 0; margin: 0; min-height: auto; }
+      .card { box-shadow: none; page-break-inside: avoid; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="gold-strip"></div>
+      <div class="card-inner">
+
+        <div class="header">
+          <div class="logo-circle">
+            <img src="${window.location.origin}/logo_eief.jpeg" alt="Logo"/>
           </div>
-          <div class="body">
-            <div class="avatar">${card.avatarUrl ? `<img src="${card.avatarUrl}"/>` : card.fullName.split(" ").map(p => p[0]).slice(0,2).join("")}</div>
-            <div class="info">
-              <div class="name">${card.fullName}</div>
-              <div class="specialty">${card.specialty ?? "Professeur"}</div>
-              <div class="row">Matricule : <span>${card.employeeNumber}</span></div>
-              <div class="row">Depuis : <span>${hireDateFmt}</span></div>
-              ${card.phone ? `<div class="row">Tél : <span>${card.phone}</span></div>` : ""}
-            </div>
+          <div class="header-info">
+            <div class="school-name">Ecole Internationale Les Enfants du Futur</div>
+            <div class="school-sub">Sanoyah, Conakry — République de Guinée</div>
           </div>
-          <div class="qr-section">
-            <img class="qr-img" src="${qrDataUrl}"/>
-            <div class="qr-text">
-              <div class="qr-label">Scanner pour pointer</div>
-              <div class="qr-hint">Arrivée & départ automatique</div>
-            </div>
-          </div>
-          <div class="footer">EIEF — Système de pointage automatique</div>
+          <div class="badge-carte">Carte Professeur</div>
         </div>
-        <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}</script>
-        </body></html>`;
+
+        <div class="separator"></div>
+
+        <div class="body">
+          <div class="photo-col">
+            <div class="photo-frame">
+              ${card.avatarUrl
+                ? `<img src="${card.avatarUrl}" alt="Photo"/>`
+                : `<div class="photo-fallback">${initials}</div>`}
+            </div>
+          </div>
+
+          <div class="info-col">
+            <div class="teacher-name">${card.fullName}</div>
+            <div class="fields">
+              <div class="field">
+                <div class="field-label">Matricule</div>
+                <div class="field-value">${card.employeeNumber ?? "—"}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Matière</div>
+                <div class="field-value">${card.specialty ?? "—"}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Téléphone</div>
+                <div class="field-value">${card.phone ?? "—"}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Depuis</div>
+                <div class="field-value">${hireDateFmt}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="qr-col">
+            <div class="qr-box">
+              <img src="${qrDataUrl}" alt="QR"/>
+            </div>
+            <div class="qr-label">Scanner pour pointer</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          En cas de perte, appelez le <strong>+224 625 549 579</strong> — Sanoyah, Conakry - République de Guinée
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}</script>
+</body>
+</html>`;
 
       const win = window.open("", "_blank");
       if (win) { win.document.write(html); win.document.close(); }
@@ -242,71 +370,87 @@ const TeacherCardsTab: React.FC<Props> = ({ teachers, loading, onSuccess, onErro
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Visuel carte */}
-              <div className="rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-950 via-purple-900 to-indigo-700 text-white shadow-2xl shadow-purple-900/20">
-                <div className="px-6 py-5 border-b border-white/10 flex items-center gap-4">
-                  <img src="/logo_eief.jpeg" alt="EIEF" className="w-12 h-12 rounded-full object-contain bg-white/90 p-1.5" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.25em] text-purple-200 font-bold">Carte professeur</p>
-                    <h3 className="text-xl font-black truncate">{card?.fullName ?? `${selectedTeacher.firstName} ${selectedTeacher.lastName}`}</h3>
-                  </div>
-                  <Badge variant={card?.generated ? "success" : "default"}>
-                    {card?.generated ? "QR actif" : "À générer"}
-                  </Badge>
-                </div>
+              {/* Visuel carte — même design que la carte élève */}
+              <div
+                className="relative overflow-hidden text-white shadow-2xl"
+                style={{
+                  width: "100%", maxWidth: 420, margin: "0 auto",
+                  borderRadius: 14, aspectRatio: "86/54",
+                  background: "linear-gradient(135deg,#0a1628 0%,#0c2d48 35%,#145a7a 65%,#1a7a6d 100%)",
+                }}
+              >
+                {/* Bande dorée */}
+                <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg,#c8a84e,#f0d878,#c8a84e)", zIndex:5 }} />
+                {/* Reflets */}
+                <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 80% 60% at 90% 10%,rgba(255,255,255,.06) 0%,transparent 60%),radial-gradient(ellipse 50% 80% at 10% 90%,rgba(26,122,109,.15) 0%,transparent 50%)", zIndex:1, pointerEvents:"none" }} />
 
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr,200px] gap-6 px-6 py-6">
-                  <div className="flex gap-5">
-                    <div className="w-24 h-28 rounded-3xl overflow-hidden border border-white/15 bg-white/10 flex items-center justify-center shrink-0">
-                      {card?.avatarUrl
-                        ? <img src={card.avatarUrl} alt={card.fullName} className="w-full h-full object-cover" />
-                        : <span className="text-2xl font-black text-white/40">{(card?.fullName ?? `${selectedTeacher.firstName} ${selectedTeacher.lastName}`).split(" ").map(p => p[0]).slice(0,2).join("")}</span>
-                      }
+                <div style={{ position:"relative", zIndex:2, display:"flex", flexDirection:"column", height:"100%", padding:"10px 14px 8px" }}>
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                    <img src="/logo_eief.jpeg" alt="EIEF" style={{ width:34, height:34, borderRadius:"50%", background:"rgba(255,255,255,.95)", padding:3, objectFit:"contain", flexShrink:0 }} />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:9, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.06em", lineHeight:1.15 }}>Ecole Internationale Les Enfants du Futur</div>
+                      <div style={{ fontSize:7.5, color:"rgba(255,255,255,.55)", marginTop:1 }}>Sanoyah, Conakry — République de Guinée</div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1">
-                      <div className="rounded-2xl bg-white/10 px-4 py-3">
-                        <div className="text-[10px] uppercase tracking-widest text-white/65 font-bold">Matricule</div>
-                        <div className="text-sm font-bold mt-1">{card?.employeeNumber ?? "—"}</div>
+                    <div style={{ background:"linear-gradient(135deg,#c8a84e,#e8c860)", color:"#0a1628", fontSize:7, fontWeight:800, padding:"3px 7px", borderRadius:4, textTransform:"uppercase", letterSpacing:"0.12em", flexShrink:0 }}>
+                      Carte Professeur
+                    </div>
+                  </div>
+
+                  {/* Séparateur doré */}
+                  <div style={{ height:1, margin:"0 0 6px", background:"linear-gradient(90deg,transparent,rgba(200,168,78,.4) 20%,rgba(200,168,78,.4) 80%,transparent)" }} />
+
+                  {/* Corps */}
+                  <div style={{ display:"flex", gap:10, flex:1 }}>
+                    {/* Photo */}
+                    <div style={{ width:56, flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center" }}>
+                      <div style={{ width:56, height:68, borderRadius:6, overflow:"hidden", border:"1.5px solid rgba(200,168,78,.5)", background:"rgba(255,255,255,.08)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        {card?.avatarUrl
+                          ? <img src={card.avatarUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                          : <span style={{ fontSize:18, fontWeight:900, color:"rgba(255,255,255,.45)" }}>
+                              {(card?.fullName ?? `${selectedTeacher.firstName} ${selectedTeacher.lastName}`).split(" ").map((p: string) => p[0] ?? "").slice(0,2).join("").toUpperCase()}
+                            </span>
+                        }
                       </div>
-                      <div className="rounded-2xl bg-white/10 px-4 py-3 flex items-start gap-2">
-                        <BookOpen size={14} className="text-white/50 mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-white/65 font-bold">Matière</div>
-                          <div className="text-sm font-bold mt-1">{card?.specialty ?? "—"}</div>
-                        </div>
+                    </div>
+
+                    {/* Infos */}
+                    <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
+                      <div style={{ fontSize:12, fontWeight:900, textTransform:"uppercase", letterSpacing:"0.02em", marginBottom:6, lineHeight:1.1 }}>
+                        {card?.fullName ?? `${selectedTeacher.firstName} ${selectedTeacher.lastName}`}
                       </div>
-                      <div className="rounded-2xl bg-white/10 px-4 py-3 flex items-start gap-2">
-                        <Phone size={14} className="text-white/50 mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-white/65 font-bold">Téléphone</div>
-                          <div className="text-sm font-bold mt-1">{card?.phone ?? "—"}</div>
-                        </div>
-                      </div>
-                      <div className="rounded-2xl bg-white/10 px-4 py-3 flex items-start gap-2">
-                        <Calendar size={14} className="text-white/50 mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-white/65 font-bold">Arrivée à EIEF</div>
-                          <div className="text-sm font-bold mt-1">
-                            {card?.hireDate ? new Date(card.hireDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 8px" }}>
+                        {[
+                          { label:"Matricule", value: card?.employeeNumber ?? "—" },
+                          { label:"Matière",   value: card?.specialty ?? "—" },
+                          { label:"Téléphone", value: card?.phone ?? "—" },
+                          { label:"Depuis",    value: card?.hireDate ? new Date(card.hireDate).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "—" },
+                        ].map(f => (
+                          <div key={f.label} style={{ minWidth:0 }}>
+                            <div style={{ fontSize:6, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", color:"rgba(200,168,78,.85)", lineHeight:1, marginBottom:1 }}>{f.label}</div>
+                            <div style={{ fontSize:8.5, fontWeight:600, color:"#fff", lineHeight:1.2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.value}</div>
                           </div>
-                        </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* QR */}
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, flexShrink:0 }}>
+                      <div style={{ width:52, height:52, background:"#fff", borderRadius:6, padding:3, boxShadow:"0 2px 8px rgba(0,0,0,.15)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        {card?.generated && qrPreviewUrl
+                          ? <img src={qrPreviewUrl} alt="QR" style={{ width:"100%", height:"100%", objectFit:"contain" }} />
+                          : <QrCode size={28} style={{ color:"#cbd5e1", opacity:.4 }} />
+                        }
+                      </div>
+                      <div style={{ fontSize:5.5, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"rgba(255,255,255,.45)", textAlign:"center" }}>
+                        {card?.generated ? "Scanner" : "À générer"}
                       </div>
                     </div>
                   </div>
 
-                  {/* QR preview */}
-                  <div className="rounded-[26px] bg-white px-4 py-4 text-slate-900 flex flex-col items-center justify-center gap-3 min-h-[220px]">
-                    {card?.generated && qrPreviewUrl ? (
-                      <>
-                        <img src={qrPreviewUrl} alt="QR" className="w-40 h-40 object-contain" />
-                        <div className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-700 text-center">Scanner pour pointer</div>
-                      </>
-                    ) : (
-                      <div className="text-center text-slate-500 space-y-2">
-                        <QrCode size={38} className="mx-auto opacity-30" />
-                        <p className="text-xs font-semibold">Aucun QR généré</p>
-                      </div>
-                    )}
+                  {/* Footer */}
+                  <div style={{ marginTop:5, textAlign:"center", fontSize:6.5, color:"rgba(255,255,255,.4)", fontWeight:500, lineHeight:1.3 }}>
+                    En cas de perte, appelez le <strong style={{ color:"rgba(255,255,255,.65)", fontWeight:700 }}>+224 625 549 579</strong> — Sanoyah, Conakry - République de Guinée
                   </div>
                 </div>
               </div>

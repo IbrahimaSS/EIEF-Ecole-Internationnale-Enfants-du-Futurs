@@ -298,6 +298,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
     icon: ShieldCheck,
   });
 
+
   const activeYearLabel = years.find(y => y.isActive)?.name || 'Année non définie';
   const currentTab = tabItems.find(tab => tab.id === activeTab) ?? tabItems[0];
   const searchEnabled = activeTab !== 'pointage';
@@ -910,6 +911,7 @@ const ManagerScolarite: React.FC<ManagerScolariteProps> = ({
                 onError={onError}
               />
             )}
+
           </AnimatePresence>
         </div>
       </div>
