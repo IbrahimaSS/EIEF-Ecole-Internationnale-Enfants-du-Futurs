@@ -21,7 +21,6 @@ const roleLabels: Record<string, string> = {
   enseignant: 'Enseignant',
   parent: 'Parent',
   eleve: 'Élève',
-  manager: 'Manager',
   comptable: 'Comptable',
   coordinator: 'Coordinateur',
 };

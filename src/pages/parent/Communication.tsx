@@ -266,7 +266,7 @@ const ParentCommunication: React.FC = () => {
             <MessagingPanel
               title="Messagerie"
               subtitle="Échangez avec les enseignants et la direction"
-              filterRoles={['TEACHER', 'ADMIN', 'MANAGER', 'ENSEIGNANT']}
+              filterRoles={['TEACHER', 'ADMIN', 'COORDINATOR', 'ENSEIGNANT']}
               height={650}
             />
           </motion.div>

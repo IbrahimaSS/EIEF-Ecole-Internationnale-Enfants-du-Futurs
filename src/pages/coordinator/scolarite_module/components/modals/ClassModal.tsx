@@ -14,6 +14,7 @@ interface Props {
   years: AcademicYearResponse[];
   teachers: TeacherResponse[];
   submitting: boolean;
+  isEditing?: boolean;
   onChange: (form: ClassForm) => void;
   onClose: () => void;
   onSubmit: () => void;

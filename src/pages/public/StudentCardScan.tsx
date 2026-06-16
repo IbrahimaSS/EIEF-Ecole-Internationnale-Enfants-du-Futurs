@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { AlertCircle, BookOpen, CalendarRange, Loader2, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { Badge, Button, Card } from "../../components/ui";
 import { studentCardService } from "../../services/studentCardService";
-import { StudentCardScanData } from "../manager/scolarite/types";
+import { StudentCardScanData } from "../coordinator/scolarite_module/types";
 import { ApiError } from "../../services/api";
 import { useParams, useSearchParams } from "react-router-dom";
 

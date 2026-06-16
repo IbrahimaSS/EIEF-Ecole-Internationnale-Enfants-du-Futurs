@@ -262,24 +262,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     ],
   }];
 
-  const managerSections: SidebarSection[] = [{
-    items: [
-      { id: 'dashboard',    label: 'Tableau de bord',    icon: <LayoutDashboard size={18} />, href: '/manager/dashboard' },
-      { 
-        id: 'scolarite', 
-        label: 'Classes & Pointage', 
-        icon: <GraduationCap size={18} />, 
-        href: '/manager/scolarite?tab=emplois',
-        subItems: [
-          { id: 'emplois', label: 'Emplois du temps', icon: <Calendar size={16} />, href: '/manager/scolarite?tab=emplois' },
-          { id: 'notes',   label: 'Relevés de notes', icon: <ClipboardList size={16} />, href: '/manager/scolarite?tab=notes' },
-          { id: 'pointage', label: 'Pointage',        icon: <UserCheck size={16} />,    href: '/manager/scolarite?tab=pointage' },
-          { id: 'cartes',   label: 'Cartes scolaires', icon: <TrendingDown size={16} />, href: '/manager/scolarite?tab=cartes' },
-        ]
-      },
-      { id: 'utilisateurs', label: 'Utilisateurs',       icon: <Users size={18} />,         href: '/manager/utilisateurs' },
-    ],
-  }];
 
   const getSectionsByRole = (): SidebarSection[] => {
     switch (userRole) {
@@ -287,7 +269,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
       case 'enseignant':  return enseignantSections;
       case 'parent':      return parentSections;
       case 'eleve':       return eleveSections;
-      case 'manager':     return managerSections;
       case 'comptable':   return comptableSections;
       case 'coordinator': return coordinatorSections;
       default:            return [];
@@ -361,7 +342,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     enseignant: 'Enseignant',
     parent: 'Parent',
     eleve: 'Élève',
-    manager: 'Manager',
     comptable: 'Comptable',
     coordinator: 'Coordinateur',
   };

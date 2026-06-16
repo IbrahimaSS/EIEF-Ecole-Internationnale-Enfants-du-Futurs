@@ -250,7 +250,7 @@ const StudentCommunication: React.FC = () => {
             <MessagingPanel
               title="Messagerie"
               subtitle="Pose tes questions à tes professeurs"
-              filterRoles={['TEACHER', 'ADMIN', 'MANAGER', 'ENSEIGNANT']}
+              filterRoles={['TEACHER', 'ADMIN', 'COORDINATOR', 'ENSEIGNANT']}
               height={650}
             />
           </motion.div>

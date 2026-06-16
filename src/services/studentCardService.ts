@@ -2,7 +2,7 @@ import { apiRequest } from "./api";
 import {
   StudentCardScanData,
   StudentCardSummary,
-} from "../pages/manager/scolarite/types";
+} from "../pages/coordinator/scolarite_module/types";
 
 const PUBLIC_CARD_ROUTE = "/carte-eleve";
 const POINTAGE_ROUTE = "/pointage";

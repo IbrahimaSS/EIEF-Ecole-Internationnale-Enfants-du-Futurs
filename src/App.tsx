@@ -18,8 +18,6 @@ import AdminCommunication from './pages/admin/Communication';
 import AdminSettings from './pages/admin/Settings';
 import AdminProfile from './pages/admin/Profile';
 import AdminGamification from './pages/admin/Gamification';
-import ManagerScolarite from './pages/manager/Scolarite';
-import ManagerUsers from './pages/manager/Users';
 import ComptableDashboard from './pages/comptabilite/Dashboard';
 import CoordinatorDashboard from './pages/coordinator/Dashboard';
 import CoordinatorScolarite from './pages/coordinator/Scolarite';
@@ -149,19 +147,7 @@ function App() {
             <Route path="profil" element={<AdminProfile />} />
           </Route>
           
-          {/* Routes protégées - Manager */}
-          <Route path="/manager" element={
-            <ProtectedRoute allowedRoles={['manager']}>
-              <LayoutRoutes role="manager" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<ManagerScolarite />} />
-            <Route path="dashboard" element={<ManagerScolarite />} />
-            <Route path="scolarite" element={<ManagerScolarite />} />
-            <Route path="utilisateurs" element={<ManagerUsers />} />
-            <Route path="profil" element={<AdminProfile />} />
-          </Route>
-          
+
           {/* Routes protégées - Comptable.
               Périmètre : finances, ventes/abonnements (cantine, supérette,
               bibliothèque, transport) et communication. Pas de Scolarité ni
@@ -300,15 +286,7 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
         };
         return adminPages[currentPage] || adminPages['dashboard'];
       
-      case 'manager':
-        const managerPages: Record<string, { title: string; subtitle: string }> = {
-          'dashboard': { title: 'Espace Manager', subtitle: `Bienvenue, ${user?.firstName} !` },
-          'scolarite': { title: 'Scolarité & Pointage', subtitle: 'Organisation, inscriptions et présences' },
-          'utilisateurs': { title: 'Gestion des Utilisateurs', subtitle: 'Élèves, parents et enseignants' },
-          'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
-        };
-        return managerPages[currentPage] || managerPages['dashboard'];
-      
+
       case 'comptable':
         const comptablePages: Record<string, { title: string; subtitle: string }> = {
           'dashboard': { title: 'Espace Comptable', subtitle: `Bienvenue, ${user?.firstName} !` },

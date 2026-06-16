@@ -27,6 +27,7 @@ interface Props {
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   onOpenClassDetail: (cls: ClassResponse) => void;
+  onEditClass?: (cls: ClassResponse) => void;
   onAddSchedule: (cls: ClassResponse) => void;
   onPrintClass: (cls: ClassResponse) => void;
   onEditSchedule: (s: ScheduleResponse) => void;

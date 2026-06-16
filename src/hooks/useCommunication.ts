@@ -120,8 +120,6 @@ const deduceStrategy = (role: string | undefined): ContactsStrategy => {
   switch (role) {
     case 'admin':
     case 'comptable':
-    case 'manager':
-      return 'ALL_USERS';
     case 'enseignant':
       return 'TEACHER_CONTACTS';
     case 'parent':
@@ -141,7 +139,7 @@ const roleLabel = (role: string | undefined | null) => {
   if (r.includes('PARENT')) return 'Parent';
   if (r.includes('STUDENT') || r.includes('ELEVE')) return 'Élève';
   if (r.includes('COMPT')) return 'Comptable';
-  if (r.includes('MANAGER')) return 'Manager';
+  if (r.includes('COORDINATOR')) return 'Coordinateur';
   return role;
 };
 
@@ -229,7 +227,7 @@ export function useCommunication(options: UseCommunicationOptions = {}) {
               .filter((u) => {
                 if (u.id === user.id) return false;
                 const r = (u.roleName || '').toUpperCase();
-                return r.includes('ADMIN') || r.includes('MANAGER');
+                return r.includes('ADMIN') || r.includes('COORDINATOR');
               })
               .map((u) => ({
                 id: u.id,

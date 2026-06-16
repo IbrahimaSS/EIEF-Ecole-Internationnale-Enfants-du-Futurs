@@ -45,7 +45,7 @@ type EleveSubTab = 'preinscription' | 'reinscription' | 'inscription';
 
 const EMPLOYEE_ROLES = [
   { value: 'ADMIN',      label: 'Administrateur' },
-  { value: 'STAFF',      label: 'Manager' },
+  { value: 'COORDINATOR', label: 'Coordinateur' },
   { value: 'COMPTABLE', label: 'Comptable' },
 ];
 
@@ -446,7 +446,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
 interface AdminUsersProps {
   /**
    * Si true, l'onglet "Employés" et la possibilité de créer/éditer
-   * des employés sont masqués. Utile pour les rôles non-admin (ex: manager).
+   * des employés sont masqués. Utile pour les rôles non-admin (ex: comptable).
    */
   hideEmployeesTab?: boolean;
   /**
