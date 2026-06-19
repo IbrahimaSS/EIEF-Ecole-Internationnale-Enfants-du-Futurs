@@ -27,6 +27,8 @@ import {
   TrendingDown,
   BookOpen as Library,
   Repeat,
+  FileBarChart,
+  Wrench,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
@@ -131,6 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
         { id: 'payments',  label: 'Encaissements',     icon: <Receipt size={18} />,    href: '/admin/comptabilite?tab=payments' },
         { id: 'tuition',   label: 'Frais de Scolarité', icon: <BookOpen size={18} />,   href: '/admin/comptabilite?tab=tuition' },
         { id: 'expenses',  label: 'Dépenses',          icon: <TrendingDown size={18} />, href: '/admin/comptabilite?tab=expenses' },
+        { id: 'rapport',   label: 'Rapport Financier', icon: <FileBarChart size={18} />, href: '/admin/rapport-financier' },
       ],
     },
     {
@@ -140,6 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
         { id: 'superette',    label: 'Supérette',    icon: <ShoppingBag size={18} />, href: '/admin/superette' },
         { id: 'bibliotheque', label: 'Bibliothèque', icon: <Library size={18} />,     href: '/admin/bibliotheque' },
         { id: 'transport',    label: 'Transport',    icon: <Bus size={18} />,         href: '/admin/transport' },
+        { id: 'services',     label: 'Ateliers & Services', icon: <Wrench size={18} />, href: '/admin/services' },
       ],
     },
     {
@@ -187,6 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
         { id: 'payments',  label: 'Encaissements',     icon: <Receipt size={18} />,    href: '/comptable/comptabilite?tab=payments' },
         { id: 'tuition',   label: 'Frais de Scolarité', icon: <BookOpen size={18} />,   href: '/comptable/comptabilite?tab=tuition' },
         { id: 'expenses',  label: 'Dépenses',          icon: <TrendingDown size={18} />, href: '/comptable/comptabilite?tab=expenses' },
+        { id: 'rapport',   label: 'Rapport Financier', icon: <FileBarChart size={18} />, href: '/comptable/rapport-financier' },
       ],
     },
     {
@@ -196,6 +201,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
         { id: 'superette',    label: 'Supérette',    icon: <ShoppingBag size={18} />, href: '/comptable/superette' },
         { id: 'bibliotheque', label: 'Bibliothèque', icon: <Library size={18} />,     href: '/comptable/bibliotheque' },
         { id: 'transport',    label: 'Transport',    icon: <Bus size={18} />,         href: '/comptable/transport' },
+        { id: 'services',     label: 'Ateliers & Services', icon: <Wrench size={18} />, href: '/comptable/services' },
       ],
     },
     {

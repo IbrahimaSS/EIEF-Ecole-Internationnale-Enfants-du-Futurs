@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Table, Badge, Card, StatCard, Button, Modal, Input, Select, Popover } from '../../components/ui';
 import { cn } from '../../utils/cn';
+import ServicePayments from '../../components/shared/ServicePayments';
 import {
   getAllProducts,
   addProduct,
@@ -54,6 +55,9 @@ const AdminStore: React.FC = () => {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Tab state ──
+  const [activeView, setActiveView] = useState<'produits' | 'finances'>('produits');
 
   // ── UI state ──
   const [searchQuery, setSearchQuery] = useState('');
@@ -414,6 +418,38 @@ const AdminStore: React.FC = () => {
         </div>
       </div>
 
+      {/* ── VIEW TABS ── */}
+      <div className="flex items-center gap-4 border-b border-gray-100 dark:border-white/5 pb-2">
+        {[
+          { id: 'produits' as const, label: 'Produits & Stock', icon: Package },
+          { id: 'finances' as const, label: 'Finances Supérette', icon: DollarSign },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveView(tab.id)}
+            className={cn(
+              'flex items-center gap-3 px-6 py-3 rounded-t-2xl text-[10px] font-bold uppercase tracking-widest transition-all relative',
+              activeView === tab.id
+                ? 'text-bleu-600 dark:text-or-400'
+                : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+            )}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+            {activeView === tab.id && (
+              <motion.div
+                layoutId="activeTabStore"
+                className="absolute bottom-0 left-0 right-0 h-1 bg-bleu-600 dark:bg-or-500 rounded-t-full"
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {activeView === 'finances' ? (
+        <ServicePayments module="FOURNITURE,TENUE_SCOLAIRE,TENUE_SPORT,LACOSTE,TENUE_KARATE" moduleLabel="Supérette" color="or" />
+      ) : (
+      <>
       {/* ── GLOBAL ERROR ── */}
       <AnimatePresence>
         {error && (
@@ -737,6 +773,8 @@ const AdminStore: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      </>
+      )}
     </motion.div>
   );
 };

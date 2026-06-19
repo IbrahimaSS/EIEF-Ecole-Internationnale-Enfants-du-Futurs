@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Card, Badge, StatCard, Button, Avatar, Modal, Input, Select } from '../../components/ui';
 import { cn } from '../../utils/cn';
+import ServicePayments from '../../components/shared/ServicePayments';
 import {
   getMeals,
   getMenus,
@@ -76,7 +77,7 @@ const ErrorBanner: React.FC<{ message: string; onRetry?: () => void }> = ({ mess
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const AdminCanteen: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'menu' | 'inscrits'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'inscrits' | 'finances'>('menu');
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -330,6 +331,7 @@ const AdminCanteen: React.FC = () => {
         {[
           { id: 'menu', label: 'Menus Planifiés', icon: Utensils },
           { id: 'inscrits', label: 'Abonnements', icon: Users },
+          { id: 'finances', label: 'Finances Cantine', icon: TrendingUp },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -493,6 +495,17 @@ const AdminCanteen: React.FC = () => {
                 ))}
               </div>
             )}
+          </motion.div>
+        )}
+
+        {activeTab === 'finances' && (
+          <motion.div
+            key="finances"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+          >
+            <ServicePayments module="CANTINE" moduleLabel="Cantine" color="or" />
           </motion.div>
         )}
       </AnimatePresence>

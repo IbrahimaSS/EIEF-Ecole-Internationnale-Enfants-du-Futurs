@@ -21,6 +21,7 @@ import {
   ArrowDownCircle,
   QrCode,
 } from 'lucide-react';
+import { printReceipt } from '../../utils/printReceipt';
 import QrFinanceModal from '../../components/shared/QrFinanceModal';
 import FamilyCardsTab, { FamilyEntry } from '../../components/shared/FamilyCardsTab';
 import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
@@ -246,41 +247,39 @@ const ComptableAccounting: React.FC = () => {
   };
 
   // --- Print Logic ---
-  const printFamilyReceipt = (status: TuitionFeeFamilyStatusResponse, amountPaid: number, method: string, reference: string) => {
+  const printFamilyReceiptEIEF = (
+    status: TuitionFeeFamilyStatusResponse,
+    amountPaid: number,
+    _method: string,
+    reference: string,
+  ) => {
     const parent = parents.find(p => p.familyId === status.familyId);
-    const dateFmt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-    
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
-<title>Reçu Famille - EIEF</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:Arial,sans-serif;background:#fff;color:#003844;padding:24px}
-  .receipt{max-width:720px;margin:0 auto;border:1px solid #006d77;background:#e0f7fa;padding:16px;}
-  .header{display:flex;justify-content:space-between;margin-bottom:20px;}
-  .school-name{font-size:18px;font-weight:900;color:#003844;}
-  .row{display:flex;gap:6px;margin-bottom:12px;font-size:14px;}
-  .dotted-line{flex:1;border-bottom:1.5px dotted #003844;min-height:20px;}
-  .footer{margin-top:20px;font-size:11px;font-weight:bold;text-align:center;}
-</style></head>
-<body><div class="receipt">
-  <div class="header">
-    <div class="school-name">ECOLE LES ENFANTS DU FUTUR</div>
-    <div style="text-align:right;font-weight:bold;">REÇU N° ${reference}</div>
-  </div>
-  <div class="row"><span>Famille de :</span><div class="dotted-line">${parent ? parent.lastName : status.familyId}</div></div>
-  <div class="row"><span>Montant Versé :</span><div class="dotted-line">${new Intl.NumberFormat('fr-GN').format(amountPaid)} GNF</div></div>
-  <div class="row"><span>Mode de Paiement :</span><div class="dotted-line">${method}</div></div>
-  <div class="row"><span>Reste à Payer Global :</span><div class="dotted-line">${new Intl.NumberFormat('fr-GN').format(status.totalRemaining)} GNF</div></div>
-  <div class="row"><span>Date :</span><div class="dotted-line">${dateFmt}</div></div>
-  <div class="footer">NB: Les frais versés ne sont pas remboursables.</div>
-</div></body></html>`;
+    const firstStudent = status.students?.[0];
+    printReceipt({
+      receiptNumber: reference,
+      amount: amountPaid,
+      date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      studentName: firstStudent?.studentName || '',
+      className: firstStudent?.className || '',
+      categoryName: 'Scolarité',
+      parentName: parent ? `${parent.firstName} ${parent.lastName}` : '',
+      remainingAmount: status.totalRemaining,
+    });
+  };
 
-    const win = window.open('', '_blank', 'width=800,height=600');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      setTimeout(() => { win.print(); }, 500);
-    }
+  const printMiscReceiptEIEF = (row: PaymentResponse) => {
+    printReceipt({
+      receiptNumber: row.reference,
+      amount: row.amount,
+      date: row.paidAt
+        ? new Date(row.paidAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      studentName: row.studentName || '',
+      className: '',
+      categoryName: row.categoryName || 'Autres',
+      parentName: row.familyName || '',
+      remainingAmount: undefined,
+    });
   };
 
   const handleFamilyPayment = async () => {
@@ -302,7 +301,7 @@ const ComptableAccounting: React.FC = () => {
       // Refresh status and print
       const status = await accountingService.getFamilyStatus(selectedFamily.familyId);
       setFamilyStatus(status);
-      printFamilyReceipt(status, familyPaymentForm.amount, familyPaymentForm.method, ref);
+      printFamilyReceiptEIEF(status, familyPaymentForm.amount, familyPaymentForm.method, ref);
       
       setFamilyPaymentForm({ amount: 0, method: 'CASH', reference: '' });
     } catch (err: any) {
@@ -314,14 +313,19 @@ const ComptableAccounting: React.FC = () => {
 
   const handleMiscPayment = async () => {
     if (miscSubmitting) return;
-    miscSubmitting && setMiscSubmitting(true);
+    setMiscSubmitting(true);
     try {
-      await accountingService.createPayment({
+      const created = await accountingService.createPayment({
         ...miscPaymentForm,
-        reference: '',  // Backend will auto-generate
+        reference: '',
       });
       showSuccess('Encaissement divers enregistré');
       setIsMiscModalOpen(false);
+
+      if (created) {
+        printMiscReceiptEIEF(created);
+      }
+
       setMiscPaymentForm({ amount: 0, reference: '', method: 'CASH', studentId: '', familyId: '', categoryId: null });
       fetchMiscPayments();
     } catch (err: any) {
@@ -995,11 +999,8 @@ const ComptableAccounting: React.FC = () => {
                   { key: 'status', label: 'Statut', render: (val: any) => <Badge variant={val === 'PAID' ? 'success' : 'warning'}>{val}</Badge> },
                   { key: 'actions', label: '', render: (_: any, row: any) => (
                     <div className="flex justify-end pr-2 gap-2">
-                      <button 
-                        onClick={() => {
-                          const status: any = { familyId: row.familyName || 'Client', totalRemaining: 0 };
-                          printFamilyReceipt(status, row.amount, row.method, row.reference);
-                        }}
+                      <button
+                        onClick={() => printMiscReceiptEIEF(row)}
                         className="p-2 hover:bg-bleu-50 text-bleu-600 rounded-xl transition-colors"
                         title="Imprimer le reçu"
                       >

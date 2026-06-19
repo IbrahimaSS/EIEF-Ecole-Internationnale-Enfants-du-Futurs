@@ -25,8 +25,9 @@ import { Avatar, Badge, Button, Card, Input, Modal, Popover, Select, StatCard } 
 import { cn } from '../../utils/cn';
 import { useTransport } from '../../hooks/useTransport';
 import { StudentTransportResponse, TransportLineForm, TransportLineView } from '../../types/transport';
+import ServicePayments from '../../components/shared/ServicePayments';
 
-type TabId = 'lignes' | 'eleves';
+type TabId = 'lignes' | 'eleves' | 'finances';
 
 const EMPTY_FORM: TransportLineForm = {
   routeName: '',
@@ -356,6 +357,7 @@ const AdminTransport: React.FC = () => {
             {[
               { id: 'lignes', label: 'Lignes & Itineraires', icon: Navigation },
               { id: 'eleves', label: 'Passagers par Bus', icon: Users },
+              { id: 'finances', label: 'Finances Transport', icon: CreditCard },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -560,7 +562,7 @@ const AdminTransport: React.FC = () => {
               ))
             )}
           </motion.div>
-        ) : (
+        ) : activeTab === 'eleves' ? (
           <motion.div
             key="eleves"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -575,6 +577,15 @@ const AdminTransport: React.FC = () => {
             ) : (
               passengerRows.map((row) => renderPassengerCard(row))
             )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="finances"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+          >
+            <ServicePayments module="TRANSPORT" moduleLabel="Transport" color="bleu" />
           </motion.div>
         )}
       </AnimatePresence>

@@ -88,6 +88,49 @@ export interface TuitionFeeFamilyStatusResponse {
   students: TuitionFeeStudentStatusResponse[];
 }
 
+// ---- Monthly Report types ----
+export interface MonthlyReportTransactionResponse {
+  id: string;
+  date: string;
+  type: "REVENUE" | "EXPENSE";
+  categoryName: string;
+  module: string;
+  description: string;
+  amount: number;
+  reference: string;
+}
+
+export interface MonthlyReportModuleResponse {
+  module: string;
+  moduleLabel: string;
+  totalRevenue: number;
+  totalExpense: number;
+  balance: number;
+  revenueCount: number;
+  expenseCount: number;
+  previousMonthRevenue: number;
+  previousMonthExpense: number;
+  revenueVariation: number;
+  expenseVariation: number;
+  transactions: MonthlyReportTransactionResponse[];
+}
+
+export interface MonthlyReportResponse {
+  month: string;
+  totalRevenue: number;
+  totalExpense: number;
+  globalBalance: number;
+  totalRevenueCount: number;
+  totalExpenseCount: number;
+  previousMonthTotalRevenue: number;
+  previousMonthTotalExpense: number;
+  previousMonthBalance: number;
+  revenueVariationPercent: number;
+  expenseVariationPercent: number;
+  modules: MonthlyReportModuleResponse[];
+  allTransactions: MonthlyReportTransactionResponse[];
+}
+
 export const accountingService = {
   // Generic Payments (Encaissements)
   getPayments: (params?: {
@@ -165,6 +208,17 @@ export const accountingService = {
 
   getExpenseCategories: () =>
     apiRequest<ExpenseCategoryResponse[]>("/expenses/categories?type=EXPENSE"),
+
+  // Monthly Financial Reports
+  getMonthlyReport: (month?: string) => {
+    const qs = month ? `?month=${month}` : "";
+    return apiRequest<MonthlyReportResponse>(`/reports/monthly${qs}`);
+  },
+
+  exportMonthlyReportExcel: (month?: string) => {
+    const qs = month ? `?month=${month}` : "";
+    return `/reports/monthly/export/excel${qs}`;
+  },
 };
 
 // ---- Expense types ----

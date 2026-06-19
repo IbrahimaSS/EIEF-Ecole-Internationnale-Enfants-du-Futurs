@@ -18,7 +18,9 @@ import AdminCommunication from './pages/admin/Communication';
 import AdminSettings from './pages/admin/Settings';
 import AdminProfile from './pages/admin/Profile';
 import AdminGamification from './pages/admin/Gamification';
+import AdminServices from './pages/admin/Services';
 import ComptableDashboard from './pages/comptabilite/Dashboard';
+import FinancialReport from './pages/comptabilite/FinancialReport';
 import CoordinatorDashboard from './pages/coordinator/Dashboard';
 import CoordinatorScolarite from './pages/coordinator/Scolarite';
 import CoordinatorTeachers from './pages/coordinator/Teachers';
@@ -137,16 +139,18 @@ function App() {
             <Route path="coordination/enseignants" element={<CoordinatorTeachers />} />
             <Route path="coordination/permutation" element={<CoordinatorPermutation />} />
             <Route path="comptabilite" element={<AdminAccounting />} />
+            <Route path="rapport-financier" element={<FinancialReport />} />
             <Route path="cantine" element={<AdminCanteen />} />
             <Route path="superette" element={<AdminStore />} />
             <Route path="bibliotheque" element={<AdminLibrary />} />
             <Route path="transport" element={<AdminTransport />} />
+            <Route path="services" element={<AdminServices />} />
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="administration" element={<AdminSettings />} />
             <Route path="jeux" element={<AdminGamification />} />
             <Route path="profil" element={<AdminProfile />} />
           </Route>
-          
+
 
           {/* Routes protégées - Comptable.
               Périmètre : finances, ventes/abonnements (cantine, supérette,
@@ -164,10 +168,12 @@ function App() {
                 que l'admin (encaissements, frais de scolarité, dépenses,
                 statuts individuels & globaux par autocomplete). */}
             <Route path="comptabilite" element={<AdminAccounting />} />
+            <Route path="rapport-financier" element={<FinancialReport />} />
             <Route path="cantine" element={<AdminCanteen />} />
             <Route path="superette" element={<AdminStore />} />
             <Route path="bibliotheque" element={<AdminLibrary />} />
             <Route path="transport" element={<AdminTransport />} />
+            <Route path="services" element={<AdminServices />} />
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="profil" element={<AdminProfile />} />
           </Route>
@@ -280,6 +286,8 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'superette': { title: 'Supérette', subtitle: 'Inventaire et ventes de fournitures' },
           'bibliotheque': { title: 'Bibliothèque', subtitle: 'Catalogue et gestion des emprunts' },
           'transport': { title: 'Transport Scolaire', subtitle: 'Gestion des lignes et des bus' },
+          'services': { title: 'Ateliers & Services', subtitle: 'Robotique, couture, sorties scolaires et plus' },
+          'rapport-financier': { title: 'Rapport Financier', subtitle: 'Bilan mensuel des entrées et sorties' },
           'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
           'administration': { title: 'Administration', subtitle: 'Configuration système et sécurité' },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
@@ -296,6 +304,8 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'superette': { title: 'Supérette', subtitle: 'Inventaire et saisie des ventes' },
           'bibliotheque': { title: 'Bibliothèque', subtitle: 'Catalogue et gestion des emprunts' },
           'transport': { title: 'Transport Scolaire', subtitle: 'Abonnés et tournées' },
+          'services': { title: 'Ateliers & Services', subtitle: 'Robotique, couture, sorties scolaires et plus' },
+          'rapport-financier': { title: 'Rapport Financier', subtitle: 'Bilan mensuel des entrées et sorties' },
           'communication': { title: 'Communication', subtitle: 'Messagerie et annonces globales' },
           'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
         };

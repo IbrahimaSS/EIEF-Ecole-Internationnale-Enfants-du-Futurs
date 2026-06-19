@@ -26,7 +26,8 @@ import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStat
 import TuitionModalityManager from '../../comptabilite/components/TuitionModalityManager';
 import { AcademicYearOption, ClassOption, TuitionFeePayload, TuitionFeeResponse } from '../../comptabilite/types';
 import { apiRequest } from '../../../services/api';
-import { formatCurrency, generateFamilyReceiptHTML } from './utils';
+import { formatCurrency } from './utils';
+import { printReceipt } from '../../../utils/printReceipt';
 import FamilyStatusOverview from './components/FamilyStatusOverview';
 import PaymentsList from './components/PaymentsList';
 import ExpensesList from './components/ExpensesList';
@@ -279,22 +280,19 @@ const AdminAccounting: React.FC = () => {
     }
   };
 
-  const printFamilyReceipt = (status: TuitionFeeFamilyStatusResponse, amountPaid: number, method: string, reference: string) => {
+  const printFamilyReceipt = (status: TuitionFeeFamilyStatusResponse, amountPaid: number, _method: string, reference: string) => {
     const parent = parents.find(p => p.familyId === status.familyId);
-    const html = generateFamilyReceiptHTML(
-      parent ? parent.lastName : status.familyId,
-      amountPaid,
-      method,
-      reference,
-      status.totalRemaining
-    );
-
-    const win = window.open('', '_blank', 'width=800,height=600');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      setTimeout(() => { win.print(); }, 500);
-    }
+    const firstStudent = status.students?.[0];
+    printReceipt({
+      receiptNumber: reference,
+      amount: amountPaid,
+      date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      studentName: firstStudent?.studentName || '',
+      className: firstStudent?.className || '',
+      categoryName: 'Scolarité',
+      parentName: parent ? `${parent.firstName} ${parent.lastName}` : '',
+      remainingAmount: status.totalRemaining,
+    });
   };
 
   // --- Handlers ---
@@ -889,8 +887,17 @@ const AdminAccounting: React.FC = () => {
             loading={loading}
             onDelete={handleDeletePayment}
             onPrint={(row) => {
-              const status: any = { familyId: row.familyName || 'Client', totalRemaining: 0 };
-              printFamilyReceipt(status, row.amount, row.method, row.reference);
+              printReceipt({
+                receiptNumber: row.reference,
+                amount: row.amount,
+                date: row.paidAt
+                  ? new Date(row.paidAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                studentName: row.studentName || '',
+                className: '',
+                categoryName: row.categoryName || 'Autres',
+                parentName: row.familyName || '',
+              });
             }}
             getMethodIcon={getMethodIcon}
           />
