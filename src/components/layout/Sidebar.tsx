@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { SchoolLogo } from "../shared/SchoolLogo";
+import { useSchoolShortName } from "../../store/schoolIdentityStore";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -29,6 +31,7 @@ import {
   Repeat,
   FileBarChart,
   Wrench,
+  Building2,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import Avatar from '../ui/Avatar';
@@ -71,6 +74,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName, currentPage }) => {
+  const shortName = useSchoolShortName();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
@@ -234,6 +238,31 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     ],
   }];
 
+  const surveillantSections: SidebarSection[] = [{
+    items: [
+      {
+        id: 'dashboard',
+        label: 'Supervision',
+        icon: <UserCheck size={18} />,
+        href: '/surveillant/scolarite?tab=pointage',
+        subItems: [
+          { id: 'pointage',     label: 'Pointage',           icon: <UserCheck size={16} />,     href: '/surveillant/scolarite?tab=pointage' },
+          { id: 'appels',       label: 'Appels de classe',   icon: <ClipboardList size={16} />, href: '/surveillant/scolarite?tab=appels' },
+          { id: 'cartes',       label: 'Cartes scolaires',   icon: <TrendingDown size={16} />,  href: '/surveillant/scolarite?tab=cartes' },
+          { id: 'cartes-profs', label: 'Cartes professeurs', icon: <TrendingDown size={16} />,  href: '/surveillant/scolarite?tab=cartes-profs' },
+        ],
+      },
+      { id: 'communication', label: 'Communication', icon: <MessageSquare size={18} />, href: '/surveillant/communication' },
+    ],
+  }];
+
+  const superadminSections: SidebarSection[] = [{
+    items: [
+      { id: 'dashboard', label: 'Plateforme', icon: <LayoutDashboard size={18} />, href: '/superadmin/dashboard' },
+      { id: 'ecoles',    label: 'Écoles',     icon: <Building2 size={18} />,       href: '/superadmin/ecoles' },
+    ],
+  }];
+
   // ── Autres rôles (inchangés, une seule section sans titre) ─────────────
   const enseignantSections: SidebarSection[] = [{
     items: [
@@ -277,6 +306,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
       case 'eleve':       return eleveSections;
       case 'comptable':   return comptableSections;
       case 'coordinator': return coordinatorSections;
+      case 'surveillant': return surveillantSections;
+      case 'superadmin':  return superadminSections;
       default:            return [];
     }
   };
@@ -350,6 +381,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
     eleve: 'Élève',
     comptable: 'Comptable',
     coordinator: 'Coordinateur',
+    surveillant: 'Surveillant',
+    superadmin: 'Plateforme',
   };
 
   const sections = getSectionsByRole();
@@ -376,11 +409,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, userRole, userName,
       <div className="relative p-6 border-b border-white/5 flex-shrink-0">
         <div className={cn('flex items-center gap-3', !isOpen && 'justify-center')}>
           <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-gold p-1.5 overflow-hidden ring-2 ring-or-400/40 shrink-0">
-            <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+            <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
           </div>
           {isOpen && (
             <div className="flex flex-col text-left flex-1 min-w-0">
-              <h3 className="text-white font-black text-lg leading-tight tracking-tighter">EIEF</h3>
+              <h3 className="text-white font-black text-lg leading-tight tracking-tighter truncate">{shortName}</h3>
               <p className="text-or-300 text-[9px] font-black uppercase tracking-[0.3em] truncate">{roleLabels[userRole] ?? userRole}</p>
             </div>
           )}

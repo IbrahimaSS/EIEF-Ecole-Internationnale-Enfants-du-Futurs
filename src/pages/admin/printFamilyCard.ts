@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { schoolLogo } from "../../store/schoolIdentityStore";
 
 export interface FamilyCardData {
   familyCode: string;
@@ -7,7 +8,6 @@ export interface FamilyCardData {
   children: { firstName: string; lastName: string; className?: string }[];
 }
 
-const SCHOOL_LOGO_PATH = "/logo_eief.jpeg";
 const SCHOOL_PHONE = "+224 625 549 579";
 
 function escape(value: string | undefined | null): string {
@@ -114,7 +114,7 @@ export async function printFamilyCard(data: FamilyCardData, qrUrl: string): Prom
     <div class="gold-strip"></div>
     <div class="card-inner">
       <div class="header">
-        <div class="logo-circle"><img src="${SCHOOL_LOGO_PATH}" alt="Logo"/></div>
+        <div class="logo-circle"><img src="${schoolLogo()}" alt="Logo"/></div>
         <div class="header-info">
           <div class="school-name">Ecole Internationale Les Enfants du Futur</div>
           <div class="school-sub">Sanoyah, Conakry — République de Guinée</div>

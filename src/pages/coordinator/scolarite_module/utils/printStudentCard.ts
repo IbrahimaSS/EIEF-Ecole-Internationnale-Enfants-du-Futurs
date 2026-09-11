@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { schoolLogo } from "../../../../store/schoolIdentityStore";
 import { ClassResponse, StudentResponse } from "../types";
 
 export interface SchoolInfo {
@@ -15,7 +16,6 @@ interface PrintStudentCardOptions {
   schoolInfo?: SchoolInfo;
 }
 
-const SCHOOL_LOGO_PATH = "/logo_eief.jpeg";
 
 function escape(value: string | undefined | null): string {
   if (value === undefined || value === null) return "";
@@ -395,7 +395,7 @@ export async function printStudentCard({
 
             <div class="header">
               <div class="logo-circle">
-                <img src="${SCHOOL_LOGO_PATH}" alt="Logo" />
+                <img src="${schoolLogo()}" alt="Logo" />
               </div>
               <div class="header-info">
                 <div class="school-name">${escape(sName)}</div>

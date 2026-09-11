@@ -1,5 +1,6 @@
 // src/hooks/useAdminSettings.ts
 import { useState, useCallback } from 'react';
+import { getApiBaseUrl } from '../services/api';
 
 // ─── Constantes des clés de settings ─────────────────────────────────────────
 export const SETTING_KEYS = {
@@ -45,8 +46,6 @@ interface AuditLog {
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
-const API_BASE =
-  (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
 
 const AUTH_HEADER = 'enfantsfuture-auth-token';
 const AUTH_PREFIX = 'enfantsfuture';
@@ -66,7 +65,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     ...(options.headers as Record<string, string> ?? {}),
   };
   if (token) headers[AUTH_HEADER] = `${AUTH_PREFIX} ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers });
   const payload = await res.json();
   if (!res.ok) throw new Error(payload?.message ?? 'Erreur API');
   return payload.data as T;

@@ -1,4 +1,12 @@
 import React from 'react';
+import { SchoolLogo } from "./SchoolLogo";
+import {
+  useSchoolAddress,
+  useSchoolEmail,
+  useSchoolFacebook,
+  useSchoolPhone,
+  useSchoolShortName,
+} from "../../store/schoolIdentityStore";
 import { useNavigate } from 'react-router-dom';
 import { Facebook, Youtube, Mail, MapPin, PhoneCall, Gamepad2 } from 'lucide-react';
 
@@ -13,6 +21,11 @@ interface PublicFooterProps {
  * Footer partagé EIEF — palette sombre, accents or/vert.
  */
 const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName }) => {
+  const shortName = useSchoolShortName();
+  const email = useSchoolEmail();
+  const phone = useSchoolPhone();
+  const address = useSchoolAddress();
+  const facebookUrl = useSchoolFacebook();
   const navigate = useNavigate();
 
   if (variant === 'compact') {
@@ -21,10 +34,10 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
         <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-white p-1 rounded-md shadow-sm">
-              <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+              <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-              © 2026 EIEF EDUCATION{pageName ? ` — ${pageName}` : ''}
+              © 2026 {shortName}{pageName ? ` — ${pageName}` : ''}
             </p>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest flex gap-6 text-gray-400">
@@ -45,10 +58,10 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
         <div className="md:col-span-2">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-white p-1.5 rounded-lg shadow-sm">
-              <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+              <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
             </div>
             <div>
-              <span className="text-xl font-black tracking-tighter text-white block leading-none">EIEF</span>
+              <span className="text-xl font-black tracking-tighter text-white block leading-none">{shortName}</span>
               <span className="text-[8px] font-bold uppercase tracking-widest text-or-400">Éducation d'Excellence</span>
             </div>
           </div>
@@ -57,7 +70,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
           </p>
           <div className="flex gap-3">
             <a
-              href="https://www.facebook.com/share/18hUbQ4hgm/"
+              href={facebookUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all"
@@ -75,7 +88,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
               <Youtube size={18} />
             </a>
             <a
-              href="mailto:contact@eief.edu.gn"
+              href={`mailto:${email}`}
               className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-or-400 hover:bg-or-600 hover:text-gray-950 transition-all"
               title="Email"
             >
@@ -101,10 +114,10 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ variant = 'full', pageName 
           <h5 className="font-black uppercase tracking-widest text-[10px] mb-6 text-or-400 italic">Infos</h5>
           <ul className="space-y-4 text-sm font-bold text-gray-300">
             <li className="flex gap-2 items-center text-xs text-gray-400">
-              <MapPin size={14} className="text-or-400" /> Conakry, Guinée
+              <MapPin size={14} className="text-or-400" /> {address}
             </li>
             <li className="flex gap-2 items-center text-xs text-gray-400">
-              <PhoneCall size={14} className="text-or-400" /> +224 611 00 00
+              <PhoneCall size={14} className="text-or-400" /> {phone}
             </li>
           </ul>
         </div>

@@ -2,8 +2,8 @@
 // Genere et imprime un bulletin de notes au format EIEF.
 
 import { BulletinData } from "../hooks/useStudentBulletin";
+import { schoolLogo } from "../../../../store/schoolIdentityStore";
 
-const SCHOOL_LOGO_PATH = "/logo_eief.jpeg";
 
 const COMMON_CSS = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -613,7 +613,7 @@ function buildInstitutionHeader(): string {
   return `
     <div class="institution-box">
       <div class="logo-box">
-        <img src="${SCHOOL_LOGO_PATH}" alt="EIEF" onerror="this.outerHTML='&lt;div class=&quot;logo-fallback&quot;&gt;EIEF&lt;/div&gt;'" />
+        <img src="${schoolLogo()}" alt="EIEF" onerror="this.outerHTML='&lt;div class=&quot;logo-fallback&quot;&gt;EIEF&lt;/div&gt;'" />
       </div>
       <div class="institution-copy">
         <div class="rep">REPUBLIQUE DE GUINEE</div>

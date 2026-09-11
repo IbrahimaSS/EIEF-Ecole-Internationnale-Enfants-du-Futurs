@@ -5,6 +5,7 @@
  *   → affichage solde famille → formulaire de paiement
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { SchoolLogo } from "./SchoolLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import QRCode from "qrcode";
 import {
@@ -601,7 +602,7 @@ const FamilyCardsTab: React.FC<Props> = ({ families, loading, onSuccess, onError
                   <div style={{ position:"relative", zIndex:2, display:"flex", flexDirection:"column", height:"100%", padding:"10px 14px 8px" }}>
                     {/* Header carte */}
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                      <img src="/logo_eief.jpeg" alt="EIEF" style={{ width:34, height:34, borderRadius:"50%", background:"rgba(255,255,255,.95)", padding:3, objectFit:"contain", flexShrink:0 }} />
+                      <SchoolLogo alt="EIEF" style={{ width:34, height:34, borderRadius:"50%", background:"rgba(255,255,255,.95)", padding:3, objectFit:"contain", flexShrink:0 }} />
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:9, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.06em", lineHeight:1.15 }}>Ecole Internationale Les Enfants du Futur</div>
                         <div style={{ fontSize:7.5, color:"rgba(255,255,255,.55)", marginTop:1 }}>Sanoyah, Conakry — République de Guinée</div>

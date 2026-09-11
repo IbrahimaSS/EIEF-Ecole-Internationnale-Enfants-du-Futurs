@@ -1,9 +1,14 @@
 import React from 'react';
 import { useEffect } from 'react';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/authStore';
+import { useSchoolIdentityStore, useHostContext, useSchoolName } from './store/schoolIdentityStore';
+import { LoadingScreen } from './components/ui';
+import SchoolNotFound from './pages/SchoolNotFound';
+import SuperAdminDashboard from './pages/superadmin/Dashboard';
+import SuperAdminSchools from './pages/superadmin/Schools';
 
 // Pages Admin
 import AdminDashboard from './pages/admin/Dashboard';
@@ -52,10 +57,6 @@ import EleveRessources from './pages/eleve/Ressources';
 import EleveCommunication from './pages/eleve/Communication';
 import EleveProfile from './pages/eleve/Profile';
 import ElevePreferences from './pages/eleve/Preferences';
-import EleveLanding from './pages/EleveLanding';
-import ParentLanding from './pages/ParentLanding';
-import EmployeLanding from './pages/EmployeLanding';
-import AdminLanding from './pages/AdminLanding';
 import Accueil from './pages/Accueil';
 import Programmes from './pages/Programmes';
 import PreInscription from './pages/PreInscription';
@@ -91,10 +92,35 @@ const NotFound = () => (
 
 function App() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const loadSchoolIdentity = useSchoolIdentityStore((state) => state.load);
+  const hostContext = useHostContext();
+  const schoolName = useSchoolName();
 
   useEffect(() => {
     void initializeAuth();
   }, [initializeAuth]);
+
+  useEffect(() => {
+    void loadSchoolIdentity();
+  }, [loadSchoolIdentity]);
+
+  // Le titre du document est fige dans index.html au moment de la construction :
+  // il est corrige ici des que l'identite de l'ecole est connue.
+  useEffect(() => {
+    if (hostContext === 'platform') {
+      document.title = 'Console plateforme';
+    } else if (hostContext === 'school') {
+      document.title = schoolName;
+    }
+  }, [hostContext, schoolName]);
+
+  if (hostContext === 'loading') {
+    return <LoadingScreen message="Chargement de votre école..." />;
+  }
+
+  if (hostContext === 'unknown' || hostContext === 'offline') {
+    return <SchoolNotFound reason={hostContext} />;
+  }
 
   return (
     <Router>
@@ -112,152 +138,183 @@ function App() {
             },
           }}
         />
-        <Routes>
-          {/* Route publique - Login */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/carte-eleve/:token" element={<StudentCardScan />} />
-          <Route path="/pointage/:token" element={<QrPointage />} />
-          <Route path="/pointage-prof/:token" element={<QrTeacherPointage />} />
-          <Route path="/famille/:familyId/paiement" element={<FamilyFinanceScan />} />
-          <Route path="/eleve/landing" element={<EleveLanding />} />
-          <Route path="/parent/landing" element={<ParentLanding />} />
-          <Route path="/employe/landing" element={<EmployeLanding />} />
-          <Route path="/admin/landing" element={<AdminLanding />} />
-          
-          {/* Routes protégées - Admin */}
-          <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <LayoutRoutes role="admin" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<AdminDashboard />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="utilisateurs" element={<AdminUsers />} />
-            {/* Section Scolarité de l'admin — réutilise les composants Coordinator. */}
-            <Route path="coordination" element={<CoordinatorDashboard />} />
-            <Route path="coordination/scolarite" element={<CoordinatorScolarite />} />
-            <Route path="coordination/enseignants" element={<CoordinatorTeachers />} />
-            <Route path="coordination/permutation" element={<CoordinatorPermutation />} />
-            <Route path="comptabilite" element={<AdminAccounting />} />
-            <Route path="rapport-financier" element={<FinancialReport />} />
-            <Route path="cantine" element={<AdminCanteen />} />
-            <Route path="superette" element={<AdminStore />} />
-            <Route path="bibliotheque" element={<AdminLibrary />} />
-            <Route path="transport" element={<AdminTransport />} />
-            <Route path="services" element={<AdminServices />} />
-            <Route path="communication" element={<AdminCommunication />} />
-            <Route path="administration" element={<AdminSettings />} />
-            <Route path="jeux" element={<AdminGamification />} />
-            <Route path="profil" element={<AdminProfile />} />
-          </Route>
-
-
-          {/* Routes protégées - Comptable.
-              Périmètre : finances, ventes/abonnements (cantine, supérette,
-              bibliothèque, transport) et communication. Pas de Scolarité ni
-              d'Administration : ces modules restent réservés à l'admin. */}
-          <Route path="/comptable" element={
-            <ProtectedRoute allowedRoles={['comptable']}>
-              <LayoutRoutes role="comptable" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<ComptableDashboard />} />
-            <Route path="dashboard" element={<ComptableDashboard />} />
-            <Route path="utilisateurs" element={<AdminUsers hideEmployeesTab hideTeachersTab />} />
-            {/* Le comptable réutilise désormais exactement la même page Finances
-                que l'admin (encaissements, frais de scolarité, dépenses,
-                statuts individuels & globaux par autocomplete). */}
-            <Route path="comptabilite" element={<AdminAccounting />} />
-            <Route path="rapport-financier" element={<FinancialReport />} />
-            <Route path="cantine" element={<AdminCanteen />} />
-            <Route path="superette" element={<AdminStore />} />
-            <Route path="bibliotheque" element={<AdminLibrary />} />
-            <Route path="transport" element={<AdminTransport />} />
-            <Route path="services" element={<AdminServices />} />
-            <Route path="communication" element={<AdminCommunication />} />
-            <Route path="profil" element={<AdminProfile />} />
-          </Route>
-
-          <Route path="/coordinator" element={
-            <ProtectedRoute allowedRoles={['coordinator']}>
-              <LayoutRoutes role="coordinator" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<CoordinatorDashboard />} />
-            <Route path="dashboard" element={<CoordinatorDashboard />} />
-            <Route path="scolarite" element={<CoordinatorScolarite />} />
-            <Route path="enseignants" element={<CoordinatorTeachers />} />
-            <Route path="permutation" element={<CoordinatorPermutation />} />
-            <Route path="devoirs" element={<CoordinatorDevoirs />} />
-            <Route path="profil" element={<AdminProfile />} />
-            <Route path="preferences" element={<EnseignantPreferences />} />
-          </Route>
-
-          <Route path="/enseignant" element={
-            <ProtectedRoute allowedRoles={['enseignant']}>
-              <LayoutRoutes role="enseignant" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<EnseignantDashboard />} />
-            <Route path="dashboard" element={<EnseignantDashboard />} />
-            <Route path="classes" element={<EnseignantClasses />} />
-            <Route path="devoirs" element={<TeacherDevoirs />} />
-            <Route path="communication" element={<EnseignantCommunication />} />
-            <Route path="ressources" element={<EnseignantRessources />} />
-            <Route path="profil" element={<EnseignantProfile />} />
-            <Route path="preferences" element={<EnseignantPreferences />} />
-          </Route>
-          
-          {/* Routes protégées - Parent */}
-          <Route path="/parent" element={
-            <ProtectedRoute allowedRoles={['parent']}>
-              <LayoutRoutes role="parent" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<ParentDashboard />} />
-            <Route path="dashboard" element={<ParentDashboard />} />
-            <Route path="eleves" element={<ParentEleves />} />
-            <Route path="notes" element={<ParentNotes />} />
-            <Route path="emploi" element={<ParentEmploi />} />
-            <Route path="devoirs" element={<ParentDevoirs />} />
-            <Route path="paiements" element={<ParentPaiements />} />
-            <Route path="communication" element={<ParentCommunication />} />
-            <Route path="profil" element={<ParentProfile />} />
-            <Route path="preferences" element={<ParentPreferences />} />
-          </Route>
-          
-          {/* Routes protégées - Élève */}
-          <Route path="/eleve" element={
-            <ProtectedRoute allowedRoles={['eleve']}>
-              <LayoutRoutes role="eleve" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<EleveDashboard />} />
-            <Route path="dashboard" element={<EleveDashboard />} />
-            <Route path="notes" element={<EleveNotes />} />
-            <Route path="emploi" element={<EleveEmploi />} />
-            <Route path="devoirs" element={<EleveDevoirs />} />
-            <Route path="ressources" element={<EleveRessources />} />
-            <Route path="communication" element={<EleveCommunication />} />
-            <Route path="profil" element={<EleveProfile />} />
-            <Route path="preferences" element={<ElevePreferences />} />
-          </Route>
-          
-          {/* Route par défaut - Accès public */}
-          <Route path="/" element={<Accueil />} />
-          <Route path="/programmes" element={<Programmes />} />
-          <Route path="/preinscription" element={<PreInscription />} />
-          {/* Ancienne URL /admission redirigée vers /preinscription pour rétrocompat */}
-          <Route path="/admission" element={<PreInscription />} />
-          <Route path="/contact" element={<Contact />} />
-
-          {/* Route 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        {hostContext === 'platform' ? <PlatformRoutes /> : <SchoolRoutes />}
       </div>
     </Router>
   );
 }
+
+const SchoolRoutes: React.FC = () => (
+  <Routes>
+    {/* Route publique - Login */}
+    <Route path="/login" element={<Login />} />
+    <Route path="/carte-eleve/:token" element={<StudentCardScan />} />
+    <Route path="/pointage/:token" element={<QrPointage />} />
+    <Route path="/pointage-prof/:token" element={<QrTeacherPointage />} />
+    <Route path="/famille/:familyId/paiement" element={<FamilyFinanceScan />} />
+    
+    {/* Routes protégées - Admin */}
+    <Route path="/admin" element={
+      <ProtectedRoute allowedRoles={['admin']}>
+        <LayoutRoutes role="admin" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<AdminDashboard />} />
+      <Route path="dashboard" element={<AdminDashboard />} />
+      <Route path="utilisateurs" element={<AdminUsers />} />
+      {/* Section Scolarité de l'admin — réutilise les composants Coordinator. */}
+      <Route path="coordination" element={<CoordinatorDashboard />} />
+      <Route path="coordination/scolarite" element={<CoordinatorScolarite />} />
+      <Route path="coordination/enseignants" element={<CoordinatorTeachers />} />
+      <Route path="coordination/permutation" element={<CoordinatorPermutation />} />
+      <Route path="comptabilite" element={<AdminAccounting />} />
+      <Route path="rapport-financier" element={<FinancialReport />} />
+      <Route path="cantine" element={<AdminCanteen />} />
+      <Route path="superette" element={<AdminStore />} />
+      <Route path="bibliotheque" element={<AdminLibrary />} />
+      <Route path="transport" element={<AdminTransport />} />
+      <Route path="services" element={<AdminServices />} />
+      <Route path="communication" element={<AdminCommunication />} />
+      <Route path="administration" element={<AdminSettings />} />
+      <Route path="jeux" element={<AdminGamification />} />
+      <Route path="profil" element={<AdminProfile />} />
+    </Route>
+
+
+    {/* Routes protégées - Comptable.
+        Périmètre : finances, ventes/abonnements (cantine, supérette,
+        bibliothèque, transport) et communication. Pas de Scolarité ni
+        d'Administration : ces modules restent réservés à l'admin. */}
+    <Route path="/comptable" element={
+      <ProtectedRoute allowedRoles={['comptable']}>
+        <LayoutRoutes role="comptable" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<ComptableDashboard />} />
+      <Route path="dashboard" element={<ComptableDashboard />} />
+      <Route path="utilisateurs" element={<AdminUsers hideEmployeesTab hideTeachersTab />} />
+      {/* Le comptable réutilise désormais exactement la même page Finances
+          que l'admin (encaissements, frais de scolarité, dépenses,
+          statuts individuels & globaux par autocomplete). */}
+      <Route path="comptabilite" element={<AdminAccounting />} />
+      <Route path="rapport-financier" element={<FinancialReport />} />
+      <Route path="cantine" element={<AdminCanteen />} />
+      <Route path="superette" element={<AdminStore />} />
+      <Route path="bibliotheque" element={<AdminLibrary />} />
+      <Route path="transport" element={<AdminTransport />} />
+      <Route path="services" element={<AdminServices />} />
+      <Route path="communication" element={<AdminCommunication />} />
+      <Route path="profil" element={<AdminProfile />} />
+    </Route>
+
+    <Route path="/coordinator" element={
+      <ProtectedRoute allowedRoles={['coordinator']}>
+        <LayoutRoutes role="coordinator" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<CoordinatorDashboard />} />
+      <Route path="dashboard" element={<CoordinatorDashboard />} />
+      <Route path="scolarite" element={<CoordinatorScolarite />} />
+      <Route path="enseignants" element={<CoordinatorTeachers />} />
+      <Route path="permutation" element={<CoordinatorPermutation />} />
+      <Route path="devoirs" element={<CoordinatorDevoirs />} />
+      <Route path="profil" element={<AdminProfile />} />
+      <Route path="preferences" element={<EnseignantPreferences />} />
+    </Route>
+
+    {/* Surveillant : supervision seulement, pages coordinateur reutilisees.
+        Les onglets non autorises sont masques dans la page elle-meme. */}
+    <Route path="/surveillant" element={
+      <ProtectedRoute allowedRoles={['surveillant']}>
+        <LayoutRoutes role="surveillant" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<CoordinatorScolarite />} />
+      <Route path="dashboard" element={<CoordinatorScolarite />} />
+      <Route path="scolarite" element={<CoordinatorScolarite />} />
+      <Route path="communication" element={<AdminCommunication />} />
+      <Route path="profil" element={<AdminProfile />} />
+      <Route path="preferences" element={<EnseignantPreferences />} />
+    </Route>
+
+    <Route path="/enseignant" element={
+      <ProtectedRoute allowedRoles={['enseignant']}>
+        <LayoutRoutes role="enseignant" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<EnseignantDashboard />} />
+      <Route path="dashboard" element={<EnseignantDashboard />} />
+      <Route path="classes" element={<EnseignantClasses />} />
+      <Route path="devoirs" element={<TeacherDevoirs />} />
+      <Route path="communication" element={<EnseignantCommunication />} />
+      <Route path="ressources" element={<EnseignantRessources />} />
+      <Route path="profil" element={<EnseignantProfile />} />
+      <Route path="preferences" element={<EnseignantPreferences />} />
+    </Route>
+    
+    {/* Routes protégées - Parent */}
+    <Route path="/parent" element={
+      <ProtectedRoute allowedRoles={['parent']}>
+        <LayoutRoutes role="parent" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<ParentDashboard />} />
+      <Route path="dashboard" element={<ParentDashboard />} />
+      <Route path="eleves" element={<ParentEleves />} />
+      <Route path="notes" element={<ParentNotes />} />
+      <Route path="emploi" element={<ParentEmploi />} />
+      <Route path="devoirs" element={<ParentDevoirs />} />
+      <Route path="paiements" element={<ParentPaiements />} />
+      <Route path="communication" element={<ParentCommunication />} />
+      <Route path="profil" element={<ParentProfile />} />
+      <Route path="preferences" element={<ParentPreferences />} />
+    </Route>
+    
+    {/* Routes protégées - Élève */}
+    <Route path="/eleve" element={
+      <ProtectedRoute allowedRoles={['eleve']}>
+        <LayoutRoutes role="eleve" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<EleveDashboard />} />
+      <Route path="dashboard" element={<EleveDashboard />} />
+      <Route path="notes" element={<EleveNotes />} />
+      <Route path="emploi" element={<EleveEmploi />} />
+      <Route path="devoirs" element={<EleveDevoirs />} />
+      <Route path="ressources" element={<EleveRessources />} />
+      <Route path="communication" element={<EleveCommunication />} />
+      <Route path="profil" element={<EleveProfile />} />
+      <Route path="preferences" element={<ElevePreferences />} />
+    </Route>
+    
+    {/* Route par défaut - Accès public */}
+    <Route path="/" element={<Accueil />} />
+    <Route path="/programmes" element={<Programmes />} />
+    <Route path="/preinscription" element={<PreInscription />} />
+    {/* Ancienne URL /admission redirigée vers /preinscription pour rétrocompat */}
+    <Route path="/admission" element={<PreInscription />} />
+    <Route path="/contact" element={<Contact />} />
+
+    {/* Route 404 */}
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
+const PlatformRoutes: React.FC = () => (
+  <Routes>
+    <Route path="/login" element={<Login />} />
+    <Route path="/superadmin" element={
+      <ProtectedRoute allowedRoles={['superadmin']}>
+        <LayoutRoutes role="superadmin" />
+      </ProtectedRoute>
+    }>
+      <Route index element={<SuperAdminDashboard />} />
+      <Route path="dashboard" element={<SuperAdminDashboard />} />
+      <Route path="ecoles" element={<SuperAdminSchools />} />
+    </Route>
+    <Route path="*" element={<Navigate to="/superadmin/dashboard" replace />} />
+  </Routes>
+);
 
 // Composant interne pour gérer les routes avec layout
 interface LayoutRoutesProps {
@@ -356,7 +413,21 @@ const LayoutRoutes: React.FC<LayoutRoutesProps> = ({ role }) => {
           'preferences': { title: 'Préférences', subtitle: 'Paramètres et notifications' },
         };
         return elevePages[currentPage] || elevePages['dashboard'];
-      default: return { title: 'Espace EIEF', subtitle: '' };
+      case 'superadmin':
+        const superadminPages: Record<string, { title: string; subtitle: string }> = {
+          'dashboard': { title: 'Plateforme', subtitle: 'Vue d\'ensemble des écoles hébergées' },
+          'ecoles': { title: 'Écoles', subtitle: 'Enregistrez et suivez les établissements' },
+        };
+        return superadminPages[currentPage] || superadminPages['dashboard'];
+      case 'surveillant':
+        const surveillantPages: Record<string, { title: string; subtitle: string }> = {
+          'dashboard': { title: 'Supervision', subtitle: 'Pointage, cartes et appels de classe' },
+          'scolarite': { title: 'Supervision', subtitle: 'Pointage, cartes et appels de classe' },
+          'communication': { title: 'Communication', subtitle: 'Messagerie et annonces' },
+          'profil': { title: 'Profil Utilisateur', subtitle: 'Vos informations personnelles' },
+        };
+        return surveillantPages[currentPage] || surveillantPages['dashboard'];
+      default: return { title: 'Espace scolaire', subtitle: '' };
     }
   };
 

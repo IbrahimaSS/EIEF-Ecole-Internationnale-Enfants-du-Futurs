@@ -2,7 +2,9 @@
  * TeacherCardsTab — gestion des cartes professeur avec QR code.
  * Utilisé dans le PointageTab coordinateur et manager.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { SchoolLogo } from "./SchoolLogo";
+import { schoolLogo } from "../../store/schoolIdentityStore";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
 import {
@@ -14,7 +16,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { Avatar, Badge, Button, Card } from "../ui";
+import { Avatar, Button, Card } from "../ui";
 import { cn } from "../../utils/cn";
 import {
   teacherCardService,
@@ -230,7 +232,7 @@ const TeacherCardsTab: React.FC<Props> = ({ teachers, loading, onSuccess, onErro
 
         <div class="header">
           <div class="logo-circle">
-            <img src="${window.location.origin}/logo_eief.jpeg" alt="Logo"/>
+            <img src="${window.location.origin}${schoolLogo()}" alt="Logo"/>
           </div>
           <div class="header-info">
             <div class="school-name">Ecole Internationale Les Enfants du Futur</div>
@@ -387,7 +389,7 @@ const TeacherCardsTab: React.FC<Props> = ({ teachers, loading, onSuccess, onErro
                 <div style={{ position:"relative", zIndex:2, display:"flex", flexDirection:"column", height:"100%", padding:"10px 14px 8px" }}>
                   {/* Header */}
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                    <img src="/logo_eief.jpeg" alt="EIEF" style={{ width:34, height:34, borderRadius:"50%", background:"rgba(255,255,255,.95)", padding:3, objectFit:"contain", flexShrink:0 }} />
+                    <SchoolLogo alt="EIEF" style={{ width:34, height:34, borderRadius:"50%", background:"rgba(255,255,255,.95)", padding:3, objectFit:"contain", flexShrink:0 }} />
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:9, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.06em", lineHeight:1.15 }}>Ecole Internationale Les Enfants du Futur</div>
                       <div style={{ fontSize:7.5, color:"rgba(255,255,255,.55)", marginTop:1 }}>Sanoyah, Conakry — République de Guinée</div>

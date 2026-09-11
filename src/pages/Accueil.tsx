@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SchoolLogo } from "../components/shared/SchoolLogo";
 import { useNavigate } from 'react-router-dom';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { motion } from 'framer-motion';
@@ -33,8 +34,6 @@ import {
   RefreshCcw,
   Image as ImageIcon,
   Baby,
-  Puzzle,
-  Palette,
   Backpack,
   Banknote,
   Landmark,
@@ -167,7 +166,7 @@ const Accueil: React.FC = () => {
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
             <div className="w-11 h-11 bg-white rounded-xl p-1.5 shadow-xl ring-2 ring-or-400/40 transition-transform group-hover:scale-110">
-              <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+              <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col text-left">
               <span className={cn('text-lg font-black tracking-tighter leading-none transition-colors', scrolled ? 'text-gray-900 dark:text-white' : 'text-white')}>EIEF</span>
@@ -644,7 +643,7 @@ const Accueil: React.FC = () => {
           <div>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-white p-1.5 rounded-2xl shadow-lg ring-2 ring-or-400/30">
-                <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+                <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
               </div>
               <div>
                 <p className="text-base font-black text-white leading-tight">École Internationale</p>

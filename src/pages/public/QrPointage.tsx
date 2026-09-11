@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { SchoolLogo } from "../../components/shared/SchoolLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -129,7 +130,6 @@ const QrPointage: React.FC = () => {
   // ---- Success ----
   const isArrived = data.eventType === "ARRIVED";
   const isDeparted = data.eventType === "DEPARTED";
-  const isAlreadyOut = data.eventType === "ALREADY_OUT";
   const avatarUrl = data.avatarUrl?.trim() || null;
 
   const colorConfig = isArrived
@@ -150,7 +150,7 @@ const QrPointage: React.FC = () => {
         >
           {/* School header */}
           <div className="flex items-center gap-3 mb-6 px-1">
-            <img src="/logo_eief.jpeg" alt="EIEF" className="w-10 h-10 rounded-full object-contain bg-white p-1" />
+            <SchoolLogo alt="EIEF" className="w-10 h-10 rounded-full object-contain bg-white p-1" />
             <div>
               <p className="text-[10px] uppercase tracking-[0.26em] text-white/50 font-bold">EIEF</p>
               <p className="text-sm font-black text-white leading-tight">Pointage automatique</p>

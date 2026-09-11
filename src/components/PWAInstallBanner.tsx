@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Download, X } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useSchoolLogo, useSchoolName } from '../store/schoolIdentityStore';
 
 export function PWAInstallBanner() {
   const { isInstallable, install } = usePWAInstall();
+  const logo = useSchoolLogo();
+  const schoolName = useSchoolName();
   const [dismissed, setDismissed] = useState(false);
 
   if (!isInstallable || dismissed) return null;
@@ -11,7 +14,7 @@ export function PWAInstallBanner() {
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-80 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-xl p-4 flex items-start gap-3 animate-in slide-in-from-bottom-4">
       <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-bleu-600 flex items-center justify-center">
-        <img src="/logo192.png" alt="EIEF" className="w-8 h-8 rounded-lg" />
+        <img src={logo} alt={schoolName} className="w-8 h-8 rounded-lg" />
       </div>
 
       <div className="flex-1 min-w-0">

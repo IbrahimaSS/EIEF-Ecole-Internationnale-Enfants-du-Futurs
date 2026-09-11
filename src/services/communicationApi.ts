@@ -3,7 +3,7 @@
 // Couche d'accès API pour le module Communication
 // ============================================================
 
-import { apiRequest } from "./api"; // adapte le chemin si nécessaire
+import { apiRequest, getWebSocketUrl } from "./api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,11 +208,9 @@ export const deleteForumTopic = (id: string): Promise<void> =>
 // ─── WebSocket (temps réel) ───────────────────────────────────────────────────
 
 /**
- * URL du broker WebSocket.
- * Définis REACT_APP_WS_URL dans ton .env si besoin.
+ * URL du broker WebSocket, deduite du sous-domaine courant comme le reste de l'API.
  */
-export const STOMP_BROKER_URL =
-  process.env.REACT_APP_WS_URL || "http://127.0.0.1:8080/ws";
+export const stompBrokerUrl = (): string => getWebSocketUrl();
 
 /**
  * Fabrique un client STOMP prêt à l'emploi.
@@ -234,7 +232,7 @@ export const createStompClient = (
   const SockJS = require("sockjs-client");
 
   const client = new Client({
-    webSocketFactory: () => new SockJS(STOMP_BROKER_URL),
+    webSocketFactory: () => new SockJS(stompBrokerUrl()),
     connectHeaders: {
       "enfantsfuture-auth-token": `enfantsfuture ${token}`,
     },

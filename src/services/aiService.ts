@@ -1,4 +1,4 @@
-const API_BASE = process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8080/api/v1';
+import { getApiBaseUrl } from './api';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -17,7 +17,7 @@ export interface AiChatResponse {
 
 export const aiService = {
   chat: async (payload: AiChatRequest, token: string): Promise<AiChatResponse> => {
-    const res = await fetch(`${API_BASE}/ai/chat`, {
+    const res = await fetch(`${getApiBaseUrl()}/ai/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

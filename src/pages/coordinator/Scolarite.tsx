@@ -3,6 +3,7 @@
 // Compose les sous-composants, hooks et utilitaires depuis ./scolarite_module/.
 
 import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '../../store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertCircle,
@@ -81,13 +82,24 @@ const ALLOW_CATALOG_MANAGEMENT = false;
 const ALLOW_SUBJECT_CREATION    = true;
 const ALLOW_STUDENT_CARDS       = true;
 
+// Le surveillant n'a acces qu'a la supervision : le backend lui refuse les emplois
+// du temps et la saisie des notes, son onglet ne doit donc pas les proposer.
+const SUPERVISION_TABS: TabId[] = ['pointage', 'cartes', 'cartes-profs', 'appels'];
+const ALL_TABS: TabId[] = ['emplois', 'notes', 'pointage', 'cartes', 'cartes-profs', 'appels'];
+
 const CoordinatorScolarite: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const userRole = useAuthStore((state) => state.user?.role);
+  const isSupervisor = userRole === 'surveillant';
+
   const allowCatalogManagement = ALLOW_CATALOG_MANAGEMENT;
   const allowSubjectCreation   = ALLOW_SUBJECT_CREATION;
   const allowStudentCards      = ALLOW_STUDENT_CARDS;
+
+  const visibleTabs: TabId[] = (isSupervisor ? SUPERVISION_TABS : ALL_TABS)
+    .filter((tab) => tab !== 'cartes' || allowStudentCards);
 
   // ── Données initiales ─────────────────────────────────────────────────────
   const {
@@ -109,23 +121,20 @@ const CoordinatorScolarite: React.FC = () => {
   const onSuccess = (m: string) => showNotif('success', m);
 
   // ── État UI principal (Synchronisé avec URL) ──────────────────────────────
-  const [activeTab, setActiveTab] = useState<TabId>('emplois');
+  const [activeTab, setActiveTab] = useState<TabId>(visibleTabs[0]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as TabId | null;
-    const allowedTabs: TabId[] = allowStudentCards
-      ? ['emplois', 'notes', 'pointage', 'cartes', 'cartes-profs', 'appels']
-      : ['emplois', 'notes', 'pointage', 'cartes-profs', 'appels'];
 
-    if (tab && allowedTabs.includes(tab)) {
+    if (tab && visibleTabs.includes(tab)) {
       setActiveTab(tab);
       return;
     }
 
-    if (tab === 'cartes' && !allowStudentCards) {
+    if (tab && !visibleTabs.includes(tab)) {
       const nextParams = new URLSearchParams(location.search);
-      nextParams.set('tab', 'emplois');
+      nextParams.set('tab', visibleTabs[0]);
       navigate(
         { pathname: location.pathname, search: `?${nextParams.toString()}` },
         { replace: true },
@@ -134,7 +143,7 @@ const CoordinatorScolarite: React.FC = () => {
     }
 
     setActiveTab('emplois');
-  }, [allowStudentCards, location.pathname, location.search, navigate]);
+  }, [visibleTabs, location.pathname, location.search, navigate]);
 
   const [searchQuery,  setSearchQuery]  = useState('');
   const [openMenuId,   setOpenMenuId]   = useState<string | null>(null);
@@ -308,7 +317,8 @@ const CoordinatorScolarite: React.FC = () => {
     years.find(y => y.isActive)?.name ||
     years.sort((a, b) => b.name.localeCompare(a.name))[0]?.name ||
     '2026-2027';
-  const currentTab     = tabItems.find(tab => tab.id === activeTab) ?? tabItems[0];
+  const visibleTabItems = tabItems.filter(tab => visibleTabs.includes(tab.id));
+  const currentTab     = visibleTabItems.find(tab => tab.id === activeTab) ?? visibleTabItems[0];
   const searchEnabled  = activeTab !== 'pointage';
   const searchPlaceholder =
     activeTab === 'emplois'
@@ -637,7 +647,7 @@ const CoordinatorScolarite: React.FC = () => {
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
-              {tabItems.map(({ id, label, description, metric, icon: Icon }) => {
+              {visibleTabItems.map(({ id, label, description, metric, icon: Icon }) => {
                 const isActive = activeTab === id;
                 return (
                   <button

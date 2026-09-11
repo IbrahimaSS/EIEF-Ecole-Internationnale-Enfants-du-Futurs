@@ -1,8 +1,4 @@
-import { apiRequest } from './api';
-
-const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') ||
-  'http://localhost:8080/api/v1';
+import { apiRequest, getApiBaseUrl } from './api';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -71,7 +67,7 @@ export const homeworkService = {
     const form = new FormData();
     form.append('file', file);
     const res = await fetch(
-      `${API_BASE_URL}/homework/${homeworkId}/file?teacherId=${teacherId}`,
+      `${getApiBaseUrl()}/homework/${homeworkId}/file?teacherId=${teacherId}`,
       {
         method: 'POST',
         headers: { 'enfantsfuture-auth-token': `enfantsfuture ${token}` },
@@ -123,7 +119,7 @@ export const homeworkService = {
     const form = new FormData();
     form.append('file', file);
     const res = await fetch(
-      `${API_BASE_URL}/homework/${homeworkId}/submit/file?studentId=${studentId}`,
+      `${getApiBaseUrl()}/homework/${homeworkId}/submit/file?studentId=${studentId}`,
       {
         method: 'POST',
         headers: { 'enfantsfuture-auth-token': `enfantsfuture ${token}` },

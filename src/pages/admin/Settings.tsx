@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SchoolLogo } from "../../components/shared/SchoolLogo";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings as SettingsIcon,
@@ -26,6 +27,9 @@ import {
 import { Card, Badge, Button, Input, Avatar } from '../../components/ui';
 import { cn } from '../../utils/cn';
 import { useAdminSettings, useAuditLogs, useBackup, SETTING_KEYS } from '../../hooks/useAdminSettings';
+import { toast } from 'sonner';
+import { uploadSchoolLogo } from '../../services/schoolIdentityService';
+import { setSchoolIdentity } from '../../store/schoolIdentityStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers : normalise les champs AuditLog selon ce que le backend peut renvoyer
@@ -57,7 +61,42 @@ const getLogModule = (log: any): string =>
 // ─────────────────────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
+const readToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token ?? null;
+  } catch {
+    return null;
+  }
+};
+
 const AdminSettings: React.FC = () => {
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const handleLogoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const token = readToken();
+    if (!token) {
+      toast.error('Session expirée. Reconnectez-vous.');
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      setSchoolIdentity(await uploadSchoolLogo(token, file));
+      toast.success('Logo mis à jour.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "L'envoi du logo a échoué.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'systeme' | 'securite' | 'donnees' | 'logs'>('systeme');
 
   // ── Settings ──
@@ -274,14 +313,26 @@ React.useEffect(() => {
                           </div>
                         </div>
 
-                        <div className="flex flex-col items-center justify-center p-8 bg-gray-50 dark:bg-black/20 rounded-[2rem] border-2 border-dashed border-gray-200 dark:border-white/10 relative group cursor-pointer hover:border-or-400 dark:hover:border-or-500/50 hover:bg-or-50/50 dark:hover:bg-or-950/20 transition-all">
+                        <button
+                          type="button"
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={uploadingLogo}
+                          className="flex flex-col items-center justify-center p-8 bg-gray-50 dark:bg-black/20 rounded-[2rem] border-2 border-dashed border-gray-200 dark:border-white/10 relative group cursor-pointer hover:border-or-400 dark:hover:border-or-500/50 hover:bg-or-50/50 dark:hover:bg-or-950/20 transition-all disabled:opacity-60"
+                        >
                           <div className="w-28 h-28 bg-white dark:bg-gray-900 rounded-3xl shadow-lg p-2 overflow-hidden mb-4 group-hover:scale-110 transition-transform">
-                            <img src="/logo_eief.jpeg" alt="Logo" className="w-full h-full object-contain" />
+                            <SchoolLogo alt="Logo" className="w-full h-full object-contain" />
                           </div>
                           <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                            <UploadCloud size={14} /> Logo Principal
+                            <UploadCloud size={14} /> {uploadingLogo ? 'Envoi en cours…' : 'Changer le logo'}
                           </p>
-                        </div>
+                          <input
+                            ref={logoInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={handleLogoSelected}
+                          />
+                        </button>
                       </div>
 
                       <div className="h-px w-full bg-gray-100 dark:bg-white/5 my-8" />

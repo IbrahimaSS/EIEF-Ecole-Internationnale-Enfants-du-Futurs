@@ -1,8 +1,19 @@
 import { ApiErrorResponse, ApiResponse } from "../types/auth";
 
-const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://localhost:8080/api/v1";
+const API_PATH = "/api/v1";
+
+// L'ecole est identifiee par le sous-domaine de la page : l'origine de l'API doit donc
+// etre deduite de window.location a l'execution, et surtout pas figee a la compilation,
+// sinon une seule construction ne peut pas servir plusieurs ecoles.
+const apiOrigin = (): string => {
+  const { protocol, hostname, host } = window.location;
+  const devPort = process.env.REACT_APP_API_PORT;
+  return devPort ? `${protocol}//${hostname}:${devPort}` : `${protocol}//${host}`;
+};
+
+export const getApiBaseUrl = (): string => `${apiOrigin()}${API_PATH}`;
+
+export const getWebSocketUrl = (): string => `${apiOrigin()}${API_PATH}/ws`;
 
 export const AUTH_HEADER_NAME = "enfantsfuture-auth-token";
 export const AUTH_HEADER_PREFIX = "enfantsfuture";
@@ -74,14 +85,31 @@ const parseJsonSafely = async <T>(response: Response): Promise<T | null> => {
   }
 };
 
+let onUnauthorized: (() => void) | null = null;
+
+/**
+ * Branche la reaction a un jeton refuse. Passe par un rappel plutot qu'un import
+ * direct du magasin d'authentification, qui creerait un cycle avec ce module.
+ */
+export const setUnauthorizedHandler = (handler: (() => void) | null): void => {
+  onUnauthorized = handler;
+};
+
 export const apiRequest = async <T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const token = options.token ?? getStoredToken();
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...options,
-    headers: buildHeaders(options),
+    headers: buildHeaders({ ...options, token }),
   });
+
+  // Un 401 alors qu'un jeton etait presente signifie que la session n'est plus
+  // valable : expiree, revoquee, ou emise pour une autre ecole.
+  if (response.status === 401 && token) {
+    onUnauthorized?.();
+  }
 
   // Cas particulier : 204 No Content ou body vide (typique des DELETE)
   // Si la requete a reussi, on retourne undefined caste en T sans tenter de parse.
@@ -126,6 +154,3 @@ export const apiRequest = async <T>(
 
   return payload as unknown as T;
 };
-
-
-export const getApiBaseUrl = (): string => API_BASE_URL;

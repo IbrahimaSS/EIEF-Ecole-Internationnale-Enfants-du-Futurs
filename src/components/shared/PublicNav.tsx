@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { SchoolLogo } from "./SchoolLogo";
+import { useSchoolShortName } from "../../store/schoolIdentityStore";
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Menu, X, Sun, Moon } from 'lucide-react';
 import { Button } from '../ui';
@@ -32,6 +34,7 @@ const LINK_LABELS: Record<string, string> = {
  * passe en glass blanc/or au scroll. Utilisée sur Accueil, Programmes, Pré-inscription, Contact.
  */
 const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = false }) => {
+  const shortName = useSchoolShortName();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -76,7 +79,7 @@ const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = 
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
             <div className="w-11 h-11 bg-white rounded-xl p-1.5 shadow-xl ring-2 ring-or-400/40 transition-transform group-hover:scale-110">
-              <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+              <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col text-left">
               <span
@@ -85,7 +88,7 @@ const PublicNav: React.FC<PublicNavProps> = ({ active = 'Accueil', forceSolid = 
                   isSolid ? 'text-gray-900 dark:text-white' : 'text-white'
                 )}
               >
-                EIEF
+                {shortName}
               </span>
               <span
                 className={cn(

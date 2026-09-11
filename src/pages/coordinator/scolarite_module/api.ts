@@ -1,8 +1,8 @@
 // src/pages/manager/scolarite/api.ts
 // Helper API local au module Scolarité (gère les réponses vides 204 No Content)
 
-const API_BASE =
-  (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+import { getApiBaseUrl } from '../../../services/api';
+
 
 const AUTH_HEADER = 'enfantsfuture-auth-token';
 const AUTH_PREFIX = 'enfantsfuture';
@@ -25,7 +25,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   };
   if (token) headers[AUTH_HEADER] = `${AUTH_PREFIX} ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers });
 
   // Reponse vide (204 No Content typique des DELETE, ou body vide)
   const isNoContent =

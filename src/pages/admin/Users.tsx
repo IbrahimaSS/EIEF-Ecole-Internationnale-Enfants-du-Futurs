@@ -1,6 +1,7 @@
 // src/pages/admin/AdminUsers.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { getApiBaseUrl } from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users as UsersIcon, GraduationCap, UserPlus, Search,
@@ -109,34 +110,6 @@ const emptyEmployee = (): EmployeeRequest => ({ email: '', password: '', firstNa
 
 // ─── Tarifs 2026-2027 ──────────────────────────────────────────────────────────
 
-const PRICES = {
-  INSCRIPTION_FEE: 100000,
-  LEVELS: {
-    'Maternelle': { new: 5700000, returning: 5500000 },
-    'Primaire':   { new: 6200000, returning: 6000000 },
-    'Collège':    { new: 7700000, returning: 7500000 },
-    'Lycée':      { new: 8200000, returning: 8000000 },
-    '6ème Année (CEE)':  { new: 8200000, returning: 7000000 },
-    '10ème Année (BEPC)': { new: 9700000, returning: 8500000 },
-    'Terminale (BAC)':    { new: 10200000, returning: 9000000 },
-  },
-  SERVICES: {
-    CANTINE: 400000,
-    TRANSPORT_PETIT: 300000,
-    TRANSPORT_LONG: 350000,
-    TENUE_SCOLAIRE_PRIMAIRE: 350000,
-    TENUE_SCOLAIRE_SECONDAIRE: 450000,
-    TENUE_SPORT: 100000,
-    TENUE_SCOUT: 250000,
-    TENUE_KARATE: 200000,
-    ACTIVITE_KARATE: 200000,
-    ACTIVITE_NATATION: 300000,
-    ACTIVITE_ROBOTIQUE: 200000,
-    COURS_CORANIQUE: 100000,
-    COURS_BIBLIQUE: 100000,
-    GARDERIE: 100000,
-  }
-};
 
 // ─── Sous-composant : panneau "Voir le profil" ─────────────────────────────────
 
@@ -170,7 +143,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, row, activ
     if (isOpen && activeTab === 'familles' && row?.familyId) {
       setLoadingFinances(true);
       const token = getToken();
-      const API_BASE = (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+      const API_BASE = getApiBaseUrl();
       fetch(`${API_BASE}/tuition-fees/families/${row.familyId}/status`, {
         headers: { 'enfantsfuture-auth-token': `enfantsfuture ${token}` }
       })
@@ -602,60 +575,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   // ── Notification (hook partagé) ────────────────────────────────────────────
   const { notif, showNotif, closeNotif } = useNotif();
 
-  const calculateTotalScolarite = useCallback(() => {
-    const classId = studentForm.classId;
-    const klass = classes.find(c => c.id === classId);
-    if (!klass) return { base: 0, fee: 0, total: 0, installments: [] };
-
-    let levelKey = klass.level as keyof typeof PRICES.LEVELS;
-    // Heuristique pour les classes d'examen
-    if (klass.name.includes('6ème')) levelKey = '6ème Année (CEE)';
-    if (klass.name.includes('10ème')) levelKey = '10ème Année (BEPC)';
-    if (klass.name.includes('Terminale')) levelKey = 'Terminale (BAC)';
-
-    const levelPrices = PRICES.LEVELS[levelKey] || PRICES.LEVELS['Primaire'];
-    const base = studentOptions.isReturning ? levelPrices.returning : levelPrices.new;
-    
-    // Règle des 3 enfants : on vérifie dans la famille si on a déjà 2 enfants (donc le 3e est gratuit)
-    // Pour simplifier, si on est en train d'ajouter un enfant à une famille qui en a déjà 2 ou plus.
-    let childrenCount = 1;
-    if (editingId) {
-      // Si on édite un élève, on pourrait chercher sa famille.
-      // Mais ici Inscrire un élève est pour les NOUVEAUX ou via PreInscription.
-    }
-    
-    // Si c'est une famille existante (via familyId sélectionné dans la modale)
-    if (studentForm.familyId) {
-       const family = parents.find(p => p.id === studentForm.familyId);
-       // On cherche combien d'enfants cette famille a déjà
-       const familyStudents = students.filter(s => s.familyId === studentForm.familyId);
-       childrenCount = familyStudents.length + 1;
-    }
-
-    const fee = childrenCount >= 3 ? 0 : PRICES.INSCRIPTION_FEE;
-    const total = base + fee;
-
-    // Plan de paiement (simplifié basé sur les fiches)
-    // Maternelle/Primaire: 1er (base 1st + fee), 2e (Dec), 3e (Feb)
-    // Lycée/Exam: 1er, 2e, 3e, 4e
-    const installments = [];
-    if (levelKey === 'Lycée' || levelKey.includes('Année') || levelKey.includes('Terminale')) {
-      // 4 versements
-      const firstBase = levelKey.includes('6ème') ? 4200000 : 5200000;
-      installments.push({ label: '1er Versement + Inscr', amount: (studentOptions.isReturning ? firstBase - 1200000 : firstBase) + fee });
-      installments.push({ label: '2ème Versement (Déc)', amount: levelKey.includes('6ème') ? 2000000 : 2500000 });
-      installments.push({ label: '3ème Versement (Fév)', amount: levelKey.includes('Terminale') ? 1600000 : 1100000 });
-      installments.push({ label: '4ème Versement (Mar)', amount: 1000000 });
-    } else {
-      // 3 versements
-      const firstBase = 2700000; // exemple Maternelle/Primaire
-      installments.push({ label: '1er Versement + Inscr', amount: (studentOptions.isReturning ? firstBase - 200000 : firstBase) + fee });
-      installments.push({ label: '2ème Versement (Déc)', amount: 2100000 });
-      installments.push({ label: '3ème Versement (Fév)', amount: levelKey === 'Maternelle' ? 1000000 : 1500000 });
-    }
-
-    return { base, fee, total, installments };
-  }, [studentForm.classId, studentOptions.isReturning, studentForm.familyId, classes, parents, students, editingId]);
 
   // ── Fetch parents ──────────────────────────────────────────────────────────
   const fetchParents = useCallback(async () => {
@@ -688,7 +607,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     const token = getToken();
     if (!token) return;
     try {
-      const API_BASE = (process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
+      const API_BASE = getApiBaseUrl();
       const res = await fetch(`${API_BASE}/courses/classes`, {
         headers: {
           'Content-Type': 'application/json',
@@ -902,18 +821,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     fc.students.some(s => safeIncludes(`${s.firstName ?? ''} ${s.lastName ?? ''}`, familySearchQ)),
   );
 
-  const familyStats = {
-    totalFamilles: familyCards.length,
-    totalEnfants:  familyCards.reduce((acc, f) => acc + f.students.length, 0),
-    fratries:      familyCards.filter(f => f.students.length > 1).length,
-  };
   const filteredTeachers  = teachers.filter(e =>
     safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
     safeIncludes(e.specialty, q)
-  );
-  const filteredFamilies = parents.filter(e =>
-    safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
-    safeIncludes(e.email, q)
   );
   const filteredEmployees = employees.filter(e =>
     safeIncludes(`${e.firstName ?? ''} ${e.lastName ?? ''}`, q) ||
@@ -1595,22 +1505,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     { key: 'actions', label: '', render: renderActions },
   ];
 
-  const allTabs = [
-    { id: 'eleves',      label: 'Élèves',      icon: GraduationCap, count: students.length  },
-    { id: 'enseignants', label: 'Enseignants', icon: UsersIcon,     count: teachers.length  },
-    { id: 'familles',    label: 'Familles',    icon: UserCheck,     count: familyCards.length   },
-    { id: 'employes',    label: 'Employés',    icon: Briefcase,     count: employees.length },
-  ];
-  let tabs = [...allTabs];
-  if (hideEmployeesTab) tabs = tabs.filter(t => t.id !== 'employes');
-  if (hideTeachersTab) tabs = tabs.filter(t => t.id !== 'enseignants');
 
   /** Sous-onglets pour la gestion des élèves (Pré-inscription / Réinscription / Inscription). */
-  const eleveSubTabs: { id: EleveSubTab; label: string; icon: any; count?: number }[] = [
-    { id: 'preinscription', label: 'Pré-inscription', icon: ClipboardList, count: visiblePreEnrollments.length },
-    { id: 'reinscription',  label: 'Réinscription',   icon: RefreshCw,     count: students.length },
-    { id: 'inscription',    label: 'Inscription',     icon: UserPlus,      count: students.length },
-  ];
 
   // Sécurité : si on cache l'onglet Employés ou Enseignants alors qu'il était sélectionné,
   // bascule sur l'onglet Élèves.

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { UserRole } from '../../types/auth';
+import { LoadingScreen } from '../ui';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -18,14 +19,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, user, isLoading, isInitialized } = useAuthStore();
 
   if (!isInitialized || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!isAuthenticated) {
@@ -46,6 +40,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       eleve: '/eleve/dashboard',
       comptable: '/comptable/dashboard',
       coordinator: '/coordinator/dashboard',
+      surveillant: '/surveillant/dashboard',
+      superadmin: '/superadmin/dashboard',
     };
     
     return (

@@ -3,6 +3,7 @@
  * Route : /pointage-prof/:token
  */
 import React, { useEffect, useState } from "react";
+import { SchoolLogo } from "../../components/shared/SchoolLogo";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -83,7 +84,7 @@ const QrTeacherPointage: React.FC = () => {
             <div className={`rounded-[2rem] overflow-hidden bg-gradient-to-br ${cfg.grad} shadow-2xl`}>
               {/* Header école */}
               <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-white/10">
-                <img src="/logo_eief.jpeg" alt="EIEF" className="w-10 h-10 rounded-full object-contain bg-white/90 p-1" />
+                <SchoolLogo alt="EIEF" className="w-10 h-10 rounded-full object-contain bg-white/90 p-1" />
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/50">Carte professeur</p>
                   <p className="text-white font-black text-sm">École EIEF</p>

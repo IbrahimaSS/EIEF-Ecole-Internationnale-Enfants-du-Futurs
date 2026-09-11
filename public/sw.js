@@ -6,7 +6,6 @@ const CACHE_IMAGES = `eief-images-${CACHE_VERSION}`;
 const APP_SHELL_URLS = [
   '/',
   '/index.html',
-  '/manifest.json',
   '/favicon.ico',
   '/logo192.png',
   '/logo512.png',

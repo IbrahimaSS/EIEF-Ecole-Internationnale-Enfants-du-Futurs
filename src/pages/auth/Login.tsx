@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { SchoolLogo } from "../../components/shared/SchoolLogo";
+import { useHostContext, useSchoolShortName } from "../../store/schoolIdentityStore";
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,6 +21,9 @@ import { Button, Badge } from '../../components/ui';
 import { cn } from '../../utils/cn';
 
 const Login: React.FC = () => {
+  const shortName = useSchoolShortName();
+  const hostContext = useHostContext();
+  const isPlatform = hostContext === 'platform';
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isLoading, error, clearError, isAuthenticated, user, isInitialized } = useAuthStore();
@@ -108,10 +113,10 @@ const Login: React.FC = () => {
 
             <div className="inline-flex items-center gap-3 mb-10">
               <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center p-2 shadow-2xl ring-2 ring-or-400/40 rotate-[-6deg]">
-                <img src="/logo_eief.jpeg" alt="EIEF" className="w-full h-full object-contain" />
+                <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
-                <span className="text-white font-black text-2xl tracking-tighter leading-none">EIEF</span>
+                <span className="text-white font-black text-2xl tracking-tighter leading-none">{shortName}</span>
                 <span className="text-or-300 text-[10px] font-bold uppercase tracking-widest mt-1">Éducation d'Excellence</span>
               </div>
             </div>
@@ -161,7 +166,7 @@ const Login: React.FC = () => {
             >
               <div className="text-left mb-8">
                 <Badge className="mb-4 bg-or-50 text-or-700 border border-or-200 font-black text-[10px] uppercase tracking-[0.2em] px-3 h-7">
-                  Accès {selectedRoleData.label}
+                  {isPlatform ? 'Accès Plateforme' : `Accès ${selectedRoleData.label}`}
                 </Badge>
                 <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">Portail de connexion</h2>
                 <p className="text-gray-500 font-semibold text-xs mt-3 uppercase tracking-widest">
@@ -170,8 +175,9 @@ const Login: React.FC = () => {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Sélecteur de rôle */}
-                <div className="flex flex-wrap gap-2 mb-6">
+                {/* Selecteur de role : sans objet sur le domaine racine, ou seul
+                    le super-administrateur peut se connecter. */}
+                <div className={cn('flex-wrap gap-2 mb-6', isPlatform ? 'hidden' : 'flex')}>
                   {roles.map((r) => (
                     <button
                       key={r.value}

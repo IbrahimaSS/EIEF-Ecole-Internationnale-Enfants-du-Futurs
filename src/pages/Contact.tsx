@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Send, MapPin, PhoneCall, Mail, Globe, Instagram, Facebook, Linkedin, Twitter,
@@ -11,18 +10,29 @@ import { cn } from '../utils/cn';
 import PublicNav from '../components/shared/PublicNav';
 import PageHero from '../components/shared/PageHero';
 import PublicFooter from '../components/shared/PublicFooter';
+import {
+  useSchoolAddress,
+  useSchoolEmail,
+  useSchoolFacebook,
+  useSchoolName,
+  useSchoolPhone,
+  useSchoolPhoneSecondary,
+} from '../store/schoolIdentityStore';
 
-const EIEF_PHONES = ['+224 625 549 579', '+224 628 848 437'];
-const EIEF_EMAIL = 'eiefinfos@enfantsdufutur.com';
-const EIEF_ADDRESS = 'C/Sanoyah — Sanoyah Rails, Guinée';
-const EIEF_FACEBOOK = 'https://www.facebook.com/share/18hUbQ4hgm/';
-const WHATSAPP_NUMBER = '224625549579';
-const MAP_QUERY = encodeURIComponent('Sanoyah Rails, Conakry, Guinée');
-const MAP_EMBED_URL = `https://www.google.com/maps?q=${MAP_QUERY}&output=embed`;
-const MAP_LINK = `https://www.google.com/maps/search/?api=1&query=${MAP_QUERY}`;
 
 const Contact: React.FC = () => {
-  const navigate = useNavigate();
+  const schoolName = useSchoolName();
+  const email = useSchoolEmail();
+  const primaryPhone = useSchoolPhone();
+  const secondaryPhone = useSchoolPhoneSecondary();
+  const address = useSchoolAddress();
+  const facebookUrl = useSchoolFacebook();
+
+  const phones = secondaryPhone ? [primaryPhone, secondaryPhone] : [primaryPhone];
+  const whatsappNumber = primaryPhone.replace(/\D/g, '');
+  const mapQuery = encodeURIComponent(address);
+  const mapEmbedUrl = `https://www.google.com/maps?q=${mapQuery}&output=embed`;
+  const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
   const [copied, setCopied] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, key: string) => {
@@ -33,33 +43,33 @@ const Contact: React.FC = () => {
 
   const contactInfos = [
     {
-      key: 'address', title: 'Adresse', value: EIEF_ADDRESS,
+      key: 'address', title: 'Adresse', value: address,
       sub: 'Ouvert du Lundi au Vendredi', icon: MapPin,
       color: 'text-bleu-600 dark:text-bleu-300', bg: 'bg-bleu-500/10',
       borderHover: 'hover:border-bleu-400',
-      action: () => window.open(MAP_LINK, '_blank'), actionLabel: 'Voir sur la carte',
+      action: () => window.open(mapLink, '_blank'), actionLabel: 'Voir sur la carte',
     },
     {
-      key: 'phone', title: 'Téléphone', value: EIEF_PHONES.join(' / '),
+      key: 'phone', title: 'Téléphone', value: phones.join(' / '),
       sub: 'Appelez-nous directement', icon: PhoneCall,
       color: 'text-or-600 dark:text-or-300', bg: 'bg-or-500/10',
       borderHover: 'hover:border-or-400',
-      action: () => { window.location.href = `tel:${EIEF_PHONES[0].replace(/\s/g, '')}`; },
+      action: () => { window.location.href = `tel:${phones[0].replace(/\s/g, '')}`; },
       actionLabel: 'Appeler',
     },
     {
-      key: 'email', title: 'E-mail', value: EIEF_EMAIL,
+      key: 'email', title: 'E-mail', value: email,
       sub: 'Réponse sous 24 h ouvrées', icon: Mail,
       color: 'text-rouge-500 dark:text-rouge-300', bg: 'bg-rouge-500/10',
       borderHover: 'hover:border-rouge-400',
-      action: () => { window.location.href = `mailto:${EIEF_EMAIL}`; }, actionLabel: 'Écrire',
+      action: () => { window.location.href = `mailto:${email}`; }, actionLabel: 'Écrire',
     },
     {
-      key: 'whatsapp', title: 'WhatsApp', value: EIEF_PHONES[0],
+      key: 'whatsapp', title: 'WhatsApp', value: phones[0],
       sub: 'Discutons en temps réel', icon: MessageCircle,
       color: 'text-vert-600 dark:text-vert-300', bg: 'bg-vert-500/10',
       borderHover: 'hover:border-vert-400',
-      action: () => window.open(`https://wa.me/${WHATSAPP_NUMBER}`, '_blank'),
+      action: () => window.open(`https://wa.me/${whatsappNumber}`, '_blank'),
       actionLabel: 'Ouvrir WhatsApp',
     },
   ];
@@ -83,7 +93,7 @@ const Contact: React.FC = () => {
         tagline="À votre écoute"
         actions={[
           { label: 'Nous écrire', onClick: () => { document.getElementById('formulaire')?.scrollIntoView({ behavior: 'smooth' }); }, variant: 'primary' },
-          { label: 'Nous appeler', onClick: () => { window.location.href = `tel:${EIEF_PHONES[0].replace(/\s/g, '')}`; }, variant: 'secondary' },
+          { label: 'Nous appeler', onClick: () => { window.location.href = `tel:${phones[0].replace(/\s/g, '')}`; }, variant: 'secondary' },
         ]}
       />
 
@@ -187,7 +197,7 @@ const Contact: React.FC = () => {
             viewport={{ once: true }}
             className="lg:col-span-2 relative h-[420px] lg:h-auto min-h-[420px] rounded-3xl overflow-hidden shadow-2xl border-4 border-white dark:border-white/10 group"
           >
-            <iframe src={MAP_EMBED_URL} title="Localisation EIEF" loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="w-full h-full border-0" />
+            <iframe src={mapEmbedUrl} title={`Localisation ${schoolName}`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="w-full h-full border-0" />
             <div className="absolute top-6 left-6 bg-white dark:bg-gray-900 px-4 py-3 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 flex items-center gap-3 max-w-xs">
               <div className="w-10 h-10 rounded-xl bg-bleu-500/15 text-bleu-600 dark:text-bleu-300 flex items-center justify-center shrink-0">
                 <MapPin size={18} />
@@ -198,7 +208,7 @@ const Contact: React.FC = () => {
               </div>
             </div>
             <a
-              href={MAP_LINK}
+              href={mapLink}
               target="_blank"
               rel="noopener noreferrer"
               className="absolute bottom-6 right-6 inline-flex items-center gap-2 bg-white dark:bg-gray-900 hover:bg-or-50 dark:hover:bg-or-900/30 px-4 py-3 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white hover:text-or-700 dark:hover:text-or-300 transition-all"
@@ -240,7 +250,7 @@ const Contact: React.FC = () => {
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Suivez-nous</p>
               <div className="flex flex-wrap gap-3">
                 {[
-                  { Icon: Facebook, href: EIEF_FACEBOOK, col: 'hover:text-white hover:bg-blue-600', label: 'Facebook' },
+                  { Icon: Facebook, href: facebookUrl, col: 'hover:text-white hover:bg-blue-600', label: 'Facebook' },
                   { Icon: Instagram, href: '#', col: 'hover:text-white hover:bg-pink-500', label: 'Instagram' },
                   { Icon: Twitter, href: '#', col: 'hover:text-white hover:bg-sky-500', label: 'Twitter' },
                   { Icon: Linkedin, href: '#', col: 'hover:text-white hover:bg-blue-700', label: 'LinkedIn' },

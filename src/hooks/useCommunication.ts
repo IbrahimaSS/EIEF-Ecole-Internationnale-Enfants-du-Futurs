@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import {
   AnnouncementResponse,
   MessageResponse,
-  STOMP_BROKER_URL,
+  stompBrokerUrl,
   getAnnouncements,
   getInbox,
   getSentMessages,
@@ -313,7 +313,7 @@ export function useCommunication(options: UseCommunicationOptions = {}) {
         const SockJS = (sockjsMod as any).default ?? sockjsMod;
 
         client = new Client({
-          webSocketFactory: () => new SockJS(STOMP_BROKER_URL),
+          webSocketFactory: () => new SockJS(stompBrokerUrl()),
           connectHeaders: {
             'enfantsfuture-auth-token': `enfantsfuture ${token}`,
           },

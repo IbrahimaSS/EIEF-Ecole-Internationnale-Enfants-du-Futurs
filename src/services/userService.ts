@@ -389,11 +389,8 @@ export const userService = {
 
   /** Télécharge le fichier Excel modèle d'import. */
   downloadImportTemplate: async (token: string): Promise<void> => {
-    const { AUTH_HEADER_NAME, AUTH_HEADER_PREFIX } = await import("./api");
-    const API_BASE_URL =
-      process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, "") ||
-      "http://localhost:8080/api/v1";
-    const response = await fetch(`${API_BASE_URL}/users/students/import-template`, {
+    const { AUTH_HEADER_NAME, AUTH_HEADER_PREFIX, getApiBaseUrl } = await import("./api");
+    const response = await fetch(`${getApiBaseUrl()}/users/students/import-template`, {
       headers: { [AUTH_HEADER_NAME]: `${AUTH_HEADER_PREFIX} ${token}` },
     });
     if (!response.ok) throw new Error("Impossible de télécharger le modèle");

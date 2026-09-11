@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { AuthStore, LoginCredentials, User } from "../types/auth";
-import { ApiError } from "../services/api";
+import { ApiError, setUnauthorizedHandler } from "../services/api";
 import { fetchAuthenticatedUser, loginRequest } from "../services/authService";
 
 const getErrorMessage = (error: unknown): string => {
@@ -121,3 +121,11 @@ export const useAuthStore = create<AuthStore>()(
     },
   ),
 );
+
+// Une session refusee par l'API doit vider l'etat local : sans cela l'application
+// continue de croire l'utilisateur connecte jusqu'au prochain rechargement.
+setUnauthorizedHandler(() => {
+  if (useAuthStore.getState().isAuthenticated) {
+    useAuthStore.getState().logout();
+  }
+});

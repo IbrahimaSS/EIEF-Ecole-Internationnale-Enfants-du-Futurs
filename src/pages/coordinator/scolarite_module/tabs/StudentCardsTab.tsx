@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { SchoolLogo } from "../../../../components/shared/SchoolLogo";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
 import {
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import { Avatar, Badge, Button, Card } from "../../../../components/ui";
 import { cn } from "../../../../utils/cn";
-import { studentCardService, buildStudentCardPointageUrl, buildStudentCardPublicUrl } from "../../../../services/studentCardService";
+import { studentCardService, buildStudentCardPointageUrl } from "../../../../services/studentCardService";
 import { printStudentCard } from "../utils/printStudentCard";
 import { useAdminSettings, SETTING_KEYS } from "../../../../hooks/useAdminSettings";
 import { ClassResponse, StudentCardSummary, StudentResponse } from "../types";
@@ -260,7 +261,7 @@ const StudentCardsTab: React.FC<Props> = ({
             <div className="space-y-6">
               <div className="rounded-[28px] overflow-hidden bg-gradient-to-br from-slate-950 via-bleu-900 to-cyan-700 text-white shadow-2xl shadow-bleu-900/20">
                 <div className="px-6 py-5 border-b border-white/10 flex items-center gap-4">
-                  <img src="/logo_eief.jpeg" alt="EIEF" className="w-12 h-12 rounded-full object-contain bg-white/90 p-1.5" />
+                  <SchoolLogo alt="EIEF" className="w-12 h-12 rounded-full object-contain bg-white/90 p-1.5" />
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-[0.25em] text-amber-200 font-bold">Carte scolaire</p>
                     <h3 className="text-xl font-black truncate">{selectedStudent.firstName} {selectedStudent.lastName}</h3>

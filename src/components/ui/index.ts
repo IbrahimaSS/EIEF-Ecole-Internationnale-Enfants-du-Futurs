@@ -8,3 +8,4 @@ export { default as Table } from './Table';
 export * from './Popover';
 export { default as Avatar } from './Avatar';
 export { default as Select } from './Select';
+export { default as LoadingScreen } from './LoadingScreen';
