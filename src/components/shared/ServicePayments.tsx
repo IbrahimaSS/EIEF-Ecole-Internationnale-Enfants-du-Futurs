@@ -23,7 +23,6 @@ import {
   PaymentResponse,
   PaymentMethod,
   ExpenseResponse,
-  ExpenseRequestPayload,
   ExpenseCategoryResponse,
 } from '../../services/accountingService';
 import { apiRequest } from '../../services/api';
@@ -125,7 +124,7 @@ const ServicePayments: React.FC<ServicePaymentsProps> = ({ module, moduleLabel, 
     } finally {
       setLoading(false);
     }
-  }, [module, modules]);
+  }, [modules]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

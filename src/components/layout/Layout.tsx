@@ -49,7 +49,6 @@ const Layout: React.FC<LayoutProps> = ({
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 transition-colors relative overflow-hidden">

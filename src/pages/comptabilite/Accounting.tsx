@@ -4,7 +4,6 @@ import {
   Wallet,
   Search,
   Plus,
-  MoreVertical,
   Trash2,
   CheckCircle2,
   X,
@@ -18,13 +17,12 @@ import {
   FileText,
   TrendingUp,
   Receipt,
-  ArrowDownCircle,
   QrCode,
 } from 'lucide-react';
 import { printReceipt } from '../../utils/printReceipt';
 import QrFinanceModal from '../../components/shared/QrFinanceModal';
 import FamilyCardsTab, { FamilyEntry } from '../../components/shared/FamilyCardsTab';
-import { Table, Badge, StatCard, Card, Button, Modal, Input, Popover, Avatar } from '../../components/ui';
+import { Table, Badge, StatCard, Card, Button, Modal, Input, Avatar } from '../../components/ui';
 import { accountingService, PaymentMethod, PaymentResponse, TuitionFeeFamilyStatusResponse } from '../../services/accountingService';
 import TuitionModalityManager from './components/TuitionModalityManager';
 import { AcademicYearOption, ClassOption, TuitionFeePayload, TuitionFeeResponse } from './types';

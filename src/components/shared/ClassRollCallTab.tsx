@@ -20,7 +20,6 @@ import {
   Loader2,
   Phone,
   RefreshCw,
-  Users,
   XCircle,
 } from "lucide-react";
 import { Card, Button } from "../ui";

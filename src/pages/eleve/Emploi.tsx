@@ -8,7 +8,6 @@ import {
   Download,
   ChevronRight,
   ChevronLeft,
-  Bell,
   AlarmClock,
   Loader2,
   AlertCircle,
@@ -25,7 +24,6 @@ import {
   getNextCourse,
 } from '../../utils/scheduleUtils';
 import { ScheduleResponse } from '../../types/schedule';
-import { useAuthStore } from '../../store/authStore'; // adapte le chemin si besoin
 
 // ─── Color map ─────────────────────────────────────────────────────────────────
 const getColorClasses = (color: string): string => {
@@ -61,8 +59,6 @@ const ROW_HEIGHT_PX = 80;
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 const EleveEmploi: React.FC = () => {
-  const { user } = useAuthStore();
-  const studentId = user?.id ?? '';
 
   const { data: schedules, isLoading, error, refetch } = useStudentSchedule();
 

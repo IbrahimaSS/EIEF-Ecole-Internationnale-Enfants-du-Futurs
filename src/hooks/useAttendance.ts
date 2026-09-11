@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { attendanceService } from "../services/attendanceService";
 import {
   AttendanceRequest,
-  BulkAttendanceRequest,
 } from "../types/academic";
 import { toast } from "sonner"; // ou ta lib de notifications
 

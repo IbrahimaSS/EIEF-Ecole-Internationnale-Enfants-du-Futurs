@@ -44,7 +44,7 @@ const EleveProfile: React.FC = () => {
         setLastName(s.lastName || user?.lastName || '');
       })
       .catch(console.error);
-  }, [user?.id]);
+  }, [user?.id, user?.firstName, user?.lastName]);
 
   const [imgError, setImgError] = useState(false);
 
@@ -103,7 +103,7 @@ const EleveProfile: React.FC = () => {
 
       console.log("Envoi du payload avec image Base64...");
 
-      const updatedUser = await apiRequest<any>('/users/me', {
+      await apiRequest<any>('/users/me', {
         method: 'PUT',
         token: token || undefined,
         body: JSON.stringify(payload),

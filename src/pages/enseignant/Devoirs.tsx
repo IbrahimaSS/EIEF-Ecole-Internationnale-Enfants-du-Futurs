@@ -9,8 +9,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertCircle, BookOpen, Calendar, Camera, CheckCircle2,
-  ChevronDown, ChevronUp, Clock, FileText, Loader2,
-  MessageSquare, Paperclip, Plus, Star, Upload, Users, X,
+  ChevronDown, ChevronUp, FileText, Loader2,
+  MessageSquare, Paperclip, Plus, Star, Users, X,
 } from 'lucide-react';
 import { Card, Button } from '../../components/ui';
 import { cn } from '../../utils/cn';
@@ -110,6 +110,9 @@ const TeacherDevoirs: React.FC = () => {
     }
   };
 
+  // loadHomeworks est redefinie a chaque rendu : l'ajouter aux dependances
+  // relancerait le chargement en boucle. Le rechargement doit suivre la session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void loadHomeworks(); }, [user?.id, token]);
 
   const openCreate = () => {

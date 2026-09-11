@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Gamepad2, Plus, Search, Filter, Edit3, Trash2, 
-  Gamepad, BookOpen, Calculator, Brain, Languages, Globe, Leaf,
-  ChevronRight, Save, X, Sparkles, Trophy, ListOrdered, CheckCircle2, AlertCircle
+  Gamepad2, Plus, Search, Edit3, Trash2, 
+  BookOpen, Globe, 
+  ChevronRight, Save, X, Sparkles, Trophy, ListOrdered, CheckCircle2
 } from 'lucide-react';
 import { Card, Button, Badge } from '../../components/ui';
 import { GAMES_DATABASE, GameDef, CLASS_LEVELS, SUBJECTS } from './gamesData';

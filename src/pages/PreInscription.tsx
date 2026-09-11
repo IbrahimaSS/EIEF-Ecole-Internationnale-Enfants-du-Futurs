@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-  GraduationCap,
   Camera,
   Upload,
   Eye,
@@ -641,7 +640,7 @@ const EnfantCard: React.FC<{
             {enfant.photoDataUrl ? (
               <img
                 src={enfant.photoDataUrl}
-                alt={`Photo de ${enfant.prenom || "l'eleve"}`}
+                alt={enfant.prenom || "Eleve"}
                 className="w-full h-full object-cover"
               />
             ) : (

@@ -8,7 +8,6 @@ import {
   Sprout,
   GraduationCap,
   Bus as BusIcon,
-  Ticket,
   Briefcase,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';

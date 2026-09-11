@@ -9,7 +9,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertCircle, BookOpen, Calendar, CheckCircle2, Clock,
-  FileText, Loader2, MessageSquare, Paperclip, Star, X,
+  FileText, Loader2, MessageSquare, Paperclip, Star, 
 } from 'lucide-react';
 import { Card } from '../../components/ui';
 import { cn } from '../../utils/cn';

@@ -25,14 +25,11 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from 'recharts';
 import { StatCard, Card } from '../../components/ui';
 import {
   accountingService,
   MonthlyReportResponse,
-  MonthlyReportModuleResponse,
-  MonthlyReportTransactionResponse,
 } from '../../services/accountingService';
 import { getApiBaseUrl, AUTH_HEADER_NAME, AUTH_HEADER_PREFIX } from '../../services/api';
 

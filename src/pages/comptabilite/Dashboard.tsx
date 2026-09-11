@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Users, GraduationCap, Wallet,
-  AlertCircle, BookOpen, ShoppingBag, Clock, ArrowRight, Package, PieChart as PieChartIcon, BarChart2
+  GraduationCap, Wallet,
+  AlertCircle, BookOpen, ShoppingBag, ArrowRight, Package, PieChart as PieChartIcon, BarChart2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { StatCard, Card, Badge, Button } from '../../components/ui';
+import { StatCard, Card, Badge } from '../../components/ui';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import { getLowStockProducts, ProductResponse } from '../../services/storeServices';
 

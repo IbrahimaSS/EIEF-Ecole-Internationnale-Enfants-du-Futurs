@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowUpRight, ArrowDownRight, Minus, Repeat, RefreshCw, CheckCircle2,
-  AlertCircle, Loader2, GraduationCap, Users, Trophy, Sparkles,
+  AlertCircle, Loader2, GraduationCap, Trophy, Sparkles,
 } from 'lucide-react';
 import { Button, Card } from '../../components/ui';
 import { apiRequest } from '../../services/api';
