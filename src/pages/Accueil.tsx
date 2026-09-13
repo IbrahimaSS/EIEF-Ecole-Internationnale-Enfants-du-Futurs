@@ -41,16 +41,16 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui';
 import { cn } from '../utils/cn';
+import { useSchoolIdentityStore, useSchoolName, useSchoolShortName } from '../store/schoolIdentityStore';
 
-const FACEBOOK_PAGE = 'https://www.facebook.com/share/18hUbQ4hgm/';
 
 // ✅ REMPLACE ICI les IDs YouTube après avoir uploadé tes vidéos
 // Format : prends l'URL https://www.youtube.com/watch?v=XXXXXXXXXXX
 // et copie uniquement la partie après "v=" ici
 const YT_VIDEOS = [
-  { id: 'gWJi5Vx50zI', title: 'Vidéo EIEF 1' },
-  { id: 'KrkrAY1l0TI', title: 'Vidéo EIEF 2' },
-  { id: '5hN4gw8WloM', title: 'Vidéo EIEF 3' },
+  { id: 'gWJi5Vx50zI', title: 'Vidéo 1' },
+  { id: 'KrkrAY1l0TI', title: 'Vidéo 2' },
+  { id: '5hN4gw8WloM', title: 'Vidéo 3' },
 ];
 
 const NIVEAUX = [
@@ -71,6 +71,10 @@ const isIOS = () =>
 
 const Accueil: React.FC = () => {
   const navigate = useNavigate();
+  const schoolName = useSchoolName();
+  const shortName = useSchoolShortName();
+  const identity = useSchoolIdentityStore((state) => state.identity);
+  const phones = [identity?.phone, identity?.phoneSecondary].filter(Boolean).join(' / ');
   const { isInstallable, isInstalled, install } = usePWAInstall();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -166,10 +170,10 @@ const Accueil: React.FC = () => {
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
             <div className="w-11 h-11 bg-white rounded-xl p-1.5 shadow-xl ring-2 ring-or-400/40 transition-transform group-hover:scale-110">
-              <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
+              <SchoolLogo alt={shortName} className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col text-left">
-              <span className={cn('text-lg font-black tracking-tighter leading-none transition-colors', scrolled ? 'text-gray-900 dark:text-white' : 'text-white')}>EIEF</span>
+              <span className={cn('text-lg font-black tracking-tighter leading-none transition-colors', scrolled ? 'text-gray-900 dark:text-white' : 'text-white')}>{shortName}</span>
               <span className={cn('text-[8px] font-bold uppercase tracking-widest transition-colors', scrolled ? 'text-vert-600 dark:text-or-400' : 'text-or-300')}>Éducation d'Excellence</span>
             </div>
           </div>
@@ -233,7 +237,7 @@ const Accueil: React.FC = () => {
             const img = e.currentTarget;
             if (!img.src.endsWith('/Img1.jpeg')) img.src = '/Img1.jpeg';
           }}
-          alt="EIEF — Campus"
+          alt={`${schoolName} — Campus`}
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div
@@ -255,16 +259,14 @@ const Accueil: React.FC = () => {
           </motion.div>
 
           <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.1 }} className="font-black uppercase tracking-tight leading-[1] mb-2 max-w-4xl">
-            <span className="block text-2xl md:text-4xl text-rouge-500 drop-shadow-lg" style={{ letterSpacing: '0.15em' }}>ECOLE INTERNATIONALE</span>
-            <span className="block text-4xl md:text-6xl lg:text-7xl mt-1 drop-shadow-lg">
-              <span className="text-or-400">LES ENFANTS</span>{' '}
-              <span className="text-vert-400">DU FUTUR</span>
-            </span>
+            <span className="block text-4xl md:text-6xl lg:text-7xl mt-1 text-or-400 drop-shadow-lg">{schoolName}</span>
           </motion.h1>
 
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.9, delay: 0.3 }} className="text-lg md:text-2xl text-white italic font-bold mb-8 drop-shadow-lg">
-            Faisons plus !
-          </motion.p>
+          {identity?.slogan && (
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.9, delay: 0.3 }} className="text-lg md:text-2xl text-white italic font-bold mb-8 drop-shadow-lg">
+              {identity.slogan}
+            </motion.p>
+          )}
 
           <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.4 }} className="text-3xl md:text-5xl lg:text-6xl font-black text-white leading-tight mb-6 max-w-3xl drop-shadow-2xl">
             Investir maintenant<br />
@@ -272,7 +274,7 @@ const Accueil: React.FC = () => {
           </motion.h2>
 
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.9, delay: 0.5 }} className="text-base md:text-lg text-white/95 font-medium leading-relaxed max-w-2xl mb-10 drop-shadow-md">
-            L'École Internationale Enfant du Futur offre un enseignement d'excellence dans un environnement moderne et bienveillant, de la Crèche au Lycée.
+            {schoolName} offre un enseignement d'excellence dans un environnement moderne et bienveillant, de la Crèche au Lycée.
           </motion.p>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.6 }} className="flex flex-wrap gap-4">
@@ -424,7 +426,7 @@ const Accueil: React.FC = () => {
               Notre école en vidéo
             </h2>
             <p className="text-base md:text-lg text-gray-500 dark:text-gray-400 font-medium mt-4 max-w-2xl mx-auto">
-              Découvrez l'ambiance et les activités de l'École Internationale Les Enfants du Futur.
+              Découvrez l'ambiance et les activités de {schoolName}.
             </p>
           </div>
 
@@ -453,16 +455,18 @@ const Accueil: React.FC = () => {
             ))}
           </div>
 
-          <div className="text-center mt-8">
-            <a
-              href={FACEBOOK_PAGE}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest shadow-lg transition-all hover:scale-105"
-            >
-              <Facebook size={16} /> Voir toutes nos vidéos sur Facebook
-            </a>
-          </div>
+          {identity?.facebookUrl && (
+            <div className="text-center mt-8">
+              <a
+                href={identity.facebookUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest shadow-lg transition-all hover:scale-105"
+              >
+                <Facebook size={16} /> Voir toutes nos vidéos sur Facebook
+              </a>
+            </div>
+          )}
         </div>
       </section>
 
@@ -643,26 +647,29 @@ const Accueil: React.FC = () => {
           <div>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-white p-1.5 rounded-2xl shadow-lg ring-2 ring-or-400/30">
-                <SchoolLogo alt="EIEF" className="w-full h-full object-contain" />
+                <SchoolLogo alt={shortName} className="w-full h-full object-contain" />
               </div>
               <div>
-                <p className="text-base font-black text-white leading-tight">École Internationale</p>
-                <p className="text-sm font-bold text-vert-400 leading-tight">Les Enfants du Futur</p>
+                <p className="text-base font-black text-white leading-tight">{schoolName}</p>
               </div>
             </div>
             <p className="text-sm text-white/60 font-medium leading-relaxed mb-6 max-w-xs">
               Un établissement d'excellence dédié à l'épanouissement et à la réussite de chaque enfant.
             </p>
             <div className="flex gap-3">
-              <a href={FACEBOOK_PAGE} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all">
-                <Facebook size={18} />
-              </a>
+              {identity?.facebookUrl && (
+                <a href={identity.facebookUrl} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all">
+                  <Facebook size={18} />
+                </a>
+              )}
               <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-red-400 hover:bg-red-600 hover:text-white transition-all">
                 <Youtube size={18} />
               </a>
-              <a href="mailto:eiefinfos@enfantsdufutur.com" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-or-400 hover:bg-or-600 hover:text-gray-950 transition-all">
-                <Mail size={18} />
-              </a>
+              {identity?.email && (
+                <a href={`mailto:${identity.email}`} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-or-400 hover:bg-or-600 hover:text-gray-950 transition-all">
+                  <Mail size={18} />
+                </a>
+              )}
             </div>
           </div>
 
@@ -721,18 +728,24 @@ const Accueil: React.FC = () => {
           <div>
             <h5 className="text-base font-black text-white mb-6">Contact</h5>
             <ul className="space-y-4 text-sm">
-              <li className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-vert-500/15 flex items-center justify-center text-vert-400 shrink-0"><PhoneCall size={16} /></div>
-                <span className="text-white/80 font-medium">+224 625 549 579 / 628 848 437</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rouge-500/15 flex items-center justify-center text-rouge-400 shrink-0"><Mail size={16} /></div>
-                <span className="text-white/80 font-medium break-all">eiefinfos@enfantsdufutur.com</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-or-500/15 flex items-center justify-center text-or-400 shrink-0"><MapPin size={16} /></div>
-                <span className="text-white/80 font-medium">C/Sanoyah - Sanoyah Rails, Guinée</span>
-              </li>
+              {phones && (
+                <li className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-vert-500/15 flex items-center justify-center text-vert-400 shrink-0"><PhoneCall size={16} /></div>
+                  <span className="text-white/80 font-medium">{phones}</span>
+                </li>
+              )}
+              {identity?.email && (
+                <li className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rouge-500/15 flex items-center justify-center text-rouge-400 shrink-0"><Mail size={16} /></div>
+                  <span className="text-white/80 font-medium break-all">{identity.email}</span>
+                </li>
+              )}
+              {identity?.address && (
+                <li className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-or-500/15 flex items-center justify-center text-or-400 shrink-0"><MapPin size={16} /></div>
+                  <span className="text-white/80 font-medium">{identity.address}</span>
+                </li>
+              )}
             </ul>
           </div>
         </div>
@@ -759,7 +772,7 @@ const Accueil: React.FC = () => {
           >
             <div className="flex items-center gap-3 mb-5">
               <div className="w-12 h-12 rounded-2xl bg-bleu-50 dark:bg-bleu-900/20 flex items-center justify-center">
-                <img src="/logo192.png" alt="EIEF" className="w-9 h-9 rounded-xl" />
+                <img src="/logo192.png" alt={shortName} className="w-9 h-9 rounded-xl" />
               </div>
               <div>
                 <h3 className="font-black text-gray-900 dark:text-white text-base">Installer l'application</h3>
