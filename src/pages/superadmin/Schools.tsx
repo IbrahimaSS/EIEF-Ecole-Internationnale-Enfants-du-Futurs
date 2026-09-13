@@ -3,7 +3,12 @@ import { AlertCircle, Building2, Globe, Mail, Plus, RefreshCw } from 'lucide-rea
 import { toast } from 'sonner';
 import { Badge, Button, Card, Input, Modal, Table } from '../../components/ui';
 import { useSchools } from '../../hooks/useSchools';
-import { SUBDOMAIN_PATTERN, SchoolResponse, SchoolStatus } from '../../services/platformService';
+import {
+  SUBDOMAIN_PATTERN,
+  SchoolProfileRequest,
+  SchoolResponse,
+  SchoolStatus,
+} from '../../services/platformService';
 
 const STATUS_VARIANT: Record<SchoolStatus, 'success' | 'warning' | 'error'> = {
   ACTIVE: 'success',
@@ -23,7 +28,30 @@ const EMPTY_FORM = {
   adminFirstName: '',
   adminLastName: '',
   adminEmail: '',
+  shortName: '',
+  slogan: '',
+  contactEmail: '',
+  phone: '',
+  phoneSecondary: '',
+  address: '',
+  facebookUrl: '',
 };
+
+const PROFILE_FIELDS: Array<{ field: keyof typeof EMPTY_FORM; key: keyof SchoolProfileRequest }> = [
+  { field: 'shortName', key: 'shortName' },
+  { field: 'slogan', key: 'slogan' },
+  { field: 'contactEmail', key: 'email' },
+  { field: 'phone', key: 'phone' },
+  { field: 'phoneSecondary', key: 'phoneSecondary' },
+  { field: 'address', key: 'address' },
+  { field: 'facebookUrl', key: 'facebookUrl' },
+];
+
+const profileOf = (form: typeof EMPTY_FORM): SchoolProfileRequest =>
+  PROFILE_FIELDS.reduce<SchoolProfileRequest>((profile, { field, key }) => {
+    const value = form[field].trim();
+    return value ? { ...profile, [key]: value } : profile;
+  }, {});
 
 const SuperAdminSchools: React.FC = () => {
   const { schools, pendingAdminSchoolIds, loading, error, refetch, registerSchool, resendAdminCredentials } =
@@ -74,6 +102,7 @@ const SuperAdminSchools: React.FC = () => {
           firstName: form.adminFirstName.trim(),
           lastName: form.adminLastName.trim(),
         },
+        profile: profileOf(form),
       });
       toast.success(`École « ${created.name} » enregistrée sur ${created.subdomain}.`, {
         description: `Les identifiants du directeur ont été envoyés à ${form.adminEmail.trim()}.`,
@@ -241,13 +270,66 @@ const SuperAdminSchools: React.FC = () => {
                 value={form.adminLastName}
                 onChange={(e) => setField('adminLastName', e.target.value)}
               />
+              <div className="sm:col-span-2">
+                <Input
+                  label="E-mail"
+                  type="email"
+                  helper="Un mot de passe temporaire y sera envoyé."
+                  value={form.adminEmail}
+                  onChange={(e) => setField('adminEmail', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-5 dark:border-white/10">
+            <p className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+              Identité de l'école — facultatif
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
               <Input
-                label="E-mail"
-                type="email"
-                helper="Un mot de passe temporaire y sera envoyé."
-                value={form.adminEmail}
-                onChange={(e) => setField('adminEmail', e.target.value)}
+                label="Nom court"
+                placeholder="KIPÉ"
+                value={form.shortName}
+                onChange={(e) => setField('shortName', e.target.value)}
               />
+              <Input
+                label="Slogan"
+                value={form.slogan}
+                onChange={(e) => setField('slogan', e.target.value)}
+              />
+              <Input
+                label="E-mail de contact"
+                type="email"
+                helper="Par défaut, celui du directeur."
+                value={form.contactEmail}
+                onChange={(e) => setField('contactEmail', e.target.value)}
+              />
+              <Input
+                label="Adresse"
+                placeholder="Quartier, commune, ville"
+                value={form.address}
+                onChange={(e) => setField('address', e.target.value)}
+              />
+              <Input
+                label="Téléphone"
+                value={form.phone}
+                onChange={(e) => setField('phone', e.target.value)}
+              />
+              <Input
+                label="Téléphone secondaire"
+                value={form.phoneSecondary}
+                onChange={(e) => setField('phoneSecondary', e.target.value)}
+              />
+              <div className="sm:col-span-2">
+                <Input
+                  label="Page Facebook"
+                  type="url"
+                  placeholder="https://www.facebook.com/..."
+                  value={form.facebookUrl}
+                  onChange={(e) => setField('facebookUrl', e.target.value)}
+                />
+              </div>
             </div>
           </div>
 

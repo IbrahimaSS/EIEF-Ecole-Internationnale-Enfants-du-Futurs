@@ -30,10 +30,21 @@ export interface AdminAccountRequest {
   lastName: string;
 }
 
+export interface SchoolProfileRequest {
+  shortName?: string;
+  slogan?: string;
+  email?: string;
+  phone?: string;
+  phoneSecondary?: string;
+  address?: string;
+  facebookUrl?: string;
+}
+
 export interface RegisterSchoolRequest {
   name: string;
   subdomain: string;
   admin: AdminAccountRequest;
+  profile?: SchoolProfileRequest;
 }
 
 export interface ResentCredentialsResponse {
