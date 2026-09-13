@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { AuthStore, LoginCredentials, User } from "../types/auth";
-import { ApiError, setUnauthorizedHandler } from "../services/api";
-import { fetchAuthenticatedUser, loginRequest } from "../services/authService";
+import { AuthStore, ChangePasswordRequest, LoginCredentials, User } from "../types/auth";
+import { ApiError, setPasswordChangeRequiredHandler, setUnauthorizedHandler } from "../services/api";
+import { changePasswordRequest, fetchAuthenticatedUser, loginRequest } from "../services/authService";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
@@ -110,6 +110,22 @@ export const useAuthStore = create<AuthStore>()(
       clearError: () => {
         set({ error: null });
       },
+
+      changePassword: async (request: ChangePasswordRequest) => {
+        const { token } = get();
+        if (!token) {
+          throw new Error("Session expiree : reconnectez-vous.");
+        }
+        const user = await changePasswordRequest(token, request);
+        set({ user });
+      },
+
+      requirePasswordChange: () => {
+        const { user } = get();
+        if (user && !user.mustChangePassword) {
+          set({ user: { ...user, mustChangePassword: true } });
+        }
+      },
     }),
     {
       name: "auth-storage",
@@ -128,4 +144,8 @@ setUnauthorizedHandler(() => {
   if (useAuthStore.getState().isAuthenticated) {
     useAuthStore.getState().logout();
   }
+});
+
+setPasswordChangeRequiredHandler(() => {
+  useAuthStore.getState().requirePasswordChange();
 });

@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/authStore';
 import { UserRole } from '../../types/auth';
 import { LoadingScreen } from '../ui';
 
+export const CHANGE_PASSWORD_PATH = '/changer-mot-de-passe';
+
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
@@ -30,6 +32,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         replace 
       />
     );
+  }
+
+  if (user?.mustChangePassword && location.pathname !== CHANGE_PASSWORD_PATH) {
+    return <Navigate to={CHANGE_PASSWORD_PATH} replace />;
   }
 
   if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.role)) {

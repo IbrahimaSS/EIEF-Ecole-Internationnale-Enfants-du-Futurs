@@ -23,11 +23,13 @@ export interface StudentResponse {
   /** @deprecated conservé pour rétrocompat, alimenté manuellement côté UI */
   parentName?: string;
   isActive: boolean;
+  mustChangePassword: boolean;
+  /** Présent seulement à la création, quand aucun parent ne peut recevoir les identifiants. */
+  temporaryPassword?: string;
 }
 
 export interface StudentRequest {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   phone?: string;
@@ -135,8 +137,6 @@ export interface PreEnrollmentResponse {
 
 export interface PreEnrollmentApprovalRequest {
   studentEmail: string;
-  studentPassword: string;
-  parentTemporaryPassword?: string;
   arrivalYear?: number;
   registrationNumber?: string;
   studentAvatarUrl?: string;
@@ -166,11 +166,11 @@ export interface TeacherResponse {
   specialty: string;
   hireDate: string;
   isActive: boolean;
+  mustChangePassword: boolean;
 }
 
 export interface TeacherRequest {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   phone?: string;
@@ -190,6 +190,7 @@ export interface ParentResponse {
   phone: string;
   roleName: string;
   isActive: boolean;
+  mustChangePassword: boolean;
   familyId?: string;
   address?: string;
   relationship?: string;
@@ -197,7 +198,6 @@ export interface ParentResponse {
 
 export interface ParentRequest {
   email: string;
-  password?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
@@ -220,7 +220,6 @@ export interface FamilyEnrollmentRequest {
   studentGender: "M" | "F" | "";
   targetClassId: string;
   studentEmail: string;
-  studentPassword: string;
   registrationNumber?: string;
   studentAvatarUrl?: string;
   // ─── Père (= guardian principal) ───
@@ -230,7 +229,6 @@ export interface FamilyEnrollmentRequest {
   fatherPhone: string;
   fatherProfession?: string;
   fatherAddress: string;
-  fatherTemporaryPassword?: string;
   /** Lien du tuteur principal avec l'élève : "Pere" (défaut), "Mere", "Tuteur"... */
   guardianRelationship?: string;
   // ─── Mère (optionnelle) ───
@@ -265,11 +263,11 @@ export interface EmployeeResponse {
   phone: string;
   roleName: string;
   isActive: boolean;
+  mustChangePassword: boolean;
 }
 
 export interface EmployeeRequest {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   phone?: string;
@@ -286,6 +284,7 @@ export interface AdminUserResponse {
   active?: boolean;
   isActive?: boolean;
   avatarUrl?: string | null;
+  mustChangePassword: boolean;
 }
 
 export interface ContactResponse {
@@ -335,11 +334,24 @@ export interface BulkImportRowError {
   reason: string;
 }
 
+export interface AccountCredentials {
+  fullName: string;
+  login: string;
+  temporaryPassword: string;
+}
+
 export interface BulkImportResponse {
   totalRows: number;
   successCount: number;
   errorCount: number;
   errors: BulkImportRowError[];
+  /** Élèves dont aucun parent ne peut recevoir les identifiants : à transmettre à la main. */
+  undeliveredCredentials: AccountCredentials[];
+}
+
+export interface ResentCredentialsResponse {
+  recipients: string[];
+  temporaryPassword?: string;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -402,6 +414,12 @@ export const userService = {
     a.click();
     URL.revokeObjectURL(url);
   },
+
+  resendCredentials: (token: string, userId: string) =>
+    apiRequest<ResentCredentialsResponse>(`/users/${userId}/credentials`, {
+      method: "POST",
+      token,
+    }),
 
   /** Importe des élèves depuis un fichier Excel. */
   bulkImportStudents: (token: string, file: File) => {
@@ -537,8 +555,6 @@ export const userService = {
 
     const approvalPayload: any = {
       studentEmail: payload.studentEmail,
-      studentPassword: payload.studentPassword,
-      parentTemporaryPassword: payload.fatherTemporaryPassword || undefined,
       registrationNumber: payload.registrationNumber,
       studentAvatarUrl: payload.studentAvatarUrl || undefined,
     };
@@ -569,13 +585,10 @@ export const userService = {
       payload.motherEmail?.trim()
     ) {
       try {
-        await apiRequest<unknown>("/users/auth/register", {
+        await apiRequest<unknown>("/users", {
           method: "POST",
           body: JSON.stringify({
             email: payload.motherEmail.trim(),
-            password:
-              payload.fatherTemporaryPassword ||
-              `Maman${Math.floor(Math.random() * 10000)}!`,
             firstName: payload.motherFirstName.trim(),
             lastName: payload.motherLastName.trim(),
             phone: payload.motherPhone?.trim() || "",
@@ -641,7 +654,7 @@ export const userService = {
     ),
 
   createParent: (token: string, payload: ParentRequest) =>
-    apiRequest<ParentResponse>("/users/auth/register", {
+    apiRequest<ParentResponse>("/users", {
       method: "POST",
       body: JSON.stringify({ ...payload, roleName: "PARENT" }),
       token,
@@ -668,7 +681,7 @@ export const userService = {
     ),
 
   createEmployee: (token: string, payload: EmployeeRequest) =>
-    apiRequest<EmployeeResponse>("/users/auth/register", {
+    apiRequest<EmployeeResponse>("/users", {
       method: "POST",
       body: JSON.stringify(payload),
       token,

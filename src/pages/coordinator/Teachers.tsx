@@ -77,7 +77,6 @@ const getAttendanceLabel = (status?: string) => {
 
 const emptyTeacher = (): TeacherRequest => ({
   email: '',
-  password: '',
   firstName: '',
   lastName: '',
   phone: '',
@@ -257,15 +256,9 @@ const CoordinatorTeachers: React.FC = () => {
       !teacherForm.firstName.trim()
       || !teacherForm.lastName.trim()
       || !teacherForm.email.trim()
-      || !teacherForm.password.trim()
       || !teacherForm.employeeNumber.trim()
     ) {
-      setTeacherSubmitError('Prénom, nom, email, mot de passe et matricule sont requis.');
-      return;
-    }
-
-    if (teacherForm.password.trim().length < 8) {
-      setTeacherSubmitError('Le mot de passe doit contenir au moins 8 caractères.');
+      setTeacherSubmitError('Prénom, nom, email et matricule sont requis.');
       return;
     }
 
@@ -277,7 +270,6 @@ const CoordinatorTeachers: React.FC = () => {
         firstName: teacherForm.firstName.trim(),
         lastName: teacherForm.lastName.trim(),
         email: teacherForm.email.trim(),
-        password: teacherForm.password.trim(),
         employeeNumber: teacherForm.employeeNumber.trim(),
         phone: teacherForm.phone?.trim() || undefined,
         specialty: teacherForm.specialty?.trim() || undefined,
@@ -635,16 +627,10 @@ const CoordinatorTeachers: React.FC = () => {
             <Input
               label="Email"
               type="email"
+              helper="Un mot de passe temporaire y sera envoyé."
               value={teacherForm.email}
               onChange={(event) => setTeacherForm((form) => ({ ...form, email: event.target.value }))}
               placeholder="enseignant@eief.edu.gn"
-            />
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={teacherForm.password}
-              onChange={(event) => setTeacherForm((form) => ({ ...form, password: event.target.value }))}
-              placeholder="Minimum 8 caractères"
             />
             <Input
               label="Matricule enseignant"

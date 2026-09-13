@@ -11,7 +11,7 @@ import {
   RefreshCw, ClipboardList, ChevronRight, Map as MapIcon, Wallet,
   Settings, Utensils, Bus, Car, Truck, Shirt, Tent, Swords,
   Rocket, Waves, Bot, Moon, Baby, Activity, Coins, Plus, X,
-  Upload, Download, FileSpreadsheet, CheckCircle, AlertTriangle, CreditCard,
+  Upload, Download, FileSpreadsheet, CheckCircle, AlertTriangle, CreditCard, KeyRound,
 } from 'lucide-react';
 import { Table, Badge, Avatar, Button, Card, Modal, Input, Select } from '../../components/ui';
 import NotificationToast from '../../components/shared/NotificationToast';
@@ -25,7 +25,7 @@ import type {
   ParentRequest, ParentResponse,
   EmployeeRequest, EmployeeResponse,
   PreEnrollmentResponse, PreEnrollmentStatus,
-  StudentResponse, BulkImportResponse,
+  StudentResponse, BulkImportResponse, AccountCredentials,
 } from '../../services/userService';
 import { detecterCycle } from '../comptabilite/tarifs';
 import { printFamilyCard } from './printFamilyCard';
@@ -60,7 +60,6 @@ const getToken = (): string | null => {
 
 const emptyStudent  = (): StudentRequest  => ({ 
   email: '', 
-  password: '', 
   firstName: '', 
   lastName: '', 
   phone: '', 
@@ -104,9 +103,9 @@ const emptyOptions = (): StudentOptionsType => ({
   garderie: false,
 });
 
-const emptyTeacher  = (): TeacherRequest  => ({ email: '', password: '', firstName: '', lastName: '', phone: '', employeeNumber: '', specialty: '', hireDate: '' });
-const emptyParent   = (): ParentRequest   => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT', address: '', relationship: '' });
-const emptyEmployee = (): EmployeeRequest => ({ email: '', password: '', firstName: '', lastName: '', phone: '', roleName: 'STAFF' });
+const emptyTeacher  = (): TeacherRequest  => ({ email: '', firstName: '', lastName: '', phone: '', employeeNumber: '', specialty: '', hireDate: '' });
+const emptyParent   = (): ParentRequest   => ({ email: '', firstName: '', lastName: '', phone: '', roleName: 'PARENT', address: '', relationship: '' });
+const emptyEmployee = (): EmployeeRequest => ({ email: '', firstName: '', lastName: '', phone: '', roleName: 'STAFF' });
 
 // ─── Tarifs 2026-2027 ──────────────────────────────────────────────────────────
 
@@ -487,7 +486,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   const [errorPre,          setErrorPre]          = useState<string | null>(null);
   const [preStatusFilter,   setPreStatusFilter]   = useState<PreEnrollmentStatus | 'ALL'>('PENDING');
   const [approveTarget,     setApproveTarget]     = useState<PreEnrollmentResponse | null>(null);
-  const [approveForm,       setApproveForm]       = useState({ studentEmail: '', studentPassword: '', parentTemporaryPassword: '' });
+  const [approveForm,       setApproveForm]       = useState({ studentEmail: '' });
   const [rejectTarget,      setRejectTarget]      = useState<PreEnrollmentResponse | null>(null);
   const [rejectReason,      setRejectReason]      = useState('');
   const [pendingPreAction,  setPendingPreAction]  = useState(false);
@@ -505,6 +504,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   const [importFile,        setImportFile]        = useState<File | null>(null);
   const [importLoading,     setImportLoading]     = useState(false);
   const [importResult,      setImportResult]      = useState<BulkImportResponse | null>(null);
+  const [revealedCredentials, setRevealedCredentials] = useState<AccountCredentials[] | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   // ── State classes ──────────────────────────────────────────────────────────
@@ -559,7 +559,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
    */
   const [familyForm, setFamilyForm] = useState({
     fatherFirstName: '', fatherLastName: '', fatherPhone: '', fatherEmail: '', fatherProfession: '', fatherAddress: '',
-    fatherTemporaryPassword: '',
     guardianRelationship: 'Pere',
     motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
     familyEmail: '',
@@ -890,7 +889,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     setEmployeeForm(emptyEmployee());
     setFamilyForm({
       fatherFirstName: '', fatherLastName: '', fatherPhone: '', fatherEmail: '', fatherProfession: '', fatherAddress: '',
-      fatherTemporaryPassword: '',
       guardianRelationship: 'Pere',
       motherFirstName: '', motherLastName: '', motherPhone: '', motherEmail: '', motherProfession: '',
       familyEmail: '',
@@ -943,7 +941,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     if (activeTab === 'eleves') {
       setStudentForm({
         email:              row.email ?? '',
-        password:           '',
         firstName:          row.firstName,
         lastName:           row.lastName,
         phone:              row.phone ?? '',
@@ -958,7 +955,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     } else if (activeTab === 'enseignants') {
       setTeacherForm({
         email:          row.email ?? '',
-        password:       '',
         firstName:      row.firstName,
         lastName:       row.lastName,
         phone:          row.phone ?? '',
@@ -969,7 +965,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     } else if (activeTab === 'familles') {
       setParentForm({
         email:     row.email,
-        password:  '',
         firstName: row.firstName,
         lastName:  row.lastName,
         phone:     row.phone ?? '',
@@ -978,7 +973,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     } else {
       setEmployeeForm({
         email:     row.email,
-        password:  '',
         firstName: row.firstName,
         lastName:  row.lastName,
         phone:     row.phone ?? '',
@@ -1013,17 +1007,14 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
           if (!familyForm.fatherAddress.trim()) {
             throw new Error('Adresse de la famille obligatoire.');
           }
-          if (!familyForm.fatherTemporaryPassword.trim() || familyForm.fatherTemporaryPassword.length < 8) {
-            throw new Error('Le mot de passe du Parent Référent est obligatoire (min. 8 car.).');
-          }
           if (!studentForm.birthDate) {
             throw new Error('Date de naissance de l\'élève obligatoire.');
           }
           if (!studentForm.gender) {
             throw new Error('Genre de l\'élève obligatoire.');
           }
-          if (!studentForm.email.trim() || (studentForm.password ?? '').length < 8) {
-            throw new Error("Email + mot de passe (≥ 8 car.) du compte élève requis.");
+          if (!studentForm.email.trim()) {
+            throw new Error("Email du compte élève requis.");
           }
           const registrationResponse = await userService.registerFamilyAndStudent(token, {
             studentFirstName: studentForm.firstName,
@@ -1033,7 +1024,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             studentGender: (studentForm.gender as 'M' | 'F' | '') || '',
             targetClassId: studentForm.classId,
             studentEmail: studentForm.email,
-            studentPassword: studentForm.password,
             registrationNumber: studentForm.registrationNumber,
             studentAvatarUrl: studentForm.avatarUrl || undefined,
             fatherFirstName: familyForm.fatherFirstName,
@@ -1042,7 +1032,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
             fatherPhone: familyForm.fatherPhone,
             fatherProfession: familyForm.fatherProfession,
             fatherAddress: familyForm.fatherAddress,
-            fatherTemporaryPassword: familyForm.fatherTemporaryPassword,
             guardianRelationship: familyForm.guardianRelationship,
             motherFirstName: familyForm.motherFirstName,
             motherLastName: familyForm.motherLastName,
@@ -1076,8 +1065,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
               if (!child.gender) {
                 throw new Error(`Genre obligatoire pour l'enfant ${childIndex}.`);
               }
-              if (!child.email.trim() || (child.password ?? '').length < 8) {
-                throw new Error(`Email + mot de passe (≥ 8 car.) requis pour l'enfant ${childIndex}.`);
+              if (!child.email.trim()) {
+                throw new Error(`Email requis pour l'enfant ${childIndex}.`);
               }
 
               await userService.createStudent(token, {
@@ -1154,6 +1143,39 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     }
   };
 
+  // ── Renvoi des identifiants temporaires ───────────────────────────────────
+  const handleResendCredentials = async (account: { userId: string; fullName: string; login: string }) => {
+    setOpenMenuRowId(null);
+    const token = getToken();
+    if (!token) { showNotif('error', 'Token manquant.'); return; }
+    try {
+      const resent = await userService.resendCredentials(token, account.userId);
+      if (resent.temporaryPassword) {
+        setRevealedCredentials([{ fullName: account.fullName, login: account.login, temporaryPassword: resent.temporaryPassword }]);
+      } else {
+        showNotif('success', `Nouveaux identifiants envoyés à ${resent.recipients.join(', ')}.`);
+      }
+    } catch (err: any) {
+      showNotif('error', err?.message ?? "Le renvoi des identifiants a échoué.");
+    }
+  };
+
+  const renderResendButton = (account: { userId: string; fullName: string; login: string }) => (
+    <button
+      key={account.userId}
+      onClick={e => { e.stopPropagation(); void handleResendCredentials(account); }}
+      className="group flex items-center gap-3 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-vert-50 dark:hover:bg-vert-900/40 hover:text-vert-600 rounded-xl transition-all w-full"
+    >
+      <div className="w-8 h-8 rounded-lg bg-vert-50 dark:bg-vert-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+        <KeyRound size={14} />
+      </div>
+      <div className="flex flex-col text-left">
+        <span>Renvoyer les identifiants</span>
+        <span className="text-[9px] font-normal text-gray-400">{account.fullName}</span>
+      </div>
+    </button>
+  );
+
   // ── Menu contextuel ⋮ ──────────────────────────────────────────────────────
   const renderActions = (_: any, row: any) => {
     const rowId = row.id ?? row.email;
@@ -1205,6 +1227,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                     <span className="text-[9px] font-normal text-gray-400">Éditer les informations</span>
                   </div>
                 </button>
+
+                {row.mustChangePassword && renderResendButton({
+                  userId: row.userId ?? row.id,
+                  fullName: `${row.firstName} ${row.lastName}`,
+                  login: row.registrationNumber ?? row.email,
+                })}
 
                 <div className="h-px bg-gray-100 dark:bg-white/5 my-1 mx-2" />
 
@@ -1359,6 +1387,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                       <span className="text-[9px] font-normal text-vert-500">Imprimer la carte</span>
                     </div>
                   </button>
+                  {row.parents
+                    .filter((parent: ParentResponse) => parent.mustChangePassword)
+                    .map((parent: ParentResponse) => renderResendButton({
+                      userId: parent.id,
+                      fullName: `${parent.firstName} ${parent.lastName}`,
+                      login: parent.email,
+                    }))}
                   <button
                     onClick={e => {
                       e.stopPropagation();
@@ -1449,8 +1484,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                   setApproveTarget(row);
                   setApproveForm({
                     studentEmail: `${row.studentFirstName}.${row.studentLastName}`.toLowerCase().replace(/\s+/g, '') + '@eief.edu.gn',
-                    studentPassword: '',
-                    parentTemporaryPassword: '',
                   });
                 }}
                 className="p-2 hover:bg-vert-50 dark:hover:bg-vert-900/30 rounded-xl text-gray-400 hover:text-vert-600 transition-colors"
@@ -1596,8 +1629,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
   /* -------- Approuver / rejeter une pré-inscription -------- */
   const handleApprove = async () => {
     if (!approveTarget) return;
-    if (!approveForm.studentEmail.trim() || approveForm.studentPassword.length < 8) {
-      showNotif('error', 'Email élève + mot de passe (min. 8 caractères) requis.');
+    if (!approveForm.studentEmail.trim()) {
+      showNotif('error', "Email de l'élève requis.");
       return;
     }
     const token = getToken();
@@ -1606,13 +1639,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
     try {
       await userService.approvePreEnrollment(token, approveTarget.id, {
         studentEmail: approveForm.studentEmail.trim(),
-        studentPassword: approveForm.studentPassword,
-        parentTemporaryPassword: approveForm.parentTemporaryPassword?.trim() || undefined,
       });
       setApproveTarget(null);
       await fetchPreEnrollments();
       await refetchUT();
-      showNotif('success', 'Pré-inscription approuvée. Comptes parent et élève créés.');
+      showNotif('success', `Pré-inscription approuvée. Identifiants envoyés à ${approveTarget.guardianEmail}.`);
     } catch (err: any) {
       showNotif('error', err?.message ?? "L'approbation a échoué.");
     } finally { setPendingPreAction(false); }
@@ -2115,7 +2146,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                                   setParentForm({
                                     ...p,
                                     roleName: 'PARENT',
-                                    password: ''
                                   } as ParentRequest);
                                   setIsAddModalOpen(true);
                                 }                              }}
@@ -2310,10 +2340,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                         value={familyForm.fatherProfession}
                         onChange={e => setFamilyForm(f => ({ ...f, fatherProfession: e.target.value }))}
                       />
-                      <Input label="Mot de passe du Parent" type="password" placeholder="Min. 8 caractères"
-                        value={familyForm.fatherTemporaryPassword}
-                        onChange={e => setFamilyForm(f => ({ ...f, fatherTemporaryPassword: e.target.value }))}
-                      />
                       <Input label="Adresse (Quartier/Ville)" placeholder="ex: Dixinn, Conakry"
                         value={familyForm.fatherAddress}
                         onChange={e => setFamilyForm(f => ({ ...f, fatherAddress: e.target.value }))}
@@ -2397,10 +2423,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                       <Input label="Email de l'élève" placeholder="eleve@eief.edu.gn" type="email"
                         value={studentForm.email}
                         onChange={e => setStudentForm(f => ({ ...f, email: e.target.value }))}
-                      />
-                      <Input label="Mot de passe" placeholder="Min. 8 caractères" type="password"
-                        value={studentForm.password}
-                        onChange={e => setStudentForm(f => ({ ...f, password: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -2599,10 +2621,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                           value={child.email}
                           onChange={e => updateChildForm(idx, { email: e.target.value })}
                         />
-                        <Input label="Mot de passe" placeholder="Min. 8 caractères" type="password"
-                          value={child.password}
-                          onChange={e => updateChildForm(idx, { password: e.target.value })}
-                        />
                       </div>
                     </div>
                     {/* Infos scolaires */}
@@ -2715,10 +2733,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                     value={studentForm.email}
                     onChange={e => setStudentForm(f => ({ ...f, email: e.target.value }))}
                   />
-                  <Input label="Nouveau mot de passe (optionnel)" placeholder="Min. 8 caractères" type="password"
-                    value={studentForm.password}
-                    onChange={e => setStudentForm(f => ({ ...f, password: e.target.value }))}
-                  />
                 </div>
               </div>
               {/* Infos scolaires */}
@@ -2820,15 +2834,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                       if (effectiveModalTab === 'enseignants') setTeacherForm(f => ({ ...f, email: v }));
                       else if (effectiveModalTab === 'familles') setParentForm(f => ({ ...f, email: v }));
                       else setEmployeeForm(f => ({ ...f, email: v }));
-                    }}
-                  />
-                  <Input label={editingId ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'} placeholder="Min. 8 caractères" type="password"
-                    value={effectiveModalTab === 'enseignants' ? teacherForm.password : effectiveModalTab === 'familles' ? parentForm.password : employeeForm.password}
-                    onChange={e => {
-                      const v = e.target.value;
-                      if (effectiveModalTab === 'enseignants') setTeacherForm(f => ({ ...f, password: v }));
-                      else if (effectiveModalTab === 'familles') setParentForm(f => ({ ...f, password: v }));
-                      else setEmployeeForm(f => ({ ...f, password: v }));
                     }}
                   />
                 </div>
@@ -3138,8 +3143,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                       setApproveTarget(r);
                       setApproveForm({
                         studentEmail: `${r.studentFirstName}.${r.studentLastName}`.toLowerCase().replace(/\s+/g, '') + '@eief.edu.gn',
-                        studentPassword: '',
-                        parentTemporaryPassword: '',
                       });
                     }}
                     className="flex-1 h-11 bg-vert-600 hover:bg-vert-700 border-none flex items-center justify-center gap-2"
@@ -3186,20 +3189,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
               onChange={e => setApproveForm(f => ({ ...f, studentEmail: e.target.value }))}
               placeholder="prenom.nom@eief.edu.gn"
             />
-            <Input
-              label="Mot de passe initial de l'élève (min. 8 caractères)"
-              type="password"
-              value={approveForm.studentPassword}
-              onChange={e => setApproveForm(f => ({ ...f, studentPassword: e.target.value }))}
-              placeholder="••••••••"
-            />
-            <Input
-              label="Mot de passe temporaire du parent (optionnel — sinon généré)"
-              type="password"
-              value={approveForm.parentTemporaryPassword ?? ''}
-              onChange={e => setApproveForm(f => ({ ...f, parentTemporaryPassword: e.target.value }))}
-              placeholder="Laisser vide pour génération automatique"
-            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Des mots de passe temporaires sont générés et envoyés à {approveTarget.guardianEmail}, avec le matricule de l'élève.
+            </p>
             <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
               <Button variant="outline" onClick={() => setApproveTarget(null)} disabled={pendingPreAction} className="flex-1 h-12">Annuler</Button>
               <Button
@@ -3409,6 +3401,16 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
                   <span className="text-gray-400 ml-1">/ {importResult.totalRows} lignes traitées</span>
                 </div>
               </div>
+              {importResult.undeliveredCredentials.length > 0 && (
+                <div className="px-4 py-3 border-t border-gray-100 dark:border-white/5">
+                  <button
+                    onClick={() => setRevealedCredentials(importResult.undeliveredCredentials)}
+                    className="text-[12px] font-semibold text-or-700 dark:text-or-300 underline"
+                  >
+                    {importResult.undeliveredCredentials.length} identifiant(s) sans parent joignable : les afficher
+                  </button>
+                </div>
+              )}
               {importResult.errors.length > 0 && (
                 <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 dark:divide-white/5">
                   {importResult.errors.map((err, i) => (
@@ -3448,6 +3450,30 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ hideEmployeesTab = false, hideT
               </Button>
             )}
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!revealedCredentials}
+        onClose={() => setRevealedCredentials(null)}
+        title="Identifiants temporaires"
+        size="md"
+      >
+        <div className="space-y-4 text-left">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Aucun parent ne peut les recevoir par email. Notez-les maintenant : ils ne seront plus affichés.
+            Le mot de passe devra être changé à la première connexion.
+          </p>
+          <div className="divide-y divide-gray-100 dark:divide-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+            {revealedCredentials?.map(account => (
+              <div key={account.login} className="px-4 py-3">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{account.fullName}</p>
+                <p className="font-mono text-xs text-gray-600 dark:text-gray-300">Identifiant : {account.login}</p>
+                <p className="font-mono text-xs text-gray-600 dark:text-gray-300">Mot de passe : {account.temporaryPassword}</p>
+              </div>
+            ))}
+          </div>
+          <Button onClick={() => setRevealedCredentials(null)} className="w-full">J'ai noté ces identifiants</Button>
         </div>
       </Modal>
 

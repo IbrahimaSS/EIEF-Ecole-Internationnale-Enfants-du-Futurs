@@ -20,12 +20,12 @@ export interface SchoolOverviewResponse {
   userCount: number;
   studentCount: number;
   teacherCount: number;
+  pendingAdminCount: number;
   createdAt: string;
 }
 
 export interface AdminAccountRequest {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
 }
@@ -34,6 +34,11 @@ export interface RegisterSchoolRequest {
   name: string;
   subdomain: string;
   admin: AdminAccountRequest;
+}
+
+export interface ResentCredentialsResponse {
+  recipients: string[];
+  temporaryPassword?: string;
 }
 
 /** Même motif que TenantIdentifiers.SUBDOMAIN_PATTERN côté backend. */
@@ -50,6 +55,12 @@ export const platformService = {
     apiRequest<SchoolResponse>('/platform/schools', {
       method: 'POST',
       body: JSON.stringify(payload),
+      token,
+    }),
+
+  resendAdminCredentials: (token: string, schoolId: string): Promise<ResentCredentialsResponse> =>
+    apiRequest<ResentCredentialsResponse>(`/platform/schools/${schoolId}/admin-credentials`, {
+      method: 'POST',
       token,
     }),
 };

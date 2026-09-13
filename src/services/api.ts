@@ -86,6 +86,9 @@ const parseJsonSafely = async <T>(response: Response): Promise<T | null> => {
 };
 
 let onUnauthorized: (() => void) | null = null;
+let onPasswordChangeRequired: (() => void) | null = null;
+
+export const PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED";
 
 /**
  * Branche la reaction a un jeton refuse. Passe par un rappel plutot qu'un import
@@ -93,6 +96,10 @@ let onUnauthorized: (() => void) | null = null;
  */
 export const setUnauthorizedHandler = (handler: (() => void) | null): void => {
   onUnauthorized = handler;
+};
+
+export const setPasswordChangeRequiredHandler = (handler: (() => void) | null): void => {
+  onPasswordChangeRequired = handler;
 };
 
 export const apiRequest = async <T>(
@@ -134,6 +141,9 @@ export const apiRequest = async <T>(
 
   if (!response.ok) {
     const errorPayload = payload as ApiErrorResponse | null;
+    if (response.status === 403 && errorPayload?.error === PASSWORD_CHANGE_REQUIRED) {
+      onPasswordChangeRequired?.();
+    }
     throw new ApiError(
       errorPayload?.message || "Une erreur est survenue lors de la requete.",
       response.status,

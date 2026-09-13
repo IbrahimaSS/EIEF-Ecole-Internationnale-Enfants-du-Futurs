@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   platformService,
   RegisterSchoolRequest,
+  ResentCredentialsResponse,
   SchoolOverviewResponse,
   SchoolResponse,
 } from '../services/platformService';
@@ -23,6 +24,7 @@ const errorMessage = (error: unknown): string =>
 
 export const useSchools = () => {
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
+  const [pendingAdminSchoolIds, setPendingAdminSchoolIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +38,14 @@ export const useSchools = () => {
     setLoading(true);
     setError(null);
     try {
-      setSchools(await platformService.getAllSchools(token));
+      const [allSchools, overview] = await Promise.all([
+        platformService.getAllSchools(token),
+        platformService.getOverview(token),
+      ]);
+      setSchools(allSchools);
+      setPendingAdminSchoolIds(
+        new Set(overview.filter((school) => school.pendingAdminCount > 0).map((school) => school.id)),
+      );
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -57,11 +66,30 @@ export const useSchools = () => {
     [fetchAll],
   );
 
+  const resendAdminCredentials = useCallback(
+    async (schoolId: string): Promise<ResentCredentialsResponse> => {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Token manquant. Veuillez vous reconnecter.');
+      }
+      return platformService.resendAdminCredentials(token, schoolId);
+    },
+    [],
+  );
+
   useEffect(() => {
     void fetchAll();
   }, [fetchAll]);
 
-  return { schools, loading, error, refetch: fetchAll, registerSchool };
+  return {
+    schools,
+    pendingAdminSchoolIds,
+    loading,
+    error,
+    refetch: fetchAll,
+    registerSchool,
+    resendAdminCredentials,
+  };
 };
 
 export const useSchoolsOverview = () => {

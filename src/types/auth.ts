@@ -35,6 +35,12 @@ export interface AuthResponse {
   token: string;
   email: string;
   role: string;
+  mustChangePassword: boolean;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export interface ApiFieldError {
@@ -67,6 +73,7 @@ export interface UserResponse {
   roleName: string;
   active: boolean;
   avatarUrl?: string | null;
+  mustChangePassword: boolean;
 }
 
 export interface User {
@@ -83,6 +90,7 @@ export interface User {
   classe?: string; // Pour les élèves
   matiere?: string; // Pour les enseignants
   enfants?: string[]; // Pour les parents (IDs des enfants)
+  mustChangePassword: boolean;
 }
 
 export interface AuthState {
@@ -100,6 +108,8 @@ export interface AuthStore extends AuthState {
   initializeAuth: () => Promise<void>;
   setUser: (user: User | null) => void;
   clearError: () => void;
+  changePassword: (request: ChangePasswordRequest) => Promise<void>;
+  requirePasswordChange: () => void;
 }
 
 const backendRoleMap: Record<string, UserRole> = {
@@ -135,4 +145,5 @@ export const mapUserResponseToUser = (response: UserResponse): User => ({
   telephone: response.phone ?? undefined,
   avatarUrl: response.avatarUrl ?? undefined,
   avatar: response.avatarUrl ?? undefined,
+  mustChangePassword: response.mustChangePassword,
 });

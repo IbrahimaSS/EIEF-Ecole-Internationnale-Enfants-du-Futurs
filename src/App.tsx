@@ -33,6 +33,7 @@ import CoordinatorPermutation from './pages/coordinator/Permutation';
 import CoordinatorDevoirs from './pages/coordinator/Devoirs';
 
 import Login from './pages/auth/Login';
+import ChangePassword from './pages/auth/ChangePassword';
 import EnseignantDashboard from './pages/enseignant/TeacherDashboard';
 import EnseignantClasses from './pages/enseignant/TeacherClasses';
 import EnseignantCommunication from './pages/enseignant/Communication';
@@ -67,7 +68,7 @@ import QrTeacherPointage from './pages/public/QrTeacherPointage';
 import FamilyFinanceScan from './pages/public/FamilyFinanceScan';
 
 // Composants partagés
-import ProtectedRoute from './components/shared/ProtectedRoute';
+import ProtectedRoute, { CHANGE_PASSWORD_PATH } from './components/shared/ProtectedRoute';
 
 // Layouts
 import Layout from './components/layout/Layout';
@@ -148,6 +149,7 @@ const SchoolRoutes: React.FC = () => (
   <Routes>
     {/* Route publique - Login */}
     <Route path="/login" element={<Login />} />
+    <Route path={CHANGE_PASSWORD_PATH} element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
     <Route path="/carte-eleve/:token" element={<StudentCardScan />} />
     <Route path="/pointage/:token" element={<QrPointage />} />
     <Route path="/pointage-prof/:token" element={<QrTeacherPointage />} />
@@ -303,6 +305,7 @@ const SchoolRoutes: React.FC = () => (
 const PlatformRoutes: React.FC = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
+    <Route path={CHANGE_PASSWORD_PATH} element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
     <Route path="/superadmin" element={
       <ProtectedRoute allowedRoles={['superadmin']}>
         <LayoutRoutes role="superadmin" />

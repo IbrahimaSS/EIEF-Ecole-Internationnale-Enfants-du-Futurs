@@ -1,5 +1,6 @@
 import {
   AuthRequest,
+  ChangePasswordRequest,
   AuthResponse,
   User,
   UserResponse,
@@ -34,4 +35,16 @@ export const fetchAuthenticatedUser = async (token: string): Promise<User> => {
     ...mappedUser,
     role: mapBackendRoleToUserRole(userResponse.roleName),
   };
+};
+
+export const changePasswordRequest = async (
+  token: string,
+  payload: ChangePasswordRequest,
+): Promise<User> => {
+  const userResponse = await apiRequest<UserResponse>("/users/me/password", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+    token,
+  });
+  return mapUserResponseToUser(userResponse);
 };

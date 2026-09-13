@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, Building2, Globe, Plus, RefreshCw } from 'lucide-react';
+import { AlertCircle, Building2, Globe, Mail, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge, Button, Card, Input, Modal, Table } from '../../components/ui';
 import { useSchools } from '../../hooks/useSchools';
@@ -23,11 +23,12 @@ const EMPTY_FORM = {
   adminFirstName: '',
   adminLastName: '',
   adminEmail: '',
-  adminPassword: '',
 };
 
 const SuperAdminSchools: React.FC = () => {
-  const { schools, loading, error, refetch, registerSchool } = useSchools();
+  const { schools, pendingAdminSchoolIds, loading, error, refetch, registerSchool, resendAdminCredentials } =
+    useSchools();
+  const [resendingSchoolId, setResendingSchoolId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -48,7 +49,6 @@ const SuperAdminSchools: React.FC = () => {
       return 'Le sous-domaine doit faire 3 à 30 caractères, en minuscules, et commencer par une lettre.';
     }
     if (!form.adminEmail.trim()) return "L'e-mail du directeur est obligatoire.";
-    if (form.adminPassword.length < 8) return 'Le mot de passe doit faire au moins 8 caractères.';
     if (!form.adminFirstName.trim() || !form.adminLastName.trim()) {
       return 'Le prénom et le nom du directeur sont obligatoires.';
     }
@@ -71,17 +71,30 @@ const SuperAdminSchools: React.FC = () => {
         subdomain: form.subdomain.trim(),
         admin: {
           email: form.adminEmail.trim(),
-          password: form.adminPassword,
           firstName: form.adminFirstName.trim(),
           lastName: form.adminLastName.trim(),
         },
       });
-      toast.success(`École « ${created.name} » enregistrée sur ${created.subdomain}.`);
+      toast.success(`École « ${created.name} » enregistrée sur ${created.subdomain}.`, {
+        description: `Les identifiants du directeur ont été envoyés à ${form.adminEmail.trim()}.`,
+      });
       closeModal();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "L'enregistrement a échoué.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResend = async (school: SchoolResponse) => {
+    setResendingSchoolId(school.id);
+    try {
+      const resent = await resendAdminCredentials(school.id);
+      toast.success(`Nouveaux identifiants envoyés à ${resent.recipients.join(', ')}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Le renvoi des identifiants a échoué.");
+    } finally {
+      setResendingSchoolId(null);
     }
   };
 
@@ -127,6 +140,29 @@ const SuperAdminSchools: React.FC = () => {
           )}
         </div>
       ),
+    },
+    {
+      key: 'id' as keyof SchoolResponse,
+      label: 'Directeur',
+      render: (_value: string, row: SchoolResponse) => {
+        if (row.status !== 'ACTIVE') {
+          return <span className="text-xs text-gray-400">—</span>;
+        }
+        return pendingAdminSchoolIds.has(row.id) ? (
+          <Button
+            variant="outline"
+            size="sm"
+            loading={resendingSchoolId === row.id}
+            disabled={resendingSchoolId !== null}
+            onClick={() => void handleResend(row)}
+          >
+            <Mail className="h-4 w-4" />
+            Renvoyer les identifiants
+          </Button>
+        ) : (
+          <span className="text-xs text-gray-500">Compte activé</span>
+        );
+      },
     },
     {
       key: 'createdAt' as keyof SchoolResponse,
@@ -208,15 +244,9 @@ const SuperAdminSchools: React.FC = () => {
               <Input
                 label="E-mail"
                 type="email"
+                helper="Un mot de passe temporaire y sera envoyé."
                 value={form.adminEmail}
                 onChange={(e) => setField('adminEmail', e.target.value)}
-              />
-              <Input
-                label="Mot de passe"
-                type="password"
-                helper="8 caractères minimum."
-                value={form.adminPassword}
-                onChange={(e) => setField('adminPassword', e.target.value)}
               />
             </div>
           </div>
